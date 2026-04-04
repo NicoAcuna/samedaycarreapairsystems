@@ -330,7 +330,7 @@ export default function JobTypeFlowPage({ params }: { params: Promise<{ type: st
             </button>
             <button
               onClick={goNext}
-              disabled={!allSelected()}
+              disabled={false}
               className="text-sm px-5 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {activeIdx === sections.length - 1 ? 'Go to conclusion →' : 'Next section →'}
