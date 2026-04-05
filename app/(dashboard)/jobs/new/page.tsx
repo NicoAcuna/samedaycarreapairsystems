@@ -2,21 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '../../../../lib/supabase/client'
 
-// Mock data — después vendrá de Supabase
-const CLIENTS = [
-  { id: '1', name: 'Jesus Nunez',   phone: '+61 413 852 877', email: 'jesus@email.com' },
-  { id: '2', name: 'Octa Juarez',   phone: '+549 351 5590680', email: 'octa@email.com' },
-  { id: '3', name: 'Luis Pérez',    phone: '+61 400 555 666', email: 'luis@email.com' },
-  { id: '4', name: 'Carlos Méndez', phone: '+61 400 111 222', email: 'carlos@email.com' },
-]
-
-const VEHICLES: Record<string, { id: string; make: string; model: string; year: number; plate: string; odometer: string }[]> = {
-  '1': [{ id: 'v1', make: 'Toyota', model: 'RAV4',  year: 2015, plate: 'ABC-123', odometer: '259,865 km' }],
-  '2': [{ id: 'v2', make: 'Honda',  model: 'CRV',   year: 2008, plate: 'BFW34T',  odometer: '268,172 km' }],
-  '3': [{ id: 'v3', make: 'Ford',   model: 'Ranger', year: 2020, plate: 'QWE-789', odometer: '88,450 km'  }],
-  '4': [{ id: 'v4', make: 'Toyota', model: 'Camry',  year: 2019, plate: 'XYZ-321', odometer: '74,200 km'  }],
-}
+type Client = { id: string; first_name: string; last_name: string; phone: string; email: string }
+type Vehicle = { id: string; make: string; model: string; year: string; plate: string; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
 
 const JOB_TYPES = [
   { key: 'pre_purchase', label: 'Pre-Purchase', desc: 'Full vehicle inspection' },
@@ -25,47 +14,77 @@ const JOB_TYPES = [
   { key: 'repair',       label: 'Repair',       desc: 'Fix a known issue' },
 ]
 
+const SERVICE_SUBTYPES = [
+  { key: 'Minor Service',     desc: 'Oil + oil filter' },
+  { key: 'Major Service',     desc: 'Oil + filters + extras' },
+  { key: 'Brake fluid flush', desc: 'Full system flush' },
+  { key: 'Coolant flush',     desc: 'Coolant replacement' },
+  { key: 'Spark plugs',       desc: 'Plugs replacement' },
+  { key: 'Custom',            desc: 'Define manually' },
+]
+
+function fullName(c: Client) {
+  return [c.first_name, c.last_name].filter(Boolean).join(' ')
+}
+
 export default function NewJobPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedType = searchParams.get('type') || ''
 
-  const [step, setStep] = useState(1) // 1=client, 2=vehicle, 3=job type
+  const [step, setStep] = useState(1)
 
-  // Client search
+  // Clients
+  const [allClients, setAllClients] = useState<Client[]>([])
   const [clientQuery, setClientQuery] = useState('')
-  const [selectedClient, setSelectedClient] = useState<typeof CLIENTS[0] | null>(null)
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [showClientDropdown, setShowClientDropdown] = useState(false)
-  const [showNewClient, setShowNewClient] = useState(false)
   const clientRef = useRef<HTMLDivElement>(null)
 
-  // Vehicle
-  const [selectedVehicle, setSelectedVehicle] = useState<{ id: string; make: string; model: string; year: number; plate: string; odometer: string } | null>(null)
-  const [showNewVehicle, setShowNewVehicle] = useState(false)
+  // Vehicles
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [vehicleQuery, setVehicleQuery] = useState('')
+  const [loadingVehicles, setLoadingVehicles] = useState(false)
 
   // Job type
   const [selectedType, setSelectedType] = useState(preselectedType)
+  const [selectedServiceSubtype, setSelectedServiceSubtype] = useState('')
 
-  // Filter clients
-  const filteredClients = clientQuery.length >= 3
-    ? CLIENTS.filter(c =>
-        c.name.toLowerCase().includes(clientQuery.toLowerCase()) ||
-        c.phone.includes(clientQuery) ||
-        c.email.toLowerCase().includes(clientQuery.toLowerCase())
-      )
-    : []
+  // Modals
+  const [showNewClient, setShowNewClient] = useState(false)
+  const [showNewVehicle, setShowNewVehicle] = useState(false)
 
-  const clientVehicles = selectedClient ? (VEHICLES[selectedClient.id] || []) : []
-  const filteredVehicles = vehicleQuery.length >= 1
-    ? clientVehicles.filter(v =>
-        v.plate.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
-        v.make.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
-        v.model.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
-        String(v.year).includes(vehicleQuery) ||
-        `${v.make} ${v.model}`.toLowerCase().includes(vehicleQuery.toLowerCase())
-      )
-    : clientVehicles
+  // New client form
+  const [newClientForm, setNewClientForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '' })
+  const [savingClient, setSavingClient] = useState(false)
+  const [clientError, setClientError] = useState('')
+
+  // New vehicle form
+  const [newVehicleForm, setNewVehicleForm] = useState({ make: '', model: '', year: '', plate: '', odometer_km: '', colour: '', vin: '' })
+  const [savingVehicle, setSavingVehicle] = useState(false)
+  const [vehicleError, setVehicleError] = useState('')
+
+  // Load all clients on mount
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('clients').select('id, first_name, last_name, phone, email').order('first_name')
+      .then(({ data }) => setAllClients((data as Client[]) || []))
+  }, [])
+
+  // Load ALL vehicles when client is selected (not just their own)
+  useEffect(() => {
+    if (!selectedClient) { setVehicles([]); return }
+    setLoadingVehicles(true)
+    const supabase = createClient()
+    supabase.from('vehicles')
+      .select('id, make, model, year, plate, odometer_km, client_id, clients(first_name, last_name)')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setVehicles((data as unknown as Vehicle[]) || [])
+        setLoadingVehicles(false)
+      })
+  }, [selectedClient])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -78,18 +97,108 @@ export default function NewJobPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  function selectClient(client: typeof CLIENTS[0]) {
+  const filteredClients = clientQuery.length >= 2
+    ? allClients.filter(c =>
+        fullName(c).toLowerCase().includes(clientQuery.toLowerCase()) ||
+        c.phone?.includes(clientQuery) ||
+        c.email?.toLowerCase().includes(clientQuery.toLowerCase())
+      )
+    : []
+
+  const filteredVehicles = vehicleQuery.length >= 1
+    ? vehicles.filter(v =>
+        v.plate?.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
+        v.make?.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
+        v.model?.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
+        String(v.year || '').includes(vehicleQuery) ||
+        `${v.make} ${v.model}`.toLowerCase().includes(vehicleQuery.toLowerCase())
+      )
+    : vehicles
+
+  function selectClient(client: Client) {
     setSelectedClient(client)
-    setClientQuery(client.name)
+    setClientQuery(fullName(client))
     setShowClientDropdown(false)
     setSelectedVehicle(null)
+    setVehicleQuery('')
     setStep(2)
+  }
+
+  async function selectVehicle(vehicle: Vehicle) {
+    setSelectedVehicle(vehicle)
+    setStep(3)
+    // If vehicle isn't linked to this client yet, associate it now
+    if (selectedClient && vehicle.client_id !== selectedClient.id) {
+      const supabase = createClient()
+      await supabase.from('vehicles').update({ client_id: selectedClient.id }).eq('id', vehicle.id)
+      // Update local state to reflect new owner
+      setVehicles(prev => prev.map(v => v.id === vehicle.id ? { ...v, client_id: selectedClient.id } : v))
+    }
+  }
+
+  async function handleSaveNewClient() {
+    if (!newClientForm.first_name.trim()) { setClientError('First name is required'); return }
+    setSavingClient(true); setClientError('')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+    const { data, error: err } = await supabase.from('clients').insert([{
+      user_id: user!.id,
+      company_id: userData?.company_id,
+      first_name: newClientForm.first_name.trim(),
+      last_name: newClientForm.last_name.trim(),
+      phone: newClientForm.phone.trim(),
+      email: newClientForm.email.trim(),
+      address: newClientForm.address.trim(),
+    }]).select('id, first_name, last_name, phone, email').single()
+    setSavingClient(false)
+    if (err) { setClientError(err.message); return }
+    const newClient = data as Client
+    setAllClients(prev => [newClient, ...prev])
+    selectClient(newClient)
+    setShowNewClient(false)
+    setNewClientForm({ first_name: '', last_name: '', phone: '', email: '', address: '' })
+  }
+
+  async function handleSaveNewVehicle() {
+    if (!newVehicleForm.make.trim() || !newVehicleForm.model.trim()) { setVehicleError('Make and model are required'); return }
+    if (!selectedClient) return
+    setSavingVehicle(true); setVehicleError('')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+    const { data, error: err } = await supabase.from('vehicles').insert([{
+      user_id: user!.id,
+      company_id: userData?.company_id,
+      client_id: selectedClient.id,
+      make: newVehicleForm.make.trim(),
+      model: newVehicleForm.model.trim(),
+      year: newVehicleForm.year.trim(),
+      plate: newVehicleForm.plate.trim().toUpperCase(),
+      odometer_km: newVehicleForm.odometer_km ? Number(newVehicleForm.odometer_km) : null,
+      colour: newVehicleForm.colour.trim(),
+      vin: newVehicleForm.vin.trim(),
+    }]).select('id, make, model, year, plate, odometer_km').single()
+    setSavingVehicle(false)
+    if (err) { setVehicleError(err.message); return }
+    const newVehicle = data as Vehicle
+    setVehicles(prev => [newVehicle, ...prev])
+    setSelectedVehicle(newVehicle)
+    setShowNewVehicle(false)
+    setNewVehicleForm({ make: '', model: '', year: '', plate: '', odometer_km: '', colour: '', vin: '' })
+    setStep(3)
   }
 
   function handleStartJob() {
     if (!selectedClient || !selectedVehicle || !selectedType) return
-    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}`)
+    const subtype = selectedType === 'service' && selectedServiceSubtype
+      ? `&subtype=${encodeURIComponent(selectedServiceSubtype)}`
+      : ''
+    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}${subtype}`)
   }
+
+  function setNcf(field: string, val: string) { setNewClientForm(prev => ({ ...prev, [field]: val })) }
+  function setNvf(field: string, val: string) { setNewVehicleForm(prev => ({ ...prev, [field]: val })) }
 
   return (
     <div className="p-6 max-w-xl">
@@ -104,7 +213,7 @@ export default function NewJobPage() {
       <div className="flex items-center gap-2 mb-6">
         {['Client', 'Vehicle', 'Job type'].map((label, i) => (
           <div key={label} className="flex items-center gap-2">
-            <div className={`flex items-center gap-1.5`}>
+            <div className="flex items-center gap-1.5">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
                 step > i + 1 ? 'bg-green-500 text-white' :
                 step === i + 1 ? 'bg-neutral-900 text-white' :
@@ -126,7 +235,7 @@ export default function NewJobPage() {
         {selectedClient ? (
           <div className="flex items-center justify-between bg-neutral-50 border border-neutral-200 rounded-lg px-4 py-3">
             <div>
-              <div className="text-sm font-medium text-neutral-900">{selectedClient.name}</div>
+              <div className="text-sm font-medium text-neutral-900">{fullName(selectedClient)}</div>
               <div className="text-xs text-neutral-500">{selectedClient.phone}</div>
             </div>
             <button
@@ -142,14 +251,14 @@ export default function NewJobPage() {
               type="text"
               value={clientQuery}
               onChange={(e) => { setClientQuery(e.target.value); setShowClientDropdown(true) }}
-              onFocus={() => clientQuery.length >= 3 && setShowClientDropdown(true)}
+              onFocus={() => setShowClientDropdown(true)}
               placeholder="Search by name, phone or email..."
               className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400 focus:bg-white"
             />
-            {clientQuery.length > 0 && clientQuery.length < 3 && (
-              <div className="mt-1 text-xs text-neutral-400">Type {3 - clientQuery.length} more character{3 - clientQuery.length !== 1 ? 's' : ''} to search...</div>
+            {clientQuery.length > 0 && clientQuery.length < 2 && (
+              <div className="mt-1 text-xs text-neutral-400">Type 1 more character to search…</div>
             )}
-            {showClientDropdown && clientQuery.length >= 3 && (
+            {showClientDropdown && clientQuery.length >= 2 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg z-10 overflow-hidden">
                 {filteredClients.length > 0 ? (
                   <>
@@ -160,7 +269,7 @@ export default function NewJobPage() {
                         className="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-50 border-b border-neutral-100 last:border-b-0 text-left"
                       >
                         <div>
-                          <div className="text-sm font-medium text-neutral-900">{client.name}</div>
+                          <div className="text-sm font-medium text-neutral-900">{fullName(client)}</div>
                           <div className="text-xs text-neutral-500">{client.phone} · {client.email}</div>
                         </div>
                         <span className="text-xs text-blue-600 font-medium">Select</span>
@@ -199,16 +308,16 @@ export default function NewJobPage() {
             <div className="flex items-center justify-between bg-neutral-50 border border-neutral-200 rounded-lg px-4 py-3">
               <div>
                 <div className="text-sm font-medium text-neutral-900">{selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.year}</div>
-                <div className="text-xs text-neutral-500">{selectedVehicle.plate} · {selectedVehicle.odometer}</div>
+                <div className="text-xs text-neutral-500">
+                  {selectedVehicle.plate}
+                  {selectedVehicle.odometer_km ? ` · ${selectedVehicle.odometer_km.toLocaleString()} km` : ''}
+                </div>
               </div>
-              <button
-                onClick={() => { setSelectedVehicle(null); setStep(2) }}
-                className="text-xs text-neutral-400 hover:text-neutral-600 underline"
-              >
-                Change
-              </button>
+              <button onClick={() => { setSelectedVehicle(null); setStep(2) }} className="text-xs text-neutral-400 hover:text-neutral-600 underline">Change</button>
             </div>
-          ) : clientVehicles.length > 0 ? (
+          ) : loadingVehicles ? (
+            <div className="text-sm text-neutral-400 py-2">Loading vehicles…</div>
+          ) : vehicles.length > 0 ? (
             <div className="space-y-2">
               <input
                 type="text"
@@ -220,19 +329,28 @@ export default function NewJobPage() {
               {filteredVehicles.length === 0 && vehicleQuery.length > 0 ? (
                 <div className="text-sm text-neutral-500 text-center py-3">No vehicles found for "{vehicleQuery}"</div>
               ) : null}
-              {filteredVehicles.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => { setSelectedVehicle(v); setStep(3) }}
-                  className="w-full flex items-center justify-between px-4 py-3 border border-neutral-200 rounded-lg hover:border-neutral-400 hover:bg-neutral-50 text-left transition-colors"
-                >
-                  <div>
-                    <div className="text-sm font-medium text-neutral-900">{v.make} {v.model} {v.year}</div>
-                    <div className="text-xs text-neutral-500">{v.plate} · {v.odometer}</div>
-                  </div>
-                  <span className="text-xs text-blue-600 font-medium">Select</span>
-                </button>
-              ))}
+              {filteredVehicles.map((v) => {
+                const isOwn = v.client_id === selectedClient?.id
+                const ownerName = v.clients ? `${v.clients.first_name} ${v.clients.last_name}` : null
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => selectVehicle(v)}
+                    className={`w-full flex items-center justify-between px-4 py-3 border rounded-lg hover:border-neutral-400 hover:bg-neutral-50 text-left transition-colors ${isOwn ? 'border-neutral-200' : 'border-dashed border-neutral-300'}`}
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-neutral-900">{v.make} {v.model} {v.year}</div>
+                      <div className="text-xs text-neutral-500">
+                        {v.plate || '—'}
+                        {v.odometer_km ? ` · ${v.odometer_km.toLocaleString()} km` : ''}
+                        {!isOwn && ownerName && <span className="ml-2 text-amber-600">· owner: {ownerName}</span>}
+                        {!isOwn && !ownerName && <span className="ml-2 text-neutral-400">· unassigned</span>}
+                      </div>
+                    </div>
+                    <span className="text-xs text-blue-600 font-medium flex-shrink-0">{isOwn ? 'Select' : 'Select & link'}</span>
+                  </button>
+                )
+              })}
               <button
                 onClick={() => setShowNewVehicle(true)}
                 className="w-full px-4 py-3 text-sm text-blue-600 font-medium border border-dashed border-blue-200 rounded-lg hover:bg-blue-50 text-center"
@@ -242,7 +360,7 @@ export default function NewJobPage() {
             </div>
           ) : (
             <div className="text-center py-4">
-              <div className="text-sm text-neutral-500 mb-3">{selectedClient?.name} has no vehicles yet.</div>
+              <div className="text-sm text-neutral-500 mb-3">No vehicles found. Select one or add a new one.</div>
               <button
                 onClick={() => setShowNewVehicle(true)}
                 className="px-5 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700"
@@ -262,10 +380,10 @@ export default function NewJobPage() {
             {JOB_TYPES.map((jt) => (
               <button
                 key={jt.key}
-                onClick={() => setSelectedType(jt.key)}
+                onClick={() => { setSelectedType(jt.key); setSelectedServiceSubtype('') }}
                 className={`p-4 border rounded-xl text-left transition-colors ${
                   selectedType === jt.key
-                    ? 'border-neutral-900 bg-neutral-900 text-white'
+                    ? 'border-neutral-900 bg-neutral-900'
                     : 'border-neutral-200 hover:border-neutral-400'
                 }`}
               >
@@ -274,6 +392,22 @@ export default function NewJobPage() {
               </button>
             ))}
           </div>
+
+          {selectedType === 'service' && (
+            <div className="mt-4">
+              <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Service type</div>
+              <div className="grid grid-cols-2 gap-2">
+                {SERVICE_SUBTYPES.map(st => (
+                  <button key={st.key}
+                    onClick={() => setSelectedServiceSubtype(selectedServiceSubtype === st.key ? '' : st.key)}
+                    className={`p-3 border rounded-xl text-left transition-colors ${selectedServiceSubtype === st.key ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 hover:border-neutral-300'}`}>
+                    <div className="text-sm font-medium text-neutral-900">{st.key}</div>
+                    <div className="text-xs text-neutral-500 mt-0.5">{st.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -289,39 +423,49 @@ export default function NewJobPage() {
 
       {/* New Client Modal */}
       {showNewClient && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-16 px-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-16 px-4" onClick={() => setShowNewClient(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-neutral-900">New client</h2>
               <button onClick={() => setShowNewClient(false)} className="text-neutral-400 hover:text-neutral-600 text-xl">×</button>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">First name</label>
-                <input placeholder="John" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">First name <span className="text-red-400">*</span></label>
+                  <input value={newClientForm.first_name} onChange={e => setNcf('first_name', e.target.value)} autoFocus placeholder="John"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Last name</label>
+                  <input value={newClientForm.last_name} onChange={e => setNcf('last_name', e.target.value)} placeholder="Smith"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Phone</label>
+                  <input value={newClientForm.phone} onChange={e => setNcf('phone', e.target.value)} placeholder="+61 400 000 000"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Email</label>
+                  <input value={newClientForm.email} onChange={e => setNcf('email', e.target.value)} placeholder="john@email.com"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
               </div>
               <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Last name</label>
-                <input placeholder="Smith" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
+                <label className="text-xs text-neutral-500 mb-1 block">Address (optional)</label>
+                <input value={newClientForm.address} onChange={e => setNcf('address', e.target.value)} placeholder="Street, suburb, state"
+                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
               </div>
+              {clientError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{clientError}</div>}
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Phone</label>
-                <input placeholder="+61 400 000 000" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Email</label>
-                <input placeholder="john@email.com" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-              </div>
-            </div>
-            <div className="mb-4">
-              <label className="text-xs text-neutral-500 mb-1 block">Address (optional)</label>
-              <input placeholder="Street, suburb, state" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-            </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 mt-4">
               <button onClick={() => setShowNewClient(false)} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 hover:bg-neutral-50">Cancel</button>
-              <button onClick={() => { setShowNewClient(false); setStep(2) }} className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">Save & continue →</button>
+              <button onClick={handleSaveNewClient} disabled={savingClient} className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 disabled:opacity-50">
+                {savingClient ? 'Saving…' : 'Save & continue →'}
+              </button>
             </div>
           </div>
         </div>
@@ -329,49 +473,61 @@ export default function NewJobPage() {
 
       {/* New Vehicle Modal */}
       {showNewVehicle && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-16 px-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-16 px-4" onClick={() => setShowNewVehicle(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-neutral-900">New vehicle</h2>
               <button onClick={() => setShowNewVehicle(false)} className="text-neutral-400 hover:text-neutral-600 text-xl">×</button>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Make</label>
-                <input placeholder="Toyota" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Make <span className="text-red-400">*</span></label>
+                  <input value={newVehicleForm.make} onChange={e => setNvf('make', e.target.value)} autoFocus placeholder="Toyota"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Model <span className="text-red-400">*</span></label>
+                  <input value={newVehicleForm.model} onChange={e => setNvf('model', e.target.value)} placeholder="RAV4"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Model</label>
-                <input placeholder="RAV4" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Year</label>
+                  <input value={newVehicleForm.year} onChange={e => setNvf('year', e.target.value)} placeholder="2015"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Plate</label>
+                  <input value={newVehicleForm.plate} onChange={e => setNvf('plate', e.target.value)} placeholder="ABC-123"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Odometer</label>
+                  <input type="number" value={newVehicleForm.odometer_km} onChange={e => setNvf('odometer_km', e.target.value)} placeholder="0"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Colour</label>
+                  <input value={newVehicleForm.colour} onChange={e => setNvf('colour', e.target.value)} placeholder="White"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">VIN (optional)</label>
+                  <input value={newVehicleForm.vin} onChange={e => setNvf('vin', e.target.value)} placeholder="1HGBH41J…"
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                </div>
+              </div>
+              {vehicleError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{vehicleError}</div>}
             </div>
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Year</label>
-                <input placeholder="2015" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Plate</label>
-                <input placeholder="ABC-123" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Odometer</label>
-                <input placeholder="0 km" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Colour</label>
-                <input placeholder="Silver" className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">VIN (optional)</label>
-                <input placeholder="1HGBH41J..." className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400" />
-              </div>
-            </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 mt-4">
               <button onClick={() => setShowNewVehicle(false)} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 hover:bg-neutral-50">Cancel</button>
-              <button onClick={() => { setShowNewVehicle(false); setStep(3) }} className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">Save & continue →</button>
+              <button onClick={handleSaveNewVehicle} disabled={savingVehicle} className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 disabled:opacity-50">
+                {savingVehicle ? 'Saving…' : 'Save & continue →'}
+              </button>
             </div>
           </div>
         </div>

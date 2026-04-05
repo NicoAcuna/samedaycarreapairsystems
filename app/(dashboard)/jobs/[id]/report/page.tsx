@@ -1,7 +1,251 @@
 'use client'
 
-import { use } from 'react'
+import React, { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '../../../../../lib/supabase/client'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+type Photo = { url: string; name: string }
+
+// ── Photos Section ────────────────────────────────────────────────────────────
+function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
+  const [preview, setPreview] = useState<string | null>(null)
+
+  function label(key: string) {
+    const map: Record<string, string> = {
+      complaint: 'Customer Complaint', findings: "Mechanic's Findings",
+      problem: 'Problem Description', diag_notes: "Mechanic's Diagnosis", result: 'Final Notes',
+    }
+    if (map[key]) return map[key]
+    const [sec, ...rest] = key.split('|')
+    const secLabels: Record<string, string> = {
+      body: 'Body / Exterior', engine: 'Engine / Under Hood', brakes: 'Brakes',
+      suspension: 'Suspension / Steering', tyres: 'Tyres', obd: 'OBD Diagnostic', test_drive: 'Test Drive',
+      tasks: 'Tasks Done', checking: 'General Checking',
+    }
+    return `${secLabels[sec] || sec} — ${rest.join('|')}`
+  }
+
+  const groups = Object.entries(photoMap).filter(([, photos]) => photos.length > 0)
+  if (groups.length === 0) return null
+
+  return (
+    <>
+      <div className="border-t border-neutral-100">
+        <div className="bg-neutral-900 px-5 py-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-white">Photos</span>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          {groups.map(([key, photos]) => (
+            <div key={key}>
+              <div className="text-xs font-medium text-neutral-500 mb-2">{label(key)}</div>
+              <div className="flex flex-wrap gap-2">
+                {photos.map((photo, idx) => (
+                  <div key={idx} className="relative group">
+                    <img src={photo.url} alt={photo.name} onClick={() => setPreview(photo.url)}
+                      className="w-20 h-20 object-cover rounded-lg border border-neutral-200 cursor-pointer hover:opacity-90" />
+                    <a href={photo.url} download={photo.name}
+                      className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">↓</a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <img src={preview} alt="Preview" className="max-w-[90vw] max-h-[80vh] rounded-xl object-contain shadow-2xl" />
+            <a href={preview} download="photo.jpg"
+              className="absolute bottom-3 left-3 text-xs bg-white/20 text-white px-3 py-1.5 rounded-lg hover:bg-white/30">↓ Download</a>
+            <button onClick={() => setPreview(null)}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Send Modal ────────────────────────────────────────────────────────────────
+function SendModal({
+  onClose, onSent, id, publicToken, vehicleMake, vehicleModel, vehiclePlate, clientEmail, clientPhone, reportTitle,
+}: {
+  onClose: () => void
+  onSent: () => void
+  id: string
+  publicToken?: string
+  vehicleMake?: string
+  vehicleModel?: string
+  vehiclePlate?: string
+  clientEmail?: string
+  clientPhone?: string
+  reportTitle?: string
+}) {
+  const vehicleStr = [vehicleMake, vehicleModel, vehiclePlate].filter(Boolean).join(' ')
+  const titleStr = reportTitle || 'Inspection Report'
+  const subjectDefault = `Your ${titleStr}${vehicleStr ? ` — ${vehicleStr}` : ''} - Same Day Car Repair`
+  const reportUrl = publicToken ? `/report/${publicToken}` : `/jobs/${id}/report`
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const fullReportUrl = `${baseUrl}${reportUrl}`
+
+  const [tab, setTab] = useState<'email' | 'whatsapp'>('email')
+  const [emails, setEmails] = useState([clientEmail || ''])
+  const [subject, setSubject] = useState(subjectDefault)
+  const [message, setMessage] = useState('Please find your report attached below. You can view and download it using the link.')
+  const [phone, setPhone] = useState(clientPhone || '')
+  const [waMessage, setWaMessage] = useState(`Hi! Here is your ${titleStr.toLowerCase()} from Same Day Car Repair:\n\n${fullReportUrl}\n\nFeel free to download or save it for your records.`)
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+
+  function addEmail() { setEmails(prev => [...prev, '']) }
+  function updateEmail(idx: number, val: string) { setEmails(prev => prev.map((e, i) => i === idx ? val : e)) }
+  function removeEmail(idx: number) { setEmails(prev => prev.filter((_, i) => i !== idx)) }
+
+  async function markCompleted() {
+    const supabase = createClient()
+    await supabase.from('jobs').update({ status: 'completed' }).eq('id', id)
+    onSent()
+  }
+
+  async function handleSendEmail() {
+    const valid = emails.filter(e => e.trim() && e.includes('@'))
+    if (!valid.length) { setError('Please enter at least one valid email address'); return }
+    setSending(true); setError('')
+    try {
+      const res = await fetch('/api/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: valid, subject, message, reportUrl }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to send')
+      await markCompleted()
+      setSent(true)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to send. Please try again.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function handleSendWhatsApp() {
+    // Normalise phone: strip spaces/dashes, ensure no leading 0 for intl
+    const normalised = phone.replace(/[\s\-()]/g, '')
+    const encoded = encodeURIComponent(waMessage)
+    const url = normalised
+      ? `https://wa.me/${normalised.replace(/^\+/, '')}?text=${encoded}`
+      : `https://wa.me/?text=${encoded}`
+    window.open(url, '_blank')
+    markCompleted()
+    setSent(true)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
+          <div className="font-semibold text-neutral-900">Send report to client</div>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-lg leading-none">✕</button>
+        </div>
+
+        {sent ? (
+          <div className="px-6 py-10 text-center">
+            <div className="text-4xl mb-3">✅</div>
+            <div className="font-semibold text-neutral-900 mb-1">Report sent!</div>
+            <div className="text-sm text-neutral-500 mb-5">
+              {tab === 'email'
+                ? `Sent to ${emails.filter(e => e.trim()).join(', ')}`
+                : 'WhatsApp opened — message ready to send'}
+            </div>
+            <button onClick={onClose} className="text-sm px-6 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">Close</button>
+          </div>
+        ) : (
+          <>
+            {/* Tab switcher */}
+            <div className="flex gap-1 px-6 pt-4">
+              <button
+                onClick={() => setTab('email')}
+                className={`flex-1 text-sm py-2 rounded-lg font-medium transition-colors ${tab === 'email' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+              >
+                ✉️ Email
+              </button>
+              <button
+                onClick={() => setTab('whatsapp')}
+                className={`flex-1 text-sm py-2 rounded-lg font-medium transition-colors ${tab === 'whatsapp' ? 'bg-green-600 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+              >
+                💬 WhatsApp
+              </button>
+            </div>
+
+            {tab === 'email' ? (
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-neutral-500 mb-2 block">To</label>
+                  <div className="space-y-2">
+                    {emails.map((email, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input type="email" value={email} onChange={e => updateEmail(idx, e.target.value)}
+                          placeholder="client@email.com"
+                          className="flex-1 text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400" />
+                        {emails.length > 1 && (
+                          <button onClick={() => removeEmail(idx)} className="text-neutral-300 hover:text-red-400 px-1 text-lg leading-none">✕</button>
+                        )}
+                      </div>
+                    ))}
+                    <button onClick={addEmail} className="text-xs text-blue-600 hover:text-blue-800">+ Add another email</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-neutral-500 mb-1 block">Subject</label>
+                  <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
+                    className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-neutral-500 mb-1 block">Message</label>
+                  <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3}
+                    className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400 resize-none" />
+                </div>
+                {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={onClose} className="flex-1 text-sm py-2.5 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Cancel</button>
+                  <button onClick={handleSendEmail} disabled={sending}
+                    className="flex-1 text-sm py-2.5 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 disabled:opacity-50">
+                    {sending ? 'Sending…' : 'Send report'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-neutral-500 mb-1 block">Phone number</label>
+                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                    placeholder="+61 400 000 000"
+                    className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400" />
+                  <p className="text-xs text-neutral-400 mt-1">Include country code, e.g. +61 for Australia</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-neutral-500 mb-1 block">Message</label>
+                  <textarea value={waMessage} onChange={e => setWaMessage(e.target.value)} rows={5}
+                    className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400 resize-none" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={onClose} className="flex-1 text-sm py-2.5 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Cancel</button>
+                  <button onClick={handleSendWhatsApp}
+                    className="flex-1 text-sm py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2">
+                    Open WhatsApp →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // Mock data — después vendrá de Supabase (jobs + checklist_data JSONB)
 const REPORT = {
@@ -77,6 +321,48 @@ const REPORT = {
   ],
 }
 
+const SERVICE_REPORT = {
+  id: '1',
+  type: 'service',
+  typeLabel: 'Major Service',
+  date: '4 April 2026',
+  odometer: '85,000 km',
+  location: 'Bondi, NSW',
+  client: { name: 'Octa Juarez', phone: '+61 400 111 222', email: 'octa@email.com' },
+  vehicle: { make: 'Honda CRV 2008', plate: 'BFW34T · NSW', odometer: '85,000 km' },
+  sections: [
+    {
+      label: 'Tasks Done',
+      items: [
+        { name: 'Oil change',      result: 'Done', comment: '' },
+        { name: 'Oil filter',      result: 'Done', comment: '' },
+        { name: 'Oil plug washer', result: 'Done', comment: '' },
+        { name: 'Cabin filter',    result: 'Done', comment: '' },
+        { name: 'Air filter',      result: 'Done', comment: '' },
+        { name: 'Spark plugs',     result: 'Done', comment: '' },
+      ],
+    },
+    {
+      label: 'General Checking',
+      items: [
+        { name: 'Tyre condition',  result: 'Good', comment: '' },
+        { name: 'Brake pads',      result: 'Fair', comment: 'Front pads at ~40%, monitor' },
+        { name: 'Coolant level',   result: 'Good', comment: '' },
+        { name: 'Oil level',       result: 'Good', comment: '' },
+        { name: 'Other',           result: 'Good', comment: '' },
+      ],
+    },
+  ],
+  nextService: [
+    { label: 'Minor service',  value: '95,000 km' },
+    { label: 'Spark plugs',    value: '105,000 km' },
+    { label: 'Cabin filter',   value: '105,000 km' },
+    { label: 'Air filter',     value: '105,000 km' },
+  ],
+  additionalNotes: '',
+  recommendations: [] as { type: string; text: string }[],
+}
+
 const RESULT_STYLES: Record<string, { badge: string }> = {
   Good:        { badge: 'bg-green-50 text-green-700 border border-green-200' },
   Fair:        { badge: 'bg-amber-50 text-amber-700 border border-amber-200' },
@@ -87,6 +373,8 @@ const RESULT_STYLES: Record<string, { badge: string }> = {
   'Codes found': { badge: 'bg-red-50 text-red-600 border border-red-200' },
   Minor:       { badge: 'bg-amber-50 text-amber-700 border border-amber-200' },
   Notable:     { badge: 'bg-red-50 text-red-600 border border-red-200' },
+  Done:        { badge: 'bg-green-50 text-green-700 border border-green-200' },
+  'N/A':       { badge: 'bg-neutral-100 text-neutral-500 border border-neutral-200' },
 }
 
 const REC_STYLES: Record<string, string> = {
@@ -97,10 +385,7 @@ const REC_STYLES: Record<string, string> = {
 
 function getVerdict(sections: typeof REPORT.sections) {
   const allItems = sections.flatMap(s => s.items)
-  const poor  = allItems.filter(i => i.result === 'Poor' || i.result === 'Failed' || i.result === 'Codes found').length
-  const fair  = allItems.filter(i => i.result === 'Fair' || i.result === 'Minor').length
-  const good  = allItems.filter(i => !['Poor','Fair','Minor','Failed','Codes found','Notable'].includes(i.result)).length
-  const notable = allItems.filter(i => i.result === 'Notable').length
+  const poor = allItems.filter(i => i.result === 'Poor' || i.result === 'Failed' || i.result === 'Codes found').length
 
   if (poor >= 3) return { label: 'Not recommended', sub: `${poor} items require immediate attention before purchase.`, color: 'text-red-700', border: 'border-red-200 bg-red-50' }
   if (poor >= 1) return { label: 'Purchase with caution', sub: `${poor} item${poor > 1 ? 's' : ''} require${poor === 1 ? 's' : ''} immediate attention before or after purchase.`, color: 'text-amber-700', border: 'border-amber-200 bg-amber-50' }
@@ -115,57 +400,79 @@ function countResults(sections: typeof REPORT.sections) {
   return { good, fair, poor }
 }
 
-export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
+function ReportShell({ id, title, subtitle, data, children }: {
+  id: string
+  title: string
+  subtitle: string
+  data: { date: string; odometer: string; location: string; client: { name: string; phone: string; email: string }; vehicle: { make: string; plate: string; odometer: string } }
+  children: React.ReactNode
+}) {
   const router = useRouter()
-  const { id } = use(params)
-  const report = REPORT
-  const verdict = getVerdict(report.sections)
-  const counts = countResults(report.sections)
+  const [showSend, setShowSend] = useState(false)
+  const [publicToken, setPublicToken] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    const supabase = createClient()
+    supabase.from('jobs').select('public_token').eq('id', id).single()
+      .then(({ data: d }) => { if (d?.public_token) setPublicToken(d.public_token) })
+  }, [id])
+
+  const vehicleParts = data.vehicle.make.split(' ')
+  const vehicleMake  = vehicleParts[0]
+  const vehicleModel = vehicleParts.slice(1, -1).join(' ')
+  const vehiclePlate = data.vehicle.plate.split(' ')[0]
 
   return (
     <div className="p-6 max-w-3xl">
-
-      {/* Top actions */}
+      <style>{`
+        @media print {
+          @page { margin: 12mm; size: A4; }
+          body * { visibility: hidden; }
+          #report-printable, #report-printable * {
+            visibility: visible;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #report-printable { position: absolute; top: 0; left: 0; width: 100%; }
+        }
+      `}</style>
+      {showSend && (
+        <SendModal
+          onClose={() => setShowSend(false)}
+          onSent={() => setShowSend(false)}
+          id={id}
+          publicToken={publicToken || undefined}
+          vehicleMake={vehicleMake}
+          vehicleModel={vehicleModel}
+          vehiclePlate={vehiclePlate}
+          clientEmail={data.client.email}
+          clientPhone={data.client.phone}
+          reportTitle={title}
+        />
+      )}
       <div className="flex items-center justify-between mb-6">
-        <button onClick={() => router.push(`/jobs/${id}`)} className="text-sm text-neutral-500 hover:text-neutral-700 flex items-center gap-1">
-          ← Back to job
-        </button>
+        <button onClick={() => router.push(`/jobs/${id}`)} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to job</button>
         <div className="flex gap-2">
-          <button className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">
-            Send to client
-          </button>
-          <button className="text-sm px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">
-            Download PDF
-          </button>
+          <button onClick={() => setShowSend(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Send to client</button>
+          <button onClick={() => window.print()} className="text-sm px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">Download PDF</button>
         </div>
       </div>
-
-      {/* Report card */}
-      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-
-        {/* Report header */}
+      <div id="report-printable" className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
         <div className="bg-neutral-900 px-6 py-5">
-          <div className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-1">{report.type}</div>
-          <div className="text-xl font-bold text-white">Inspection Report</div>
+          <div className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-1">{title}</div>
+          <div className="text-xl font-bold text-white">{subtitle}</div>
           <div className="text-xs text-neutral-400 mt-1">Same Day Car Repair · Mobile Mechanic · 0439 269 598</div>
         </div>
-
-        {/* Date / Odometer / Location bar */}
         <div className="flex items-center gap-8 px-6 py-3 border-b border-neutral-100 bg-neutral-50 text-sm">
-          <div><span className="text-neutral-400 text-xs">Inspection Date</span><div className="font-semibold text-neutral-900">{report.date}</div></div>
-          <div><span className="text-neutral-400 text-xs">Odometer</span><div className="font-semibold text-neutral-900">{report.odometer}</div></div>
-          <div><span className="text-neutral-400 text-xs">Location</span><div className="font-semibold text-neutral-900">{report.location}</div></div>
+          <div><span className="text-neutral-400 text-xs">Date</span><div className="font-semibold text-neutral-900">{data.date}</div></div>
+          <div><span className="text-neutral-400 text-xs">Odometer</span><div className="font-semibold text-neutral-900">{data.odometer}</div></div>
+          <div><span className="text-neutral-400 text-xs">Location</span><div className="font-semibold text-neutral-900">{data.location}</div></div>
         </div>
-
-        {/* Client + Vehicle info */}
         <div className="grid grid-cols-2 border-b border-neutral-100">
           <div className="p-5 border-r border-neutral-100">
             <div className="text-xs font-semibold uppercase tracking-wider text-white bg-green-700 px-3 py-1.5 rounded mb-3 inline-block">Client Information</div>
-            {[
-              { label: 'Client Name', value: report.client.name },
-              { label: 'Phone',       value: report.client.phone },
-              { label: 'Email',       value: report.client.email },
-            ].map(row => (
+            {[{ label: 'Client Name', value: data.client.name }, { label: 'Phone', value: data.client.phone }, { label: 'Email', value: data.client.email }].map(row => (
               <div key={row.label} className="flex items-start gap-4 py-1.5">
                 <span className="text-xs text-neutral-400 w-24 flex-shrink-0">{row.label}</span>
                 <span className="text-sm font-semibold text-neutral-900">{row.value}</span>
@@ -174,11 +481,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
           </div>
           <div className="p-5">
             <div className="text-xs font-semibold uppercase tracking-wider text-white bg-neutral-900 px-3 py-1.5 rounded mb-3 inline-block">Vehicle Information</div>
-            {[
-              { label: 'Vehicle',     value: report.vehicle.make },
-              { label: 'Plate / Rego',value: report.vehicle.plate },
-              { label: 'Odometer',    value: report.vehicle.odometer },
-            ].map(row => (
+            {[{ label: 'Vehicle', value: data.vehicle.make }, { label: 'Plate / Rego', value: data.vehicle.plate }, { label: 'Odometer', value: data.vehicle.odometer }].map(row => (
               <div key={row.label} className="flex items-start gap-4 py-1.5">
                 <span className="text-xs text-neutral-400 w-24 flex-shrink-0">{row.label}</span>
                 <span className="text-sm font-semibold text-neutral-900">{row.value}</span>
@@ -186,87 +489,400 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             ))}
           </div>
         </div>
+        {children}
+        <div className="border-t border-neutral-100 px-5 py-4">
+          <p className="text-xs text-neutral-400 leading-relaxed">
+            DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle's condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-        {/* Overall Verdict */}
-        <div className={`mx-5 my-4 rounded-lg border px-5 py-4 ${verdict.border}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">Overall Verdict</div>
-              <div className={`text-lg font-bold ${verdict.color}`}>{verdict.label}</div>
-              <div className="text-xs text-neutral-500 mt-1">{verdict.sub}</div>
-            </div>
-            <div className="flex gap-5 text-right flex-shrink-0">
-              <div><div className="text-2xl font-bold text-green-700">{counts.good}</div><div className="text-xs text-neutral-400">Good</div></div>
-              <div><div className="text-2xl font-bold text-amber-700">{counts.fair}</div><div className="text-xs text-neutral-400">Fair</div></div>
-              <div><div className="text-2xl font-bold text-red-600">{counts.poor}</div><div className="text-xs text-neutral-400">Poor</div></div>
-            </div>
+function SectionsBody({ sections, additionalNotes, recommendations, photoMap }: {
+  sections: typeof REPORT.sections
+  additionalNotes: string
+  recommendations: { type: string; text: string }[]
+  photoMap: Record<string, Photo[]>
+}) {
+  const verdict = getVerdict(sections)
+  const counts = countResults(sections)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  function toggle(label: string) {
+    setCollapsed(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
+  }
+  return (
+    <>
+      <div className={`mx-5 my-4 rounded-lg border px-5 py-4 ${verdict.border}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">Overall Verdict</div>
+            <div className={`text-lg font-bold ${verdict.color}`}>{verdict.label}</div>
+            <div className="text-xs text-neutral-500 mt-1">{verdict.sub}</div>
+          </div>
+          <div className="flex gap-5 text-right flex-shrink-0">
+            <div><div className="text-2xl font-bold text-green-700">{counts.good}</div><div className="text-xs text-neutral-400">Good</div></div>
+            <div><div className="text-2xl font-bold text-amber-700">{counts.fair}</div><div className="text-xs text-neutral-400">Fair</div></div>
+            <div><div className="text-2xl font-bold text-red-600">{counts.poor}</div><div className="text-xs text-neutral-400">Poor</div></div>
           </div>
         </div>
-
-        {/* Sections */}
-        {report.sections.map((section) => (
-          <div key={section.label} className="border-t border-neutral-100">
-            <div className="bg-neutral-900 px-5 py-2.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-white">{section.label}</span>
-            </div>
+      </div>
+      {sections.map(section => (
+        <div key={section.label} className="border-t border-neutral-100">
+          <button onClick={() => toggle(section.label)} className="w-full bg-neutral-900 px-5 py-2.5 flex items-center justify-between hover:bg-neutral-800 transition-colors">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">{section.label}</span>
+            <span className="text-neutral-400 text-xs">{collapsed.has(section.label) ? '▼' : '▲'}</span>
+          </button>
+          {!collapsed.has(section.label) && (
             <div className="divide-y divide-neutral-100">
-              {section.items.map((item) => (
+              {section.items.map(item => (
                 <div key={item.name} className="flex items-start justify-between px-5 py-3">
                   <div className="flex-1 pr-4">
                     <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
-                    {item.comment
-                      ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div>
-                      : <div className="text-xs text-neutral-300 mt-0.5">—</div>
-                    }
+                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
                   </div>
-                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>
-                    {item.result}
-                  </span>
+                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
                 </div>
               ))}
             </div>
-          </div>
-        ))}
-
-        {/* Additional Notes */}
-        {report.additionalNotes && (
-          <div className="border-t border-neutral-100">
-            <div className="bg-neutral-900 px-5 py-2.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-white">Additional Notes</span>
-            </div>
-            <div className="px-5 py-4">
-              <p className="text-sm text-neutral-700 leading-relaxed">{report.additionalNotes}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Recommendations */}
-        {report.recommendations.length > 0 && (
-          <div className="border-t border-neutral-100">
-            <div className="bg-neutral-900 px-5 py-2.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-white">Recommendations</span>
-            </div>
-            <div className="divide-y divide-neutral-100">
-              {report.recommendations.map((rec, i) => (
-                <div key={i} className="flex items-start gap-4 px-5 py-3">
-                  <span className={`text-xs font-bold px-2 py-1 rounded flex-shrink-0 ${REC_STYLES[rec.type] || 'bg-neutral-100 text-neutral-600'}`}>
-                    {rec.type}
-                  </span>
-                  <span className="text-sm text-neutral-700">{rec.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Disclaimer */}
-        <div className="border-t border-neutral-100 px-5 py-4">
-          <p className="text-xs text-neutral-400 leading-relaxed">
-            DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle's condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection. Findings are accurate to the best of the inspector's knowledge at the time of inspection.
-          </p>
+          )}
         </div>
+      ))}
+      {additionalNotes && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Additional Notes</span></div>
+          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{additionalNotes}</p></div>
+        </div>
+      )}
+      {recommendations.length > 0 && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Recommendations</span></div>
+          <div className="divide-y divide-neutral-100">
+            {recommendations.map((rec, i) => (
+              <div key={i} className="flex items-start gap-4 px-5 py-3">
+                <span className={`text-xs font-bold px-2 py-1 rounded flex-shrink-0 ${REC_STYLES[rec.type] || 'bg-neutral-100 text-neutral-600'}`}>{rec.type}</span>
+                <span className="text-sm text-neutral-700">{rec.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <PhotosSection photoMap={photoMap} />
+    </>
+  )
+}
 
+function ServiceBody({ sections, nextService, additionalNotes, photoMap }: {
+  sections: typeof SERVICE_REPORT.sections
+  nextService: { label: string; value: string }[]
+  additionalNotes: string
+  photoMap: Record<string, Photo[]>
+}) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  function toggle(label: string) {
+    setCollapsed(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
+  }
+
+  const allItems = sections.flatMap(s => s.items)
+  const done = allItems.filter(i => i.result === 'Done').length
+  const na   = allItems.filter(i => i.result === 'N/A').length
+  const attention = allItems.filter(i => ['Poor','Fair','Failed','Codes found'].includes(i.result)).length
+
+  return (
+    <>
+      {/* Summary bar — same style as inspection verdict */}
+      <div className={`mx-5 my-4 rounded-lg border px-5 py-4 ${attention > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">Service Summary</div>
+            <div className={`text-lg font-bold ${attention > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+              {attention > 0 ? 'Service completed — items to monitor' : 'Service completed'}
+            </div>
+            <div className="text-xs text-neutral-500 mt-1">
+              {attention > 0 ? `${attention} item${attention > 1 ? 's' : ''} require attention.` : 'All tasks performed successfully.'}
+            </div>
+          </div>
+          <div className="flex gap-5 text-right flex-shrink-0">
+            <div><div className="text-2xl font-bold text-green-700">{done}</div><div className="text-xs text-neutral-400">Done</div></div>
+            <div><div className="text-2xl font-bold text-neutral-400">{na}</div><div className="text-xs text-neutral-400">N/A</div></div>
+            {attention > 0 && <div><div className="text-2xl font-bold text-amber-700">{attention}</div><div className="text-xs text-neutral-400">Attention</div></div>}
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Sections — identical structure to inspection */}
+      {sections.map(section => (
+        <div key={section.label} className="border-t border-neutral-100">
+          <button onClick={() => toggle(section.label)} className="w-full bg-neutral-900 px-5 py-2.5 flex items-center justify-between hover:bg-neutral-800 transition-colors">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">{section.label}</span>
+            <span className="text-neutral-400 text-xs">{collapsed.has(section.label) ? '▼' : '▲'}</span>
+          </button>
+          {!collapsed.has(section.label) && (
+            <div className="divide-y divide-neutral-100">
+              {section.items.map(item => (
+                <div key={item.name} className="flex items-start justify-between px-5 py-3">
+                  <div className="flex-1 pr-4">
+                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
+                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
+                  </div>
+                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Next service recommendations */}
+      {nextService.length > 0 && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Next Service Recommendations</span></div>
+          <div className="divide-y divide-neutral-100">
+            {nextService.map(row => (
+              <div key={row.label} className="flex items-start justify-between px-5 py-3">
+                <span className="text-sm text-neutral-700">{row.label}</span>
+                <span className="text-sm font-semibold text-neutral-900">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {additionalNotes && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Additional Notes</span></div>
+          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{additionalNotes}</p></div>
+        </div>
+      )}
+      <PhotosSection photoMap={photoMap} />
+    </>
+  )
+}
+
+// ── Build sections from flow data ─────────────────────────────────────────────
+function buildPrePurchaseSections(flowData: Record<string, unknown>) {
+  const SECTION_DEFS = [
+    { key: 'body',       label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
+    { key: 'engine',     label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
+    { key: 'brakes',     label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
+    { key: 'suspension', label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
+    { key: 'tyres',      label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
+    { key: 'obd',        label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
+    { key: 'test_drive', label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
+  ]
+  const selections = (flowData.selections as Record<string, Record<string, string>>) || {}
+  const comments = (flowData.comments as Record<string, Record<string, string>>) || {}
+  return SECTION_DEFS.map(sec => ({
+    label: sec.label,
+    items: sec.items
+      .map(name => ({ name, result: selections[sec.key]?.[name] || '', comment: comments[sec.key]?.[name] || '' }))
+      .filter(item => item.result !== ''),
+  })).filter(sec => sec.items.length > 0)
+}
+
+function buildServiceSections(flowData: Record<string, unknown>) {
+  const serviceType = (flowData.serviceType as string) || ''
+  const selections = (flowData.selections as Record<string, Record<string, string>>) || {}
+  const comments = (flowData.comments as Record<string, Record<string, string>>) || {}
+
+  const taskItems: string[] =
+    serviceType === 'Minor Service'     ? ['Oil change','Oil filter','Oil plug washer'] :
+    serviceType === 'Major Service'     ? ['Oil change','Oil filter','Oil plug washer','Cabin filter','Air filter','Spark plugs'] :
+    serviceType === 'Brake fluid flush' ? ['Brake fluid replacement'] :
+    serviceType === 'Coolant flush'     ? ['Coolant replacement'] :
+    serviceType === 'Spark plugs'       ? ['Spark plugs replacement'] :
+    serviceType === 'Custom'            ? ((flowData.customTasks as string[]) || []).filter(Boolean) :
+    Object.keys(selections['tasks'] || {})  // fallback: show whatever was recorded
+
+  const checkItems = ['Tyre condition','Brake pads','Coolant level','Oil level','Other']
+
+  return [
+    {
+      label: 'Tasks Done',
+      items: taskItems.map(name => ({ name, result: selections['tasks']?.[name] || '', comment: comments['tasks']?.[name] || '' })).filter(i => i.result !== ''),
+    },
+    {
+      label: 'General Checking',
+      items: checkItems.map(name => ({ name, result: selections['checking']?.[name] || '', comment: comments['checking']?.[name] || '' })).filter(i => i.result !== ''),
+    },
+  ]
+}
+
+function buildNextService(flowData: Record<string, unknown>) {
+  const serviceType = (flowData.serviceType as string) || ''
+  const km = Number(flowData.currentKm || 0)
+  if (!km || !serviceType) return []
+  const fmt = (n: number) => n.toLocaleString()
+  if (serviceType === 'Minor Service')     return [{ label: 'Minor service',     value: `${fmt(km + 10000)} km` }]
+  if (serviceType === 'Major Service')     return [{ label: 'Minor service', value: `${fmt(km + 10000)} km` }, { label: 'Spark plugs', value: `${fmt(km + 20000)} km` }, { label: 'Cabin filter', value: `${fmt(km + 20000)} km` }, { label: 'Air filter', value: `${fmt(km + 20000)} km` }]
+  if (serviceType === 'Brake fluid flush') return [{ label: 'Brake fluid flush', value: `${fmt(km + 30000)} km or 2 years` }]
+  if (serviceType === 'Coolant flush')     return [{ label: 'Coolant flush',     value: `${fmt(km + 40000)} km or 2 years` }]
+  if (serviceType === 'Spark plugs')       return [{ label: 'Spark plugs',       value: `${fmt(km + 20000)} km` }]
+  return []
+}
+
+function DiagnosisBody({ flowData, photoMap }: { flowData: Record<string, unknown>; photoMap: Record<string, Photo[]> }) {
+  const urgencyStyles: Record<string, string> = {
+    immediate:  'bg-red-50 text-red-700 border border-red-200',
+    next_month: 'bg-amber-50 text-amber-700 border border-amber-200',
+    can_wait:   'bg-green-50 text-green-700 border border-green-200',
+  }
+  const urgencyLabels: Record<string, string> = {
+    immediate: 'Immediate', next_month: 'Next month', can_wait: 'Can wait',
+  }
+  const diagFee = (flowData.diagFee as string) || ''
+  const complaint = (flowData.complaint as string) || ''
+  const findings = (flowData.findings as string) || ''
+  const recommendation = (flowData.recommendation as string) || ''
+  const estimates = (flowData.estimates as { task: string; urgency: string; estCost: string; estTime: string }[]) || []
+  const filledEstimates = estimates.filter(e => e.task || e.estCost || e.estTime)
+
+  return (
+    <>
+      {/* Summary */}
+      {diagFee && (
+        <div className="mx-5 my-4 rounded-lg border px-5 py-4 border-neutral-200 bg-neutral-50 flex items-center justify-between">
+          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Diagnosis Summary</div>
+          <div className="text-right"><div className="text-xs text-neutral-400">Diagnosis fee</div><div className="text-lg font-bold text-neutral-900">${diagFee}</div></div>
+        </div>
+      )}
+
+      {/* Sections */}
+      {[
+        { label: 'Customer Complaint', content: complaint },
+        { label: "Mechanic's Findings", content: findings },
+        { label: 'Repair Recommendation', content: recommendation },
+      ].filter(s => s.content).map(s => (
+        <div key={s.label} className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">{s.label}</span></div>
+          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{s.content}</p></div>
+        </div>
+      ))}
+
+      {/* Estimates table */}
+      {filledEstimates.length > 0 && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Estimates</span></div>
+          <div className="divide-y divide-neutral-100">
+            {/* Header */}
+            <div className="grid grid-cols-4 px-5 py-2 bg-neutral-50">
+              {['Task', 'Urgency', 'Est. Cost', 'Est. Time'].map(h => (
+                <span key={h} className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">{h}</span>
+              ))}
+            </div>
+            {filledEstimates.map((est, i) => (
+              <div key={i} className="grid grid-cols-4 px-5 py-3 items-center">
+                <span className="text-sm text-neutral-900">{est.task || '—'}</span>
+                <span>
+                  {est.urgency
+                    ? <span className={`text-xs font-semibold px-2 py-1 rounded ${urgencyStyles[est.urgency] || 'bg-neutral-100 text-neutral-500 border border-neutral-200'}`}>{urgencyLabels[est.urgency] || est.urgency}</span>
+                    : <span className="text-sm text-neutral-300">—</span>
+                  }
+                </span>
+                <span className="text-sm font-semibold text-neutral-900">{est.estCost ? `$${est.estCost}` : '—'}</span>
+                <span className="text-sm text-neutral-700">{est.estTime || '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-neutral-100 mx-5 my-4 rounded-lg border px-4 py-3 bg-amber-50 text-xs text-amber-700">
+        A Repair job can be created from this diagnosis.
+      </div>
+      <PhotosSection photoMap={photoMap} />
+    </>
+  )
+}
+
+type JobRecord = {
+  id: string
+  type: string
+  status: string
+  odometer_km: number | null
+  created_at: string
+  checklist_data: Record<string, unknown> | null
+  clients?: { first_name: string; last_name: string; phone: string; email: string } | null
+  vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
+}
+
+export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const [job, setJob] = useState<JobRecord | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('jobs')
+      .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, odometer_km)')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        setJob(data as unknown as JobRecord)
+        setLoading(false)
+      })
+  }, [id])
+
+  if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
+  if (!job) return <div className="p-6 text-sm text-neutral-400">Report not found.</div>
+
+  // Prefer sessionStorage (just-completed flow) — fallback to saved checklist_data
+  const sessionRaw = typeof window !== 'undefined' ? sessionStorage.getItem('job_flow_data') : null
+  let sessionData: Record<string, unknown> = {}
+  try { sessionData = sessionRaw ? JSON.parse(sessionRaw) : {} } catch { /* ignore */ }
+  const flowData: Record<string, unknown> = (sessionData.type === job.type ? sessionData : null)
+    ?? job.checklist_data
+    ?? {}
+
+  const photoMap = (flowData.photoMap as Record<string, Photo[]>) || {}
+  const jobType = job.type
+
+  const v = job.vehicles
+  const c = job.clients
+  const clientName  = c ? `${c.first_name} ${c.last_name}` : '—'
+  const vehicleName = v ? `${v.make} ${v.model} ${v.year}` : '—'
+  const plate       = v?.plate ? `${v.plate} · NSW` : '—'
+  const odo         = job.odometer_km
+    ? `${job.odometer_km.toLocaleString()} km`
+    : v?.odometer_km ? `${v.odometer_km.toLocaleString()} km` : '—'
+  const date = new Date(job.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  const reportData = {
+    date,
+    odometer: odo,
+    location: (flowData.location as string) || '—',
+    client:  { name: clientName,  phone: c?.phone || '—', email: c?.email || '—' },
+    vehicle: { make: vehicleName, plate,                  odometer: odo },
+  }
+
+  if (jobType === 'diagnosis') {
+    return (
+      <ReportShell id={id} title="Diagnosis" subtitle="Diagnosis Report" data={reportData}>
+        <DiagnosisBody flowData={flowData} photoMap={photoMap} />
+      </ReportShell>
+    )
+  }
+
+  if (jobType === 'service') {
+    const sections = buildServiceSections(flowData)
+    const nextService = buildNextService(flowData)
+    const additionalNotes = (flowData.observations as string) || ''
+    const typeLabel = (flowData.serviceType as string) || 'Service'
+    return (
+      <ReportShell id={id} title={typeLabel} subtitle="Service Report" data={reportData}>
+        <ServiceBody sections={sections} nextService={nextService} additionalNotes={additionalNotes} photoMap={photoMap} />
+      </ReportShell>
+    )
+  }
+
+  // pre_purchase (default)
+  const sections = buildPrePurchaseSections(flowData)
+  const additionalNotes = (flowData.finalNotes as string) || ''
+  return (
+    <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData}>
+      <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={[]} photoMap={photoMap} />
+    </ReportShell>
   )
 }

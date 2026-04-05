@@ -27,18 +27,32 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isLoginPage = request.nextUrl.pathname.startsWith('/login')
-  const isReportPage = request.nextUrl.pathname.startsWith('/report')
-  const isPublic = isLoginPage || isReportPage
+  const path = request.nextUrl.pathname
+  const isPublic = path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/report')
+  const isOnboarding = path.startsWith('/onboarding')
 
-  // Si está logueado y va al login, mandarlo al dashboard
-  if (user && isLoginPage) {
-    return NextResponse.redirect(new URL('/', request.url))
-  }
-
-  // Si no está logueado y va a ruta privada, mandarlo al login
+  // Not logged in → login
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Logged in → check if company is set up
+  if (user && !isPublic && !isOnboarding) {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('company_id')
+      .eq('id', user.id)
+      .single()
+
+    // No company yet → onboarding
+    if (!userData?.company_id) {
+      return NextResponse.redirect(new URL('/onboarding', request.url))
+    }
+  }
+
+  // Logged in + has company + going to login/register → dashboard
+  if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return supabaseResponse
