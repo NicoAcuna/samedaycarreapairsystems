@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 
@@ -27,7 +27,7 @@ function fullName(c: Client) {
   return [c.first_name, c.last_name].filter(Boolean).join(' ')
 }
 
-export default function NewJobPage() {
+function NewJobPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedType = searchParams.get('type') || ''
@@ -533,5 +533,13 @@ export default function NewJobPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function NewJobPage() {
+  return (
+    <Suspense>
+      <NewJobPageInner />
+    </Suspense>
   )
 }
