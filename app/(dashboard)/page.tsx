@@ -97,14 +97,14 @@ export default function DashboardPage() {
   const todayStr = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
+    <div className="p-4 md:p-6">
+      <div className="mb-4 md:mb-6">
         <h1 className="text-xl font-semibold text-neutral-900">Dashboard</h1>
         <p className="text-sm text-neutral-500 mt-1">{todayStr}</p>
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
         {metrics.map((m) => (
           <button
             key={m.key}
@@ -135,25 +135,27 @@ export default function DashboardPage() {
 
       {/* Jobs list */}
       <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-medium text-neutral-900">
-              {activeFilter === 'in_progress' ? 'In progress' :
-               activeFilter === 'today'       ? "Today's jobs" :
-               activeFilter === 'overdue'     ? 'Overdue jobs' : 'All jobs'}
+        <div className="px-4 py-3 border-b border-neutral-100 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-medium text-neutral-900">
+                {activeFilter === 'in_progress' ? 'In progress' :
+                 activeFilter === 'today'       ? "Today's jobs" :
+                 activeFilter === 'overdue'     ? 'Overdue jobs' : 'All jobs'}
+              </div>
+              {activeFilter !== 'all' && (
+                <button onClick={() => setActiveFilter('all')} className="text-xs text-neutral-400 hover:text-neutral-600 underline">
+                  Clear
+                </button>
+              )}
             </div>
-            {activeFilter !== 'all' && (
-              <button onClick={() => setActiveFilter('all')} className="text-xs text-neutral-400 hover:text-neutral-600 underline">
-                Clear
-              </button>
-            )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
             {TYPE_FILTERS.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setTypeFilter(tab)}
-                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                className={`text-xs px-3 py-1 rounded-full border transition-colors flex-shrink-0 ${
                   typeFilter === tab
                     ? 'bg-neutral-900 text-white border-neutral-900'
                     : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
@@ -187,29 +189,24 @@ export default function DashboardPage() {
             <div
               key={job.id}
               onClick={() => router.push(`/jobs/${job.id}`)}
-              className={`flex items-center gap-3 px-4 py-3 border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer last:border-b-0 ${overdue ? 'bg-red-50/40' : ''}`}
+              className={`px-4 py-3 border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer last:border-b-0 ${overdue ? 'bg-red-50/40' : ''}`}
             >
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${overdue ? 'bg-red-500' : t.dot}`} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-medium text-neutral-900">{t.label}</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${t.bg} ${t.text}`}>{t.label}</span>
-                  {overdue && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">Overdue</span>}
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${overdue ? 'bg-red-500' : t.dot}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="text-sm font-medium text-neutral-900">{t.label}</span>
+                    {overdue && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">Overdue</span>}
+                  </div>
+                  <div className="text-xs text-neutral-500">{desc}</div>
                 </div>
-                <div className="text-xs text-neutral-500">{desc}</div>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="text-xs text-neutral-400">{dateLabel}</span>
-                <span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 ${s.bg} ${s.text}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>
-                  {s.label}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); router.push(`/jobs/${job.id}`) }}
-                  className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-100 text-neutral-600"
-                >
-                  {btnLabel}
-                </button>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${s.bg} ${s.text}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>
+                    {s.label}
+                  </span>
+                  <span className="text-xs text-neutral-400">{dateLabel}</span>
+                </div>
               </div>
             </div>
           )

@@ -424,7 +424,7 @@ function ReportShell({ id, title, subtitle, data, children }: {
   const vehiclePlate = data.vehicle.plate.split(' ')[0]
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 md:p-6 max-w-3xl">
       <style>{`
         @media print {
           @page { margin: 12mm; size: A4; }
@@ -451,11 +451,11 @@ function ReportShell({ id, title, subtitle, data, children }: {
           reportTitle={title}
         />
       )}
-      <div className="flex items-center justify-between mb-6">
-        <button onClick={() => router.push(`/jobs/${id}`)} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to job</button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
+        <button onClick={() => router.push(`/jobs/${id}`)} className="text-sm text-neutral-500 hover:text-neutral-700 text-left">← Back to job</button>
         <div className="flex gap-2">
-          <button onClick={() => setShowSend(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Send to client</button>
-          <button onClick={() => window.print()} className="text-sm px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">Download PDF</button>
+          <button onClick={() => setShowSend(true)} className="flex-1 sm:flex-none text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Send to client</button>
+          <button onClick={() => window.print()} className="flex-1 sm:flex-none text-sm px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">Download PDF</button>
         </div>
       </div>
       <div id="report-printable" className="bg-white border border-neutral-200 rounded-xl overflow-hidden">

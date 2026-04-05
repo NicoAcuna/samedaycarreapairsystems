@@ -89,36 +89,36 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const isCompleted = status === 'completed'
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 md:p-6 max-w-3xl">
       <button onClick={() => router.back()} className="text-sm text-neutral-500 hover:text-neutral-700 mb-6 flex items-center gap-1">
         ← Back to jobs
       </button>
 
       {/* Header card */}
       <div className="bg-white border border-neutral-200 rounded-xl p-5 mb-4">
-        <div className="flex items-start justify-between mb-4 pb-4 border-b border-neutral-100">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
+        <div className="mb-4 pb-4 border-b border-neutral-100">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-xs font-medium px-2 py-1 rounded-full ${t.bg} ${t.text}`}>{t.label}</span>
               <span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 ${s.bg} ${s.text}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${s.dot} inline-block`}></span>
                 {s.label}
               </span>
             </div>
-            <h1 className="text-lg font-semibold text-neutral-900">{t.label}</h1>
-            <p className="text-sm text-neutral-500 mt-1">{clientName} · {vehicleLabel} · {dateLabel}</p>
+            {ctaLabel && (
+              <button
+                onClick={() => router.push(`/jobs/${id}/flow`)}
+                className="bg-neutral-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-neutral-700 transition-colors flex-shrink-0"
+              >
+                {ctaLabel}
+              </button>
+            )}
           </div>
-          {ctaLabel && (
-            <button
-              onClick={() => router.push(`/jobs/${id}/flow`)}
-              className="bg-neutral-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-neutral-700 transition-colors flex-shrink-0"
-            >
-              {ctaLabel}
-            </button>
-          )}
+          <h1 className="text-lg font-semibold text-neutral-900">{t.label}</h1>
+          <p className="text-sm text-neutral-500 mt-1">{clientName} · {vehicleLabel} · {dateLabel}</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
           {[
             { label: 'Client',   value: clientName },
             { label: 'Vehicle',  value: vehicleLabel },
@@ -136,54 +136,34 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       {/* Status banner */}
       {status === 'pending' && (
-        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-5 mb-4 flex items-center justify-between">
-          <div className="text-sm text-neutral-500">This job hasn't been started yet.</div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setShowStatusConfirm(true)}
-              className="bg-green-600 text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-green-700 transition-colors"
-            >
-              Mark as completed ✓
-            </button>
-            <button
-              onClick={() => router.push(`/jobs/${id}/flow`)}
-              className="bg-neutral-900 text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-neutral-700 transition-colors"
-            >
-              Continue job →
-            </button>
+        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-4">
+          <div className="text-sm text-neutral-500 mb-3">This job hasn't been started yet.</div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button onClick={() => setShowStatusConfirm(true)} className="flex-1 bg-green-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-green-700 transition-colors">Mark as completed ✓</button>
+            <button onClick={() => router.push(`/jobs/${id}/flow`)} className="flex-1 bg-neutral-900 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-neutral-700 transition-colors">Continue job →</button>
           </div>
         </div>
       )}
 
       {status === 'in_progress' && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 mb-4 flex items-center justify-between">
-          <div className="text-sm text-orange-700">This job is in progress. Resume where you left off.</div>
-          <button
-            onClick={() => setShowStatusConfirm(true)}
-            className="bg-green-600 text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-green-700 transition-colors flex-shrink-0"
-          >
-            Mark as completed ✓
-          </button>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+          <div className="text-sm text-orange-700 mb-3">This job is in progress. Resume where you left off.</div>
+          <button onClick={() => setShowStatusConfirm(true)} className="w-full bg-green-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-green-700 transition-colors">Mark as completed ✓</button>
         </div>
       )}
 
       {status === 'completed' && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-4 flex items-center justify-between">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-sm text-green-700 font-medium">Job completed</div>
             <div className="text-xs text-green-600 mt-0.5">Report generated and sent to client.</div>
           </div>
-          <button
-            onClick={() => setShowStatusConfirm(true)}
-            className="text-sm px-4 py-2 border border-neutral-200 bg-white rounded-lg hover:bg-neutral-50 text-neutral-600 flex-shrink-0"
-          >
-            Mark as pending
-          </button>
+          <button onClick={() => setShowStatusConfirm(true)} className="text-sm px-4 py-2 border border-neutral-200 bg-white rounded-lg hover:bg-neutral-50 text-neutral-600 flex-shrink-0">Mark as pending</button>
         </div>
       )}
 
       {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-2">
         {status === 'completed' && (
           <button
             onClick={() => router.push(`/jobs/${id}/report`)}

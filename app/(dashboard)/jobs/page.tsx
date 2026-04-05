@@ -59,8 +59,8 @@ export default function JobsPage() {
   const filtered = jobs.filter(j => typeFilter === 'All' || j.type === typeFilter)
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4 md:mb-6">
         <div>
           <h1 className="text-xl font-semibold text-neutral-900">Jobs</h1>
           <p className="text-sm text-neutral-500 mt-1">
@@ -76,12 +76,12 @@ export default function JobsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none">
         {TYPE_FILTERS.map((tab) => (
           <button
             key={tab}
             onClick={() => setTypeFilter(tab)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
               typeFilter === tab
                 ? 'bg-neutral-900 text-white border-neutral-900'
                 : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
@@ -92,8 +92,8 @@ export default function JobsPage() {
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white border border-neutral-200 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-neutral-50 border-b border-neutral-200">
@@ -115,50 +115,61 @@ export default function JobsPage() {
             ) : filtered.map((job) => {
               const t = TYPE_STYLES[job.type] || { bg: 'bg-neutral-100', text: 'text-neutral-600', label: job.type }
               const s = STATUS_STYLES[job.status] || { label: job.status, bg: 'bg-neutral-100', text: 'text-neutral-500', dot: 'bg-neutral-400' }
-              const vehicleLabel = job.vehicles
-                ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}`
-                : '—'
-              const clientLabel = job.clients
-                ? `${job.clients.first_name} ${job.clients.last_name}`
-                : '—'
+              const vehicleLabel = job.vehicles ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}` : '—'
+              const clientLabel = job.clients ? `${job.clients.first_name} ${job.clients.last_name}` : '—'
               const dateLabel = job.scheduled_at
                 ? new Date(job.scheduled_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
                 : new Date(job.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-
               return (
-                <tr
-                  key={job.id}
-                  onClick={() => router.push(`/jobs/${job.id}`)}
-                  className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer last:border-b-0"
-                >
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-neutral-900">{t.label}</div>
-                    <div className="text-xs text-neutral-400 mt-0.5">{vehicleLabel}</div>
-                  </td>
+                <tr key={job.id} onClick={() => router.push(`/jobs/${job.id}`)} className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer last:border-b-0">
+                  <td className="px-4 py-3"><div className="font-medium text-neutral-900">{t.label}</div><div className="text-xs text-neutral-400 mt-0.5">{vehicleLabel}</div></td>
                   <td className="px-4 py-3 text-neutral-600">{clientLabel}</td>
                   <td className="px-4 py-3 text-neutral-600">{dateLabel}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${t.bg} ${t.text}`}>{t.label}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 w-fit ${s.bg} ${s.text}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>
-                      {s.label}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); router.push(`/jobs/${job.id}`) }}
-                      className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-100 text-neutral-600"
-                    >
-                      {job.status === 'completed' ? 'View' : 'Continue'}
-                    </button>
-                  </td>
+                  <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full ${t.bg} ${t.text}`}>{t.label}</span></td>
+                  <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 w-fit ${s.bg} ${s.text}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>{s.label}</span></td>
+                  <td className="px-4 py-3"><button onClick={(e) => { e.stopPropagation(); router.push(`/jobs/${job.id}`) }} className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-100 text-neutral-600">{job.status === 'completed' ? 'View' : 'Continue'}</button></td>
                 </tr>
               )
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-neutral-400">
+            {typeFilter !== 'All' ? 'No jobs match this filter' : 'No jobs yet — create your first one'}
+          </div>
+        ) : filtered.map((job) => {
+          const t = TYPE_STYLES[job.type] || { bg: 'bg-neutral-100', text: 'text-neutral-600', label: job.type }
+          const s = STATUS_STYLES[job.status] || { label: job.status, bg: 'bg-neutral-100', text: 'text-neutral-500', dot: 'bg-neutral-400' }
+          const vehicleLabel = job.vehicles ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}` : '—'
+          const clientLabel = job.clients ? `${job.clients.first_name} ${job.clients.last_name}` : '—'
+          const dateLabel = job.scheduled_at
+            ? new Date(job.scheduled_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+            : new Date(job.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+          return (
+            <div key={job.id} onClick={() => router.push(`/jobs/${job.id}`)} className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100 last:border-b-0 cursor-pointer active:bg-neutral-50">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-medium text-neutral-900">{t.label}</span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${t.bg} ${t.text}`}>{t.label}</span>
+                </div>
+                <div className="text-xs text-neutral-500 truncate">{clientLabel} · {vehicleLabel}</div>
+              </div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${s.bg} ${s.text}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>
+                  {s.label}
+                </span>
+                <span className="text-xs text-neutral-400">{dateLabel}</span>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* New Job Modal */}
