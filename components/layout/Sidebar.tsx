@@ -43,19 +43,28 @@ export default function Sidebar() {
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 flex">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+          const icons: Record<string, string> = {
+            '/':         '⊞',
+            '/jobs':     '🔧',
+            '/clients':  '👤',
+            '/vehicles': '🚗',
+          }
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex-1 flex flex-col items-center justify-center py-2.5 text-xs transition-colors ${
-                isActive ? 'text-neutral-900 font-medium' : 'text-neutral-400'
+              className={`flex-1 flex flex-col items-center justify-center py-3 transition-colors ${
+                isActive ? 'text-neutral-900' : 'text-neutral-400'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full mb-1 ${isActive ? 'bg-blue-500' : 'bg-neutral-300'}`} />
-              {item.label}
+              <span className="text-xl mb-0.5">{icons[item.href]}</span>
+              <span className={`text-xs ${isActive ? 'font-semibold text-neutral-900' : 'font-normal'}`}>
+                {item.label}
+              </span>
+              {isActive && <span className="w-4 h-0.5 bg-neutral-900 rounded-full mt-1" />}
             </Link>
           )
         })}
