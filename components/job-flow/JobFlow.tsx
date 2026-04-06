@@ -297,9 +297,9 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
     }
   }
 
-  // ── Sidebar ────────────────────────────────────────────────────────────────
+  // ── Sidebar (desktop only) ─────────────────────────────────────────────────
   const sidebar = (
-    <div className="w-52 flex-shrink-0 bg-white border-r border-neutral-200 flex flex-col">
+    <div className="hidden md:flex w-52 flex-shrink-0 bg-white border-r border-neutral-200 flex-col">
       <div className="px-4 py-4 border-b border-neutral-100">
         <div className="text-xs font-medium text-neutral-900 mb-1">{config.title}</div>
         <div className="text-xs text-neutral-500 mb-2">Section {activeIdx + 1} of {sections.length}</div>
@@ -331,13 +331,51 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
     </div>
   )
 
+  // ── Mobile top bar ─────────────────────────────────────────────────────────
+  const mobileTopBar = (
+    <div className="md:hidden bg-white border-b border-neutral-200 px-4 py-3 flex-shrink-0">
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={() => router.push(jobId ? `/jobs/${jobId}` : '/jobs')}
+          className="text-sm text-neutral-500 active:text-neutral-900">
+          ← Exit
+        </button>
+        <span className="text-xs font-medium text-neutral-500">{activeIdx + 1} / {sections.length}</span>
+      </div>
+      {/* Progress bar */}
+      <div className="h-1.5 bg-neutral-100 rounded-full mb-2">
+        <div className="h-1.5 bg-neutral-900 rounded-full transition-all" style={{ width: `${progress}%` }} />
+      </div>
+      {/* Step pills — scrollable */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {sections.map((s, idx) => {
+          const isDone = doneSections.has(s.key)
+          const isCurrent = idx === activeIdx
+          return (
+            <button key={s.key}
+              onClick={() => (isDone || isCurrent) && setActiveIdx(idx)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                isCurrent ? 'bg-neutral-900 text-white border-neutral-900' :
+                isDone ? 'bg-green-50 text-green-700 border-green-200' :
+                'bg-neutral-50 text-neutral-300 border-neutral-200'
+              }`}>
+              <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                isCurrent ? 'bg-white/20' : isDone ? 'bg-green-100' : 'bg-neutral-200'
+              }`}>
+                {isDone ? '✓' : idx + 1}
+              </span>
+              {s.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+
   // ── Section header ─────────────────────────────────────────────────────────
   const sectionHeader = (
     <div className="mb-5">
       <h2 className="text-lg font-semibold text-neutral-900">{activeSection.label}</h2>
-      {vehicle && <p className="text-sm text-neutral-500 mt-1">{vehicle}{plate ? ` · ${plate}` : ''}
-        {doneSections.has(activeSection.key) && <span className="ml-2 text-green-600 text-xs font-medium">· Already completed</span>}
-      </p>}
+      {vehicle && <p className="text-sm text-neutral-500 mt-1">{vehicle}{plate ? ` · ${plate}` : ''}</p>}
       {doneSections.has(activeSection.key) && (
         <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-xs text-green-700 font-medium">
           ✓ This section was already completed. You can review or edit below.
@@ -348,14 +386,14 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
 
   // ── Navigation buttons ─────────────────────────────────────────────────────
   const navButtons = (
-    <div className="flex items-center justify-between mt-6">
+    <div className="flex items-center justify-between mt-6 gap-3">
       <button onClick={() => activeIdx > 0 && setActiveIdx(activeIdx - 1)} disabled={activeIdx === 0}
-        className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600 disabled:opacity-30 disabled:cursor-not-allowed">
+        className="flex-1 md:flex-none text-sm px-4 py-3 md:py-2 border border-neutral-200 rounded-xl md:rounded-lg hover:bg-neutral-50 text-neutral-600 disabled:opacity-30 disabled:cursor-not-allowed">
         ← Previous
       </button>
       <button onClick={handleNext}
-        className="text-sm px-5 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 transition-colors">
-        {activeIdx === sections.length - 1 ? (jobId ? 'Generate report →' : 'Go to conclusion →') : 'Next →'}
+        className="flex-1 md:flex-none text-sm px-5 py-3 md:py-2 bg-neutral-900 text-white rounded-xl md:rounded-lg hover:bg-neutral-700 transition-colors font-medium">
+        {activeIdx === sections.length - 1 ? (jobId ? 'Generate report →' : 'Finish →') : 'Next →'}
       </button>
     </div>
   )
@@ -777,9 +815,10 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
 
   // ── Layout ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col md:flex-row h-full">
+      {mobileTopBar}
       {sidebar}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6 pb-6">
         <div className="max-w-2xl">
           {sectionHeader}
           {renderContent()}
