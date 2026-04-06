@@ -212,10 +212,10 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   const [complaint, setComplaint] = useState('')
   const [findings, setFindings] = useState('')
   const [recommendation, setRecommendation] = useState('')
-  type Estimate = { task: string; urgency: string; estCost: string; estTime: string }
+  type Estimate = { task: string; urgency: string; estCost: string; estTime: string; replacements: string[] }
   type Part     = { name: string; qty: number; price: string }
 
-  const [estimates, setEstimates] = useState<Estimate[]>([{ task: '', urgency: '', estCost: '', estTime: '' }])
+  const [estimates, setEstimates] = useState<Estimate[]>([{ task: '', urgency: '', estCost: '', estTime: '', replacements: [] }])
 
   // Repair state
   const [repairSource, setRepairSource] = useState<string>('customer')
@@ -713,7 +713,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
           setEstimates((prev: Estimate[]) => prev.map((e: Estimate, i: number) => i === idx ? { ...e, [field]: val } : e))
         }
         function addRow() {
-          setEstimates((prev: Estimate[]) => [...prev, { task: '', urgency: '', estCost: '', estTime: '' }])
+          setEstimates((prev: Estimate[]) => [...prev, { task: '', urgency: '', estCost: '', estTime: '', replacements: [] }])
         }
         function removeRow(idx: number) {
           setEstimates((prev: Estimate[]) => prev.filter((_: Estimate, i: number) => i !== idx))
@@ -764,6 +764,29 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                           placeholder="e.g. 2 hrs" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
                       </div>
                     </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-neutral-400">Parts / replacements needed</label>
+                        <button onClick={() => updateEst(idx, 'replacements', [...(est.replacements || []), ''] as unknown as string)}
+                          className="text-xs text-blue-600 hover:text-blue-800">+ Add</button>
+                      </div>
+                      {(est.replacements || []).map((r, ri) => (
+                        <div key={ri} className="flex gap-2 mb-1">
+                          <input value={r}
+                            onChange={e => {
+                              const updated = [...(est.replacements || [])]
+                              updated[ri] = e.target.value
+                              updateEst(idx, 'replacements', updated as unknown as string)
+                            }}
+                            placeholder="e.g. Radiator cap, coolant..."
+                            className="flex-1 text-base border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none bg-neutral-50" />
+                          <button onClick={() => {
+                            const updated = (est.replacements || []).filter((_: string, i: number) => i !== ri)
+                            updateEst(idx, 'replacements', updated as unknown as string)
+                          }} className="text-neutral-300 hover:text-red-400 text-lg leading-none px-1">×</button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -788,7 +811,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
         setEstimates((prev: Estimate[]) => prev.map((e: Estimate, i: number) => i === idx ? { ...e, [field]: val } : e))
       }
       function addRow() {
-        setEstimates((prev: Estimate[]) => [...prev, { task: '', urgency: '', estCost: '', estTime: '' }])
+        setEstimates((prev: Estimate[]) => [...prev, { task: '', urgency: '', estCost: '', estTime: '', replacements: [] }])
       }
       function removeRow(idx: number) {
         setEstimates((prev: Estimate[]) => prev.filter((_: Estimate, i: number) => i !== idx))
@@ -831,6 +854,29 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                     <label className="text-xs text-neutral-400 mb-1 block">Est. time</label>
                     <input type="text" value={est.estTime} onChange={e => updateEst(idx, 'estTime', e.target.value)}
                       placeholder="e.g. 2 hrs" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-neutral-400">Parts / replacements needed</label>
+                      <button onClick={() => updateEst(idx, 'replacements', [...(est.replacements || []), ''] as unknown as string)}
+                        className="text-xs text-blue-600 hover:text-blue-800">+ Add</button>
+                    </div>
+                    {(est.replacements || []).map((r, ri) => (
+                      <div key={ri} className="flex gap-2 mb-1">
+                        <input value={r}
+                          onChange={e => {
+                            const updated = [...(est.replacements || [])]
+                            updated[ri] = e.target.value
+                            updateEst(idx, 'replacements', updated as unknown as string)
+                          }}
+                          placeholder="e.g. Radiator cap, coolant..."
+                          className="flex-1 text-base border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none bg-neutral-50" />
+                        <button onClick={() => {
+                          const updated = (est.replacements || []).filter((_: string, i: number) => i !== ri)
+                          updateEst(idx, 'replacements', updated as unknown as string)
+                        }} className="text-neutral-300 hover:text-red-400 text-lg leading-none px-1">×</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
