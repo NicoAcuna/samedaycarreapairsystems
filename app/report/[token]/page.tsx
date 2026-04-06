@@ -444,35 +444,35 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
           </div>
 
           {/* Meta bar */}
-          <div className="flex items-center gap-8 px-6 py-3 border-b border-neutral-100 bg-neutral-50 text-sm">
-            <div><span className="text-neutral-400 text-xs">Date</span><div className="font-semibold text-neutral-900">{date}</div></div>
-            <div><span className="text-neutral-400 text-xs">Odometer</span><div className="font-semibold text-neutral-900">{odo}</div></div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 px-5 py-3 border-b border-neutral-100 bg-neutral-50">
+            <div><span className="text-neutral-400 text-xs block">Date</span><div className="font-semibold text-neutral-900 text-sm">{date}</div></div>
+            <div><span className="text-neutral-400 text-xs block">Odometer</span><div className="font-semibold text-neutral-900 text-sm">{odo}</div></div>
           </div>
 
           {/* Client + Vehicle */}
-          <div className="grid grid-cols-2 border-b border-neutral-100">
-            <div className="p-5 border-r border-neutral-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 border-b border-neutral-100">
+            <div className="p-4 border-b sm:border-b-0 sm:border-r border-neutral-100">
               <div className="text-xs font-semibold uppercase tracking-wider text-white bg-green-700 px-3 py-1.5 rounded mb-3 inline-block">Client Information</div>
               {[
                 { label: 'Client Name', value: clientName },
                 { label: 'Phone',       value: c?.phone || '—' },
                 { label: 'Email',       value: c?.email || '—' },
               ].map(row => (
-                <div key={row.label} className="flex items-start gap-4 py-1.5">
-                  <span className="text-xs text-neutral-400 w-24 flex-shrink-0">{row.label}</span>
-                  <span className="text-sm font-semibold text-neutral-900">{row.value}</span>
+                <div key={row.label} className="py-1">
+                  <span className="text-xs text-neutral-400 block">{row.label}</span>
+                  <span className="text-sm font-semibold text-neutral-900 break-all">{row.value}</span>
                 </div>
               ))}
             </div>
-            <div className="p-5">
+            <div className="p-4">
               <div className="text-xs font-semibold uppercase tracking-wider text-white bg-neutral-900 px-3 py-1.5 rounded mb-3 inline-block">Vehicle Information</div>
               {[
                 { label: 'Vehicle',      value: vehicleName },
                 { label: 'Plate / Rego', value: plate },
                 { label: 'Odometer',     value: odo },
               ].map(row => (
-                <div key={row.label} className="flex items-start gap-4 py-1.5">
-                  <span className="text-xs text-neutral-400 w-24 flex-shrink-0">{row.label}</span>
+                <div key={row.label} className="py-1">
+                  <span className="text-xs text-neutral-400 block">{row.label}</span>
                   <span className="text-sm font-semibold text-neutral-900">{row.value}</span>
                 </div>
               ))}
