@@ -277,6 +277,25 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     } catch {}
   }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Save on unmount (e.g. user navigates to another tab mid-flow)
+  const saveOnUnmountRef = useRef<() => void>(() => {})
+  saveOnUnmountRef.current = () => {
+    if (jobId) return
+    try {
+      const flowData = buildFlowData()
+      localStorage.setItem(`job_new_draft_${type}_state`, JSON.stringify({
+        ...flowData,
+        activeIdx,
+        doneSections: [...doneSections],
+        _clientId: clientId,
+        _vehicleId: vehicleId,
+      }))
+    } catch { /* quota exceeded */ }
+  }
+  useEffect(() => {
+    return () => { saveOnUnmountRef.current() }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const partsTotal = parts.reduce((sum: number, p: Part) => sum + (Number(p.price) * p.qty || 0), 0)
   const grandTotal = partsTotal + (Number(labour) || 0)
 
