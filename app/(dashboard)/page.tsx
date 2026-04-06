@@ -23,7 +23,7 @@ const TYPE_STYLES: Record<string, { bg: string; text: string; dot: string; label
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string; dot: string }> = {
   in_progress: { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
-  pending:     { label: 'Pending',     bg: 'bg-neutral-100', text: 'text-neutral-500', dot: 'bg-neutral-400' },
+  pending:     { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
   completed:   { label: 'Completed',  bg: 'bg-green-50',    text: 'text-green-700',  dot: 'bg-green-500'   },
 }
 
@@ -72,7 +72,7 @@ export default function DashboardPage() {
 
   // Computed metrics
   const todayJobs     = jobs.filter(j => isToday(j.scheduled_at ?? j.created_at))
-  const inProgressJobs = jobs.filter(j => j.status === 'in_progress')
+  const inProgressJobs = jobs.filter(j => j.status === 'in_progress' || j.status === 'pending')
   const overdueJobs   = jobs.filter(j => isOverdue(j))
   const pendingCount  = todayJobs.filter(j => j.status !== 'completed').length
   const doneCount     = todayJobs.filter(j => j.status === 'completed').length
@@ -89,7 +89,7 @@ export default function DashboardPage() {
     const matchFilter =
       activeFilter === 'all'         ? true :
       activeFilter === 'today'       ? isToday(job.scheduled_at ?? job.created_at) :
-      activeFilter === 'in_progress' ? job.status === 'in_progress' :
+      activeFilter === 'in_progress' ? (job.status === 'in_progress' || job.status === 'pending') :
       activeFilter === 'overdue'     ? isOverdue(job) : true
     return matchType && matchFilter
   })

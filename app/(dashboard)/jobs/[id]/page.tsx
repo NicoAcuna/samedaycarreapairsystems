@@ -24,7 +24,7 @@ const TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> =
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string; dot: string }> = {
   in_progress: { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
-  pending:     { label: 'Pending',     bg: 'bg-neutral-100', text: 'text-neutral-500', dot: 'bg-neutral-400' },
+  pending:     { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
   completed:   { label: 'Completed',  bg: 'bg-green-50',    text: 'text-green-700',  dot: 'bg-green-500'   },
 }
 
