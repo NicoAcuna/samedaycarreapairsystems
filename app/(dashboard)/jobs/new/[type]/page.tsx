@@ -1,10 +1,10 @@
 'use client'
 
-import { use } from 'react'
+import { use, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { JobFlow } from '../../../../../components/job-flow/JobFlow'
 
-export default function NewJobFlowPage({ params }: { params: Promise<{ type: string }> }) {
+function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { type } = use(params)
@@ -20,5 +20,13 @@ export default function NewJobFlowPage({ params }: { params: Promise<{ type: str
         router.push(`/jobs/new/${type}/conclusion?client=${clientId}&vehicle=${vehicleId}`)
       }
     />
+  )
+}
+
+export default function NewJobFlowPage({ params }: { params: Promise<{ type: string }> }) {
+  return (
+    <Suspense>
+      <NewJobFlowPageInner params={params} />
+    </Suspense>
   )
 }

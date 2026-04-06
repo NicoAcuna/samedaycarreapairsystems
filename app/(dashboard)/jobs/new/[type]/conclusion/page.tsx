@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../../../lib/supabase/client'
 
@@ -11,7 +11,7 @@ const TYPE_LABELS: Record<string, string> = {
   repair:       'Repair',
 }
 
-export default function ConclusionPage({ params }: { params: Promise<{ type: string }> }) {
+function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { type } = use(params)
@@ -91,5 +91,13 @@ export default function ConclusionPage({ params }: { params: Promise<{ type: str
         </button>
       </div>
     </div>
+  )
+}
+
+export default function ConclusionPage({ params }: { params: Promise<{ type: string }> }) {
+  return (
+    <Suspense>
+      <ConclusionPageInner params={params} />
+    </Suspense>
   )
 }

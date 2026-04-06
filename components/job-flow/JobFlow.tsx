@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 // ── PHOTO PICKER ──────────────────────────────────────────────────────────────
@@ -140,12 +140,12 @@ function ChecklistItem({ name, options, selected, comment, onSelect, onComment, 
 }) {
   return (
     <div className="bg-white border border-neutral-200 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-start justify-between gap-2 mb-3">
         <span className="text-sm font-medium text-neutral-900">{name}</span>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap justify-end flex-shrink-0">
           {options.map(opt => (
             <button key={opt} onClick={() => onSelect(selected === opt ? '' : opt)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${selected === opt ? OPTION_STYLES[opt] || 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:border-neutral-400'}`}>
+              className={`text-xs px-3 py-2 rounded-full border font-medium transition-colors ${selected === opt ? OPTION_STYLES[opt] || 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:border-neutral-400'}`}>
               {opt}
             </button>
           ))}
@@ -153,7 +153,7 @@ function ChecklistItem({ name, options, selected, comment, onSelect, onComment, 
       </div>
       <input type="text" value={comment} onChange={e => onComment(e.target.value)}
         placeholder="Optional comment..."
-        className="w-full text-xs px-3 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400" />
+        className="w-full text-base px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400" />
       <PhotoPicker photos={photos} onChange={onPhotosChange} />
     </div>
   )
@@ -175,6 +175,8 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
   const router = useRouter()
   const config = FLOW_CONFIG[type as keyof typeof FLOW_CONFIG] || FLOW_CONFIG.pre_purchase
   const sections = config.sections
+  const contentRef = useRef<HTMLDivElement>(null)
+  const pillsRef = useRef<HTMLDivElement>(null)
 
   // If a service subtype was pre-selected, mark service_type as done and start at tasks
   const computedInitialDone = initialServiceSubtype
@@ -284,15 +286,24 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
     const updatedDone = new Set([...doneSections, activeSection.key])
     setDoneSections(updatedDone)
     const flowData = buildFlowData()
-    // Persist full state per job so "Continue job" restores everything
     if (jobId) {
       sessionStorage.setItem(`job_flow_${jobId}_done`,  JSON.stringify([...updatedDone]))
       sessionStorage.setItem(`job_flow_${jobId}_state`, JSON.stringify(flowData))
     }
+    sessionStorage.setItem('job_flow_data', JSON.stringify(flowData))
     if (activeIdx < sections.length - 1) {
       setActiveIdx(activeIdx + 1)
+      // Scroll content to top
+      setTimeout(() => {
+        contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+        // Scroll active pill into view
+        const pills = pillsRef.current
+        if (pills) {
+          const activePill = pills.children[activeIdx + 1] as HTMLElement
+          activePill?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+        }
+      }, 50)
     } else {
-      sessionStorage.setItem('job_flow_data', JSON.stringify(flowData))
       onComplete()
     }
   }
@@ -346,7 +357,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
         <div className="h-1.5 bg-neutral-900 rounded-full transition-all" style={{ width: `${progress}%` }} />
       </div>
       {/* Step pills — scrollable */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+      <div ref={pillsRef} className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         {sections.map((s, idx) => {
           const isDone = doneSections.has(s.key)
           const isCurrent = idx === activeIdx
@@ -412,7 +423,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
               <label className="text-xs text-neutral-500 mb-1 block">Inspection fee ($)</label>
               <input type="number" value={inspectionFee} onChange={e => setInspectionFee(e.target.value)}
                 placeholder="e.g. 180"
-                className="w-36 text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400" />
+                className="w-36 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none focus:border-neutral-400" />
             </div>
           )}
           {items.map(item => (
@@ -461,12 +472,12 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
               <div className="bg-white border border-neutral-200 rounded-xl p-4">
                 <label className="text-xs text-neutral-500 mb-1 block">Service fee ($)</label>
                 <input type="number" value={serviceFee} onChange={e => setServiceFee(e.target.value)} placeholder="e.g. 120"
-                  className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400" />
+                  className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none focus:border-neutral-400" />
               </div>
               <div className="bg-white border border-neutral-200 rounded-xl p-4">
                 <label className="text-xs text-neutral-500 mb-1 block">Current odometer (km)</label>
                 <input type="number" value={currentKm} onChange={e => setCurrentKm(e.target.value)} placeholder="e.g. 85000"
-                  className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400" />
+                  className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none focus:border-neutral-400" />
               </div>
             </div>
             {currentKm && km > 0 && recRows.length > 0 && (
@@ -525,7 +536,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
                       setCustomTasks(updated)
                     }}
                     placeholder="Task name..."
-                    className="flex-1 text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400"
+                    className="flex-1 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none focus:border-neutral-400"
                   />
                   <div className="flex gap-2 flex-shrink-0">
                     {(['Done', 'N/A'] as const).map(opt => (
@@ -587,7 +598,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
             <label className="text-xs text-neutral-500 mb-2 block">Observations & recommendations</label>
             <textarea value={observations} onChange={e => setObservations(e.target.value)}
               placeholder="Additional observations..." rows={5}
-              className="w-full text-sm px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+              className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
           </div>
         )
       }
@@ -628,13 +639,13 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <label className="text-xs text-neutral-500 mb-1 block">Diagnosis fee ($)</label>
             <input type="number" value={diagFee} onChange={e => setDiagFee(e.target.value)}
-              className="w-32 text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400" />
+              className="w-32 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none focus:border-neutral-400" />
           </div>
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <label className="text-xs text-neutral-500 mb-2 block">Customer complaint</label>
             <textarea value={complaint} onChange={e => setComplaint(e.target.value)}
               placeholder="Describe what the customer reported..." rows={4}
-              className="w-full text-sm px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+              className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
             <PhotoPicker photos={ph('complaint')} onChange={ps => setPh('complaint', ps)} />
           </div>
         </div>
@@ -644,7 +655,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
           <label className="text-xs text-neutral-500 mb-2 block">Mechanic's findings</label>
           <textarea value={findings} onChange={e => setFindings(e.target.value)}
             placeholder="Describe what you found..." rows={5}
-            className="w-full text-sm px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+            className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
           <PhotoPicker photos={ph('findings')} onChange={ps => setPh('findings', ps)} />
         </div>
       )
@@ -669,7 +680,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
               <label className="text-xs text-neutral-500 mb-2 block">Repair recommendation</label>
               <textarea value={recommendation} onChange={e => setRecommendation(e.target.value)}
                 placeholder="What needs to be done..." rows={3}
-                className="w-full text-sm px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+                className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
             </div>
 
             <div className="bg-white border border-neutral-200 rounded-xl p-4">
@@ -684,7 +695,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
                       <input
                         value={est.task} onChange={e => updateEst(idx, 'task', e.target.value)}
                         placeholder="Task description"
-                        className="flex-1 text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none bg-neutral-50" />
+                        className="flex-1 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none bg-neutral-50" />
                       {estimates.length > 1 && (
                         <button onClick={() => removeRow(idx)} className="text-xs text-red-400 hover:text-red-600 px-2">✕</button>
                       )}
@@ -701,12 +712,12 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
                       <div>
                         <label className="text-xs text-neutral-400 mb-1 block">Est. cost ($)</label>
                         <input type="number" value={est.estCost} onChange={e => updateEst(idx, 'estCost', e.target.value)}
-                          placeholder="0.00" className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none" />
+                          placeholder="0.00" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
                       </div>
                       <div>
                         <label className="text-xs text-neutral-400 mb-1 block">Est. time</label>
                         <input type="text" value={est.estTime} onChange={e => updateEst(idx, 'estTime', e.target.value)}
-                          placeholder="e.g. 2 hrs" className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none" />
+                          placeholder="e.g. 2 hrs" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
                       </div>
                     </div>
                   </div>
@@ -737,7 +748,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <label className="text-xs text-neutral-500 mb-2 block">Problem description</label>
             <textarea value={problem} onChange={e => setProblem(e.target.value)} placeholder="Describe the problem..." rows={4}
-              className="w-full text-sm px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+              className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
             <PhotoPicker photos={ph('problem')} onChange={ps => setPh('problem', ps)} />
           </div>
         </div>
@@ -746,7 +757,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
         <div className="bg-white border border-neutral-200 rounded-xl p-4">
           <label className="text-xs text-neutral-500 mb-2 block">Mechanic's diagnosis</label>
           <textarea value={diagNotes} onChange={e => setDiagNotes(e.target.value)} placeholder="What did you find?" rows={5}
-            className="w-full text-sm px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+            className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
           <PhotoPicker photos={ph('diag_notes')} onChange={ps => setPh('diag_notes', ps)} />
         </div>
       )
@@ -760,13 +771,13 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
               {parts.map((p: Part, i: number) => (
                 <div key={i} className="grid grid-cols-12 gap-2 px-4 py-2 items-center">
                   <input value={p.name} onChange={e => setParts((prev: Part[]) => prev.map((x: Part, idx: number) => idx === i ? { ...x, name: e.target.value } : x))} placeholder="Part name"
-                    className="col-span-6 text-sm border border-neutral-200 rounded-lg px-2 py-1.5 focus:outline-none" />
+                    className="col-span-6 text-base border border-neutral-200 rounded-lg px-2 py-2 focus:outline-none" />
                   <select value={p.qty} onChange={e => setParts((prev: Part[]) => prev.map((x: Part, idx: number) => idx === i ? { ...x, qty: Number(e.target.value) } : x))}
-                    className="col-span-2 text-sm border border-neutral-200 rounded-lg px-1 py-1.5 text-center focus:outline-none">
+                    className="col-span-2 text-base border border-neutral-200 rounded-lg px-1 py-2 text-center focus:outline-none">
                     {[1,2,3,4,5,6,8,10].map(n => <option key={n}>{n}</option>)}
                   </select>
                   <input type="number" value={p.price} onChange={e => setParts((prev: Part[]) => prev.map((x: Part, idx: number) => idx === i ? { ...x, price: e.target.value } : x))} placeholder="0.00"
-                    className="col-span-3 text-sm border border-neutral-200 rounded-lg px-2 py-1.5 text-right focus:outline-none" />
+                    className="col-span-3 text-base border border-neutral-200 rounded-lg px-2 py-2 text-right focus:outline-none" />
                   <button onClick={() => setParts((prev: Part[]) => prev.filter((_: Part, idx: number) => idx !== i))} className="col-span-1 text-neutral-300 hover:text-red-400 text-center text-lg leading-none">×</button>
                 </div>
               ))}
@@ -778,7 +789,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <label className="text-xs text-neutral-500 mb-1 block">Labour cost ($)</label>
             <input type="number" value={labour} onChange={e => setLabour(e.target.value)} placeholder="0.00"
-              className="w-36 text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none" />
+              className="w-36 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
           </div>
           <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
             <div className="flex justify-between text-sm text-neutral-500 mb-1"><span>Parts subtotal</span><span>${partsTotal.toFixed(2)}</span></div>
@@ -803,7 +814,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <label className="text-xs text-neutral-500 mb-2 block">Final notes</label>
             <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)} placeholder="Any final notes about the repair..." rows={3}
-              className="w-full text-sm px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+              className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
             <PhotoPicker photos={ph('result')} onChange={ps => setPh('result', ps)} />
           </div>
         </div>
@@ -818,7 +829,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
     <div className="flex flex-col md:flex-row h-full">
       {mobileTopBar}
       {sidebar}
-      <div className="flex-1 overflow-auto p-4 md:p-6 pb-6">
+      <div ref={contentRef} className="flex-1 overflow-auto p-4 md:p-6 pb-6">
         <div className="max-w-2xl">
           {sectionHeader}
           {renderContent()}
