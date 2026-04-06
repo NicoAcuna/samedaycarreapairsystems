@@ -163,6 +163,8 @@ function ChecklistItem({ name, options, selected, comment, onSelect, onComment, 
 interface JobFlowProps {
   type: string
   jobId?: string
+  clientId?: string
+  vehicleId?: string
   vehicle?: string
   plate?: string
   initialDone?: Set<string>
@@ -172,7 +174,7 @@ interface JobFlowProps {
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
-export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), initialServiceSubtype = '', onComplete, onAutoSave }: JobFlowProps) {
+export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, initialDone = new Set(), initialServiceSubtype = '', onComplete, onAutoSave }: JobFlowProps) {
   const router = useRouter()
   const config = FLOW_CONFIG[type as keyof typeof FLOW_CONFIG] || FLOW_CONFIG.pre_purchase
   const sections = config.sections
@@ -235,6 +237,15 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
     if (!raw) return
     try {
       const s = JSON.parse(raw)
+      // For new jobs, discard draft if it belongs to a different client/vehicle
+      if (!jobId) {
+        if ((clientId && s._clientId && s._clientId !== clientId) ||
+            (vehicleId && s._vehicleId && s._vehicleId !== vehicleId)) {
+          localStorage.removeItem(`job_new_draft_${type}_state`)
+          localStorage.removeItem(`job_draft_id_${type}`)
+          return
+        }
+      }
       if (s.selections)   setSelections(s.selections)
       if (s.comments)     setComments(s.comments)
       if (s.photoMap)     setPhotoMap(s.photoMap)
@@ -258,7 +269,10 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
       if (s.labour        !== undefined) setLabour(s.labour)
       if (s.repairResult  !== undefined) setRepairResult(s.repairResult)
       if (s.finalNotes    !== undefined) setFinalNotes(s.finalNotes)
-      if (!jobId && s.activeIdx !== undefined) setActiveIdx(s.activeIdx)
+      if (!jobId && s.activeIdx !== undefined) {
+        // Clamp to valid range to prevent crash if sections count changed
+        setActiveIdx(Math.min(s.activeIdx, sections.length - 1))
+      }
       if (!jobId && s.doneSections) setDoneSections(new Set(s.doneSections))
     } catch {}
   }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -300,6 +314,8 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
           ...flowData,
           activeIdx: activeIdx + 1,
           doneSections: [...updatedDone],
+          _clientId: clientId,
+          _vehicleId: vehicleId,
         }))
       } catch { /* quota exceeded — ignore */ }
       onAutoSave?.(flowData)

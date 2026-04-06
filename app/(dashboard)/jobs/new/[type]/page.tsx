@@ -58,6 +58,8 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
   return (
     <JobFlow
       type={type}
+      clientId={clientId}
+      vehicleId={vehicleId}
       initialServiceSubtype={subtype}
       onAutoSave={handleAutoSave}
       onComplete={() => {
