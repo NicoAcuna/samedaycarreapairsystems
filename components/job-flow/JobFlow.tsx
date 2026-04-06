@@ -114,10 +114,7 @@ export const FLOW_CONFIG = {
   repair: {
     title: 'Repair',
     sections: [
-      { key: 'problem',    label: 'Problem',             items: [] },
-      { key: 'diag_notes', label: "Mechanic's Diagnosis", items: [] },
-      { key: 'parts',      label: 'Parts & Labour',      items: [] },
-      { key: 'result',     label: 'Result',              items: [] },
+      { key: 'outcome', label: 'Outcome', items: [] },
     ],
   },
 }
@@ -296,8 +293,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     return () => { saveOnUnmountRef.current() }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const partsTotal = parts.reduce((sum: number, p: Part) => sum + (Number(p.price) * p.qty || 0), 0)
-  const grandTotal = partsTotal + (Number(labour) || 0)
 
   const activeSection = sections[activeIdx]
   const progress = Math.round((doneSections.size / sections.length) * 100)
@@ -782,89 +777,72 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       }
     }
 
-    // Repair
-    if (type === 'repair') {
-      if (key === 'problem') return (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            {[{ key: 'customer', label: 'Customer report' }, { key: 'diagnosis', label: 'From diagnosis' }].map(s => (
-              <button key={s.key} onClick={() => setRepairSource(s.key)}
-                className={`py-2.5 text-sm rounded-xl border font-medium transition-colors ${repairSource === s.key ? 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-600 hover:border-neutral-400'}`}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <div className="bg-white border border-neutral-200 rounded-xl p-4">
-            <label className="text-xs text-neutral-500 mb-2 block">Problem description</label>
-            <textarea value={problem} onChange={e => setProblem(e.target.value)} placeholder="Describe the problem..." rows={4}
-              className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-            <PhotoPicker photos={ph('problem')} onChange={ps => setPh('problem', ps)} />
-          </div>
-        </div>
-      )
-      if (key === 'diag_notes') return (
-        <div className="bg-white border border-neutral-200 rounded-xl p-4">
-          <label className="text-xs text-neutral-500 mb-2 block">Mechanic's diagnosis</label>
-          <textarea value={diagNotes} onChange={e => setDiagNotes(e.target.value)} placeholder="What did you find?" rows={5}
-            className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-          <PhotoPicker photos={ph('diag_notes')} onChange={ps => setPh('diag_notes', ps)} />
-        </div>
-      )
-      if (key === 'parts') return (
+    // Repair — same outcome UI as diagnosis
+    if (type === 'repair' && key === 'outcome') {
+      const URGENCY_OPTS = [
+        { key: 'immediate',  label: 'Immediate',  color: 'border-red-300 bg-red-50 text-red-700' },
+        { key: 'next_month', label: 'Next month', color: 'border-amber-300 bg-amber-50 text-amber-700' },
+        { key: 'can_wait',   label: 'Can wait',   color: 'border-green-300 bg-green-50 text-green-700' },
+      ]
+      function updateEst(idx: number, field: string, val: string) {
+        setEstimates((prev: Estimate[]) => prev.map((e: Estimate, i: number) => i === idx ? { ...e, [field]: val } : e))
+      }
+      function addRow() {
+        setEstimates((prev: Estimate[]) => [...prev, { task: '', urgency: '', estCost: '', estTime: '' }])
+      }
+      function removeRow(idx: number) {
+        setEstimates((prev: Estimate[]) => prev.filter((_: Estimate, i: number) => i !== idx))
+      }
+      return (
         <div className="space-y-4">
-          <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-neutral-50 border-b border-neutral-200 text-xs text-neutral-500 font-medium">
-              <div className="col-span-6">Part name</div><div className="col-span-2 text-center">Qty</div><div className="col-span-3 text-right">Price ($)</div><div className="col-span-1" />
+          <div className="bg-white border border-neutral-200 rounded-xl p-4">
+            <label className="text-xs text-neutral-500 mb-2 block">Repair description</label>
+            <textarea value={recommendation} onChange={e => setRecommendation(e.target.value)}
+              placeholder="Describe what was done..." rows={3}
+              className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+          </div>
+
+          <div className="bg-white border border-neutral-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs text-neutral-500">Tasks done</label>
+              <button onClick={addRow} className="text-xs px-2.5 py-1 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">+ Add row</button>
             </div>
-            <div className="divide-y divide-neutral-100">
-              {parts.map((p: Part, i: number) => (
-                <div key={i} className="grid grid-cols-12 gap-2 px-4 py-2 items-center">
-                  <input value={p.name} onChange={e => setParts((prev: Part[]) => prev.map((x: Part, idx: number) => idx === i ? { ...x, name: e.target.value } : x))} placeholder="Part name"
-                    className="col-span-6 text-base border border-neutral-200 rounded-lg px-2 py-2 focus:outline-none" />
-                  <select value={p.qty} onChange={e => setParts((prev: Part[]) => prev.map((x: Part, idx: number) => idx === i ? { ...x, qty: Number(e.target.value) } : x))}
-                    className="col-span-2 text-base border border-neutral-200 rounded-lg px-1 py-2 text-center focus:outline-none">
-                    {[1,2,3,4,5,6,8,10].map(n => <option key={n}>{n}</option>)}
-                  </select>
-                  <input type="number" value={p.price} onChange={e => setParts((prev: Part[]) => prev.map((x: Part, idx: number) => idx === i ? { ...x, price: e.target.value } : x))} placeholder="0.00"
-                    className="col-span-3 text-base border border-neutral-200 rounded-lg px-2 py-2 text-right focus:outline-none" />
-                  <button onClick={() => setParts((prev: Part[]) => prev.filter((_: Part, idx: number) => idx !== i))} className="col-span-1 text-neutral-300 hover:text-red-400 text-center text-lg leading-none">×</button>
+            <div className="space-y-3">
+              {estimates.map((est, idx) => (
+                <div key={idx} className="border border-neutral-100 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={est.task} onChange={e => updateEst(idx, 'task', e.target.value)}
+                      placeholder="Task description"
+                      className="flex-1 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none bg-neutral-50" />
+                    {estimates.length > 1 && (
+                      <button onClick={() => removeRow(idx)} className="text-xs text-red-400 hover:text-red-600 px-2">✕</button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {URGENCY_OPTS.map(u => (
+                      <button key={u.key} onClick={() => updateEst(idx, 'urgency', est.urgency === u.key ? '' : u.key)}
+                        className={`py-1.5 text-xs font-medium rounded-lg border transition-colors ${est.urgency === u.key ? u.color : 'border-neutral-200 text-neutral-500 hover:border-neutral-300'}`}>
+                        {u.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-400 mb-1 block">Est. time</label>
+                    <input type="text" value={est.estTime} onChange={e => updateEst(idx, 'estTime', e.target.value)}
+                      placeholder="e.g. 2 hrs" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="px-4 py-2">
-              <button onClick={() => setParts((prev: Part[]) => [...prev, { name: '', qty: 1, price: '' }])} className="text-xs text-blue-600 hover:text-blue-800">+ Add part</button>
-            </div>
           </div>
-          <div className="bg-white border border-neutral-200 rounded-xl p-4">
-            <label className="text-xs text-neutral-500 mb-1 block">Labour cost ($)</label>
-            <input type="number" value={labour} onChange={e => setLabour(e.target.value)} placeholder="0.00"
-              className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
-          </div>
-          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
-            <div className="flex justify-between text-sm text-neutral-500 mb-1"><span>Parts subtotal</span><span>${partsTotal.toFixed(2)}</span></div>
-            <div className="flex justify-between text-sm text-neutral-500 mb-2"><span>Labour</span><span>${Number(labour || 0).toFixed(2)}</span></div>
-            <div className="flex justify-between text-base font-semibold text-neutral-900 pt-2 border-t border-neutral-200"><span>Total</span><span>${grandTotal.toFixed(2)}</span></div>
-          </div>
-        </div>
-      )
-      if (key === 'result') return (
-        <div className="space-y-4">
-          <div className="bg-white border border-neutral-200 rounded-xl p-4">
-            <label className="text-xs text-neutral-500 mb-2 block">Repair outcome</label>
-            <div className="space-y-2">
-              {[{ key: 'fully_resolved', label: 'Fully resolved — issue fixed', color: 'border-green-300 bg-green-50 text-green-700' }, { key: 'partially_resolved', label: 'Partially resolved — further work needed', color: 'border-amber-300 bg-amber-50 text-amber-700' }, { key: 'not_resolved', label: 'Not resolved — refer to specialist', color: 'border-red-300 bg-red-50 text-red-700' }].map(r => (
-                <button key={r.key} onClick={() => setRepairResult(repairResult === r.key ? '' : r.key)}
-                  className={`w-full py-3 px-4 text-sm rounded-xl border text-left transition-colors ${repairResult === r.key ? r.color : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'}`}>
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
+
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <label className="text-xs text-neutral-500 mb-2 block">Final notes</label>
-            <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)} placeholder="Any final notes about the repair..." rows={3}
+            <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)}
+              placeholder="Any final notes about the repair..." rows={3}
               className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-            <PhotoPicker photos={ph('result')} onChange={ps => setPh('result', ps)} />
+            <PhotoPicker photos={ph('outcome')} onChange={ps => setPh('outcome', ps)} />
           </div>
         </div>
       )
