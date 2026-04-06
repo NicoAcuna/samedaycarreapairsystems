@@ -423,7 +423,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
               <label className="text-xs text-neutral-500 mb-1 block">Inspection fee ($)</label>
               <input type="number" value={inspectionFee} onChange={e => setInspectionFee(e.target.value)}
                 placeholder="e.g. 180"
-                className="w-36 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none focus:border-neutral-400" />
+                className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none focus:border-neutral-400" />
             </div>
           )}
           {items.map(item => (
@@ -789,7 +789,7 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <label className="text-xs text-neutral-500 mb-1 block">Labour cost ($)</label>
             <input type="number" value={labour} onChange={e => setLabour(e.target.value)} placeholder="0.00"
-              className="w-36 text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
+              className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
           </div>
           <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
             <div className="flex justify-between text-sm text-neutral-500 mb-1"><span>Parts subtotal</span><span>${partsTotal.toFixed(2)}</span></div>
