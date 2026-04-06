@@ -51,12 +51,9 @@ export default function Sidebar() {
       {/* Desktop sidebar */}
       <div className="hidden md:flex w-44 flex-shrink-0 bg-white border-r border-neutral-200 flex-col">
         <div className="px-4 py-4 border-b border-neutral-200">
-          <div className="flex items-center gap-2.5 mb-1">
+          <div className="flex items-center gap-2.5">
             <Logo />
-            <div>
-              <div className="text-xs font-bold text-neutral-900 leading-tight tracking-wide">SDCR Systems</div>
-              <div className="text-xs text-neutral-400 leading-tight">by Same Day Car Repair</div>
-            </div>
+            <div className="text-sm font-semibold text-neutral-900 leading-tight">Same Day Car Repair</div>
           </div>
         </div>
         <nav className="flex-1 py-3">
@@ -81,7 +78,7 @@ export default function Sidebar() {
         <div className="px-4 py-4 border-t border-neutral-100">
           <button
             onClick={handleLogout}
-            className="w-full text-left text-xs text-neutral-400 hover:text-red-500 transition-colors flex items-center gap-2 py-1"
+            className="w-full text-left text-xs text-neutral-400 hover:text-red-500 transition-colors flex items-center gap-2 py-1 cursor-pointer"
           >
             <span>→</span> Log out
           </button>
