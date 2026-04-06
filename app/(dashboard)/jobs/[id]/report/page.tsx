@@ -85,7 +85,8 @@ function SendModal({
 }) {
   const vehicleStr = [vehicleMake, vehicleModel, vehiclePlate].filter(Boolean).join(' ')
   const titleStr = reportTitle || 'Inspection Report'
-  const subjectDefault = `Your ${titleStr}${vehicleStr ? ` — ${vehicleStr}` : ''} - Same Day Car Repair`
+  const dateStr = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+  const subjectDefault = `Your ${titleStr}${vehicleStr ? ` — ${vehicleStr}` : ''} — ${dateStr}`
   const reportUrl = publicToken ? `/report/${publicToken}` : `/jobs/${id}/report`
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const fullReportUrl = `${baseUrl}${reportUrl}`

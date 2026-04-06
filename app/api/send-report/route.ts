@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || 'Same Day Car Repair <onboarding@resend.dev>',
+        from: 'Same Day Car Repair <reports@samedaycarrepair.com.au>',
         reply_to: 'samedaycarrepair@gmail.com',
         to: Array.isArray(to) ? to : [to],
         subject,
