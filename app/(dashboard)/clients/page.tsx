@@ -154,7 +154,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Desktop table */}
-      <div className="hidden md:block bg-white border border-neutral-200 rounded-xl overflow-hidden">
+      <div className="hidden md:block bg-white border border-neutral-200 rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-neutral-50 border-b border-neutral-200">
