@@ -70,12 +70,12 @@ function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
 
 // ── Send Modal ────────────────────────────────────────────────────────────────
 function SendModal({
-  onClose, onSent, id, publicToken, vehicleMake, vehicleModel, vehiclePlate, clientEmail, clientPhone, reportTitle,
+  onClose, onSent, id, reportToken, vehicleMake, vehicleModel, vehiclePlate, clientEmail, clientPhone, reportTitle,
 }: {
   onClose: () => void
   onSent: () => void
   id: string
-  publicToken?: string
+  reportToken?: string
   vehicleMake?: string
   vehicleModel?: string
   vehiclePlate?: string
@@ -87,7 +87,7 @@ function SendModal({
   const titleStr = reportTitle || 'Inspection Report'
   const dateStr = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
   const subjectDefault = `Your ${titleStr}${vehicleStr ? ` — ${vehicleStr}` : ''} — ${dateStr}`
-  const reportUrl = publicToken ? `/report/${publicToken}` : `/jobs/${id}/report`
+  const reportUrl = reportToken ? `/report/${reportToken}` : `/jobs/${id}/report`
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const fullReportUrl = `${baseUrl}${reportUrl}`
 
@@ -401,23 +401,60 @@ function countResults(sections: typeof REPORT.sections) {
   return { good, fair, poor }
 }
 
-function ReportShell({ id, title, subtitle, data, children }: {
+function ReportShell({ id, title, subtitle, data, snapshot, children }: {
   id: string
   title: string
   subtitle: string
   data: { date: string; odometer: string; location: string; client: { name: string; phone: string; email: string }; vehicle: { make: string; plate: string; odometer: string } }
+  snapshot: Record<string, unknown>
   children: React.ReactNode
 }) {
   const router = useRouter()
   const [showSend, setShowSend] = useState(false)
-  const [publicToken, setPublicToken] = useState<string | null>(null)
+  const [reportToken, setReportToken] = useState<string | null>(null)
+  const [versions, setVersions] = useState<{ version: number; token: string; created_at: string }[]>([])
+  const [showVersions, setShowVersions] = useState(false)
+  const [savingVersion, setSavingVersion] = useState(false)
 
-  useEffect(() => {
+  function loadVersions() {
     if (!id) return
     const supabase = createClient()
-    supabase.from('jobs').select('public_token').eq('id', id).single()
-      .then(({ data: d }) => { if (d?.public_token) setPublicToken(d.public_token) })
-  }, [id])
+    supabase.from('job_reports').select('version, token, created_at').eq('job_id', id).order('version', { ascending: false })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setVersions(data)
+          setReportToken(data[0].token)
+        } else {
+          // fallback legacy
+          supabase.from('jobs').select('public_token').eq('id', id).single()
+            .then(({ data: j }) => { if (j?.public_token) setReportToken(j.public_token) })
+        }
+      })
+  }
+
+  useEffect(() => { loadVersions() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveNewVersion() {
+    setSavingVersion(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: userData } = await supabase.from('users').select('company_id').eq('id', user.id).single()
+      const nextVersion = versions.length > 0 ? versions[0].version + 1 : 1
+      await supabase.from('job_reports').insert([{
+        job_id:     id,
+        version:    nextVersion,
+        snapshot,
+        type:       title.toLowerCase().replace(/ /g, '_'),
+        company_id: userData?.company_id,
+        user_id:    user.id,
+      }])
+      loadVersions()
+    } finally {
+      setSavingVersion(false)
+    }
+  }
 
   const vehicleParts = data.vehicle.make.split(' ')
   const vehicleMake  = vehicleParts[0]
@@ -443,7 +480,7 @@ function ReportShell({ id, title, subtitle, data, children }: {
           onClose={() => setShowSend(false)}
           onSent={() => setShowSend(false)}
           id={id}
-          publicToken={publicToken || undefined}
+          reportToken={reportToken || undefined}
           vehicleMake={vehicleMake}
           vehicleModel={vehicleModel}
           vehiclePlate={vehiclePlate}
@@ -454,7 +491,44 @@ function ReportShell({ id, title, subtitle, data, children }: {
       )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
         <button onClick={() => router.push(`/jobs/${id}`)} className="text-sm text-neutral-500 hover:text-neutral-700 text-left">← Back to job</button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {versions.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowVersions(v => !v)}
+                className="flex-1 sm:flex-none text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-500"
+              >
+                v{versions[0].version} ▾
+              </button>
+              {showVersions && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg z-20 min-w-[200px] py-1">
+                  {versions.map(v => (
+                    <a
+                      key={v.token}
+                      href={`/report/${v.token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between px-4 py-2.5 hover:bg-neutral-50 text-sm"
+                    >
+                      <span className="font-medium text-neutral-900">Version {v.version}</span>
+                      <span className="text-xs text-neutral-400 ml-4">
+                        {new Date(v.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </a>
+                  ))}
+                  <div className="border-t border-neutral-100 mt-1 pt-1">
+                    <button
+                      onClick={() => { setShowVersions(false); saveNewVersion() }}
+                      disabled={savingVersion}
+                      className="w-full text-left px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      {savingVersion ? 'Saving…' : '+ Save as new version'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <button onClick={() => setShowSend(true)} className="flex-1 sm:flex-none text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Send to client</button>
           <button onClick={() => window.print()} className="flex-1 sm:flex-none text-sm px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">Download PDF</button>
         </div>
@@ -860,7 +934,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
   if (jobType === 'diagnosis') {
     return (
-      <ReportShell id={id} title="Diagnosis" subtitle="Diagnosis Report" data={reportData}>
+      <ReportShell id={id} title="Diagnosis" subtitle="Diagnosis Report" data={reportData} snapshot={flowData}>
         <DiagnosisBody flowData={flowData} photoMap={photoMap} />
       </ReportShell>
     )
@@ -872,7 +946,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     const additionalNotes = (flowData.observations as string) || ''
     const typeLabel = (flowData.serviceType as string) || 'Service'
     return (
-      <ReportShell id={id} title={typeLabel} subtitle="Service Report" data={reportData}>
+      <ReportShell id={id} title={typeLabel} subtitle="Service Report" data={reportData} snapshot={flowData}>
         <ServiceBody sections={sections} nextService={nextService} additionalNotes={additionalNotes} photoMap={photoMap} />
       </ReportShell>
     )
@@ -882,7 +956,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const sections = buildPrePurchaseSections(flowData)
   const additionalNotes = (flowData.finalNotes as string) || ''
   return (
-    <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData}>
+    <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData} snapshot={flowData}>
       <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={[]} photoMap={photoMap} />
     </ReportShell>
   )

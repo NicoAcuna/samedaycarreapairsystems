@@ -12,6 +12,29 @@ export async function GET(
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
+  // Check versioned snapshots first
+  const { data: reportVersion } = await supabase
+    .from('job_reports')
+    .select('snapshot, type, created_at, version, job_id')
+    .eq('token', token)
+    .single()
+
+  if (reportVersion) {
+    const snap = reportVersion.snapshot as Record<string, unknown>
+    return NextResponse.json({
+      id:            reportVersion.job_id,
+      type:          reportVersion.type,
+      created_at:    reportVersion.created_at,
+      status:        'completed',
+      odometer_km:   null,
+      checklist_data: snap,
+      version:       reportVersion.version,
+      clients:       snap._client  ?? null,
+      vehicles:      snap._vehicle ?? null,
+    })
+  }
+
+  // Fallback: legacy jobs.public_token
   const { data, error } = await supabase
     .from('jobs')
     .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, odometer_km)')

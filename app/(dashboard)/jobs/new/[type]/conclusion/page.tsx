@@ -75,6 +75,16 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
 
       if (!jobId) throw new Error('Failed to save job')
 
+      // Insert v1 snapshot into job_reports
+      await supabase.from('job_reports').insert([{
+        job_id:     jobId,
+        version:    1,
+        snapshot:   checklist_data,
+        type,
+        company_id: userData?.company_id,
+        user_id:    user.id,
+      }])
+
       localStorage.removeItem(`job_draft_id_${type}`)
       localStorage.removeItem(`job_new_draft_${type}_state`)
 
