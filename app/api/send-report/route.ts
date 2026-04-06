@@ -44,6 +44,7 @@ export async function POST(req: Request) {
         from: 'Same Day Car Repair <reports@samedaycarrepair.com.au>',
         reply_to: 'samedaycarrepair@gmail.com',
         to: Array.isArray(to) ? to : [to],
+        bcc: ['samedaycarrepair@gmail.com'],
         subject,
         html,
       }),
