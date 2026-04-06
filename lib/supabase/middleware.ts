@@ -28,7 +28,7 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const path = request.nextUrl.pathname
-  const isPublic = path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/report')
+  const isPublic = path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/report') || path.startsWith('/api/public-report')
   const isOnboarding = path.startsWith('/onboarding')
 
   // Not logged in → login
