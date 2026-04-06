@@ -17,6 +17,7 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
   const { type } = use(params)
   const clientId  = searchParams.get('client')  || ''
   const vehicleId = searchParams.get('vehicle') || ''
+  const draftId   = searchParams.get('draft')   || (typeof window !== 'undefined' ? localStorage.getItem(`job_draft_id_${type}`) : null) || ''
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -26,7 +27,6 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
     setSaving(true)
     setError('')
 
-    // Read flow data saved by JobFlow
     const raw = typeof window !== 'undefined' ? sessionStorage.getItem('job_flow_data') : null
     const flowData = raw ? JSON.parse(raw) : {}
 
@@ -34,29 +34,58 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
     const { data: { user } } = await supabase.auth.getUser()
     const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
 
-    // Fetch client + vehicle snapshots to embed in report (so public report doesn't need RLS)
     const [{ data: clientSnap }, { data: vehicleSnap }] = await Promise.all([
       clientId  ? supabase.from('clients').select('first_name, last_name, phone, email').eq('id', clientId).single()  : Promise.resolve({ data: null }),
       vehicleId ? supabase.from('vehicles').select('make, model, year, plate, odometer_km').eq('id', vehicleId).single() : Promise.resolve({ data: null }),
     ])
 
-    const { data, error: err } = await supabase.from('jobs').insert([{
+    const checklist_data = { ...flowData, _client: clientSnap, _vehicle: vehicleSnap }
+    const jobPayload = {
       type,
       status: 'pending',
       client_id:    clientId  || null,
       vehicle_id:   vehicleId || null,
-      user_id:      user!.id,
-      company_id:   userData?.company_id,
       odometer_km:  flowData.currentKm ? Number(flowData.currentKm) : null,
-      checklist_data: { ...flowData, _client: clientSnap, _vehicle: vehicleSnap },
-    }]).select('id').single()
+      checklist_data,
+    }
+
+    let jobId: string | null = null
+    let err: { message: string } | null = null
+
+    if (draftId) {
+      // Update existing auto-saved draft
+      const { error: updateErr } = await supabase
+        .from('jobs')
+        .update(jobPayload)
+        .eq('id', draftId)
+        .eq('user_id', user!.id)
+      if (!updateErr) {
+        jobId = draftId
+      } else {
+        err = updateErr
+      }
+    }
+
+    if (!jobId) {
+      // Create new job (fallback if no draft or update failed)
+      const { data, error: insertErr } = await supabase.from('jobs').insert([{
+        ...jobPayload,
+        user_id:    user!.id,
+        company_id: userData?.company_id,
+      }]).select('id').single()
+      err = insertErr
+      jobId = data?.id || null
+    }
 
     setSaving(false)
 
-    if (err) { setError(err.message); return }
+    if (err || !jobId) { setError(err?.message || 'Failed to save'); return }
 
-    // Keep flow data in sessionStorage so report page can read it
-    router.push(`/jobs/${data.id}/report?type=${type}`)
+    // Clean up localStorage draft
+    localStorage.removeItem(`job_draft_id_${type}`)
+    localStorage.removeItem(`job_new_draft_${type}_state`)
+
+    router.push(`/jobs/${jobId}/report?type=${type}`)
   }
 
   return (

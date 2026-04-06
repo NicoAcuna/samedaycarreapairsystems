@@ -168,10 +168,11 @@ interface JobFlowProps {
   initialDone?: Set<string>
   initialServiceSubtype?: string
   onComplete: () => void
+  onAutoSave?: (data: object) => void
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
-export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), initialServiceSubtype = '', onComplete }: JobFlowProps) {
+export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), initialServiceSubtype = '', onComplete, onAutoSave }: JobFlowProps) {
   const router = useRouter()
   const config = FLOW_CONFIG[type as keyof typeof FLOW_CONFIG] || FLOW_CONFIG.pre_purchase
   const sections = config.sections
@@ -228,8 +229,9 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
 
   // Restore saved state on client mount (after SSR hydration)
   useEffect(() => {
-    if (!jobId) return
-    const raw = sessionStorage.getItem(`job_flow_${jobId}_state`)
+    const raw = jobId
+      ? sessionStorage.getItem(`job_flow_${jobId}_state`)
+      : localStorage.getItem(`job_new_draft_${type}_state`)
     if (!raw) return
     try {
       const s = JSON.parse(raw)
@@ -256,8 +258,10 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
       if (s.labour        !== undefined) setLabour(s.labour)
       if (s.repairResult  !== undefined) setRepairResult(s.repairResult)
       if (s.finalNotes    !== undefined) setFinalNotes(s.finalNotes)
+      if (!jobId && s.activeIdx !== undefined) setActiveIdx(s.activeIdx)
+      if (!jobId && s.doneSections) setDoneSections(new Set(s.doneSections))
     } catch {}
-  }, [jobId])
+  }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const partsTotal = parts.reduce((sum: number, p: Part) => sum + (Number(p.price) * p.qty || 0), 0)
   const grandTotal = partsTotal + (Number(labour) || 0)
@@ -289,6 +293,16 @@ export function JobFlow({ type, jobId, vehicle, plate, initialDone = new Set(), 
     if (jobId) {
       sessionStorage.setItem(`job_flow_${jobId}_done`,  JSON.stringify([...updatedDone]))
       sessionStorage.setItem(`job_flow_${jobId}_state`, JSON.stringify(flowData))
+    } else {
+      // Persist new-job draft to localStorage (survives tab close + refresh)
+      try {
+        localStorage.setItem(`job_new_draft_${type}_state`, JSON.stringify({
+          ...flowData,
+          activeIdx: activeIdx + 1,
+          doneSections: [...updatedDone],
+        }))
+      } catch { /* quota exceeded — ignore */ }
+      onAutoSave?.(flowData)
     }
     sessionStorage.setItem('job_flow_data', JSON.stringify(flowData))
     if (activeIdx < sections.length - 1) {
