@@ -87,7 +87,6 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
 
       localStorage.removeItem(`job_draft_id_${type}`)
       localStorage.removeItem(`job_new_draft_${type}_state`)
-      sessionStorage.removeItem(`flow_active_${type}`)
 
       router.push(`/jobs/${jobId}/report?type=${type}`)
     } catch (e: unknown) {

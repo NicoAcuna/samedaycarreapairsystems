@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useRef, useCallback, useEffect, Suspense } from 'react'
+import { use, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { JobFlow } from '../../../../../components/job-flow/JobFlow'
 import { createClient } from '../../../../../lib/supabase/client'
@@ -12,25 +12,20 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
   const clientId = searchParams.get('client') || ''
   const vehicleId = searchParams.get('vehicle') || ''
   const subtype = searchParams.get('subtype') || ''
+  // `fresh=1` is added by the new-job page when navigating here intentionally
+  const isFresh = searchParams.get('fresh') === '1'
 
-  // On first mount (new navigation, not a refresh), clear any stale draft
-  // sessionStorage survives refresh but not new navigation → use it as the signal
-  useEffect(() => {
-    const sessionKey = `flow_active_${type}`
-    const isRefresh = sessionStorage.getItem(sessionKey) === 'true'
-    if (!isRefresh) {
-      // Fresh navigation — clear previous draft so job starts clean
-      localStorage.removeItem(`job_new_draft_${type}_state`)
-      localStorage.removeItem(`job_draft_id_${type}`)
-    }
-    sessionStorage.setItem(sessionKey, 'true')
-    return () => {
-      // Clear the flag when navigating away (not on refresh)
-    }
-  }, [type]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (isFresh && typeof window !== 'undefined') {
+    localStorage.removeItem(`job_new_draft_${type}_state`)
+    localStorage.removeItem(`job_draft_id_${type}`)
+  }
 
-  // Track draft job ID so we update instead of inserting on each step
-  const draftIdRef = useRef<string | null>(null)
+  // Track draft job ID — restore from localStorage on refresh, null on fresh start
+  const draftIdRef = useRef<string | null>(
+    !isFresh && typeof window !== 'undefined'
+      ? localStorage.getItem(`job_draft_id_${type}`)
+      : null
+  )
 
   const handleAutoSave = useCallback(async (flowData: object) => {
     try {

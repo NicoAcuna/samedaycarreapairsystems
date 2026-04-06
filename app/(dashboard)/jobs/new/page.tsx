@@ -194,7 +194,7 @@ function NewJobPageInner() {
     const subtype = selectedType === 'service' && selectedServiceSubtype
       ? `&subtype=${encodeURIComponent(selectedServiceSubtype)}`
       : ''
-    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}${subtype}`)
+    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}${subtype}&fresh=1`)
   }
 
   function setNcf(field: string, val: string) { setNewClientForm(prev => ({ ...prev, [field]: val })) }
