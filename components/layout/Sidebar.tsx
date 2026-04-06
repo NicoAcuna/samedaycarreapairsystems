@@ -20,17 +20,18 @@ const icons: Record<string, string> = {
 
 function Logo() {
   return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Wrench + circuit dot — mechanic SaaS icon */}
-      <rect width="28" height="28" rx="7" fill="#171717"/>
-      {/* Wrench body */}
-      <path d="M8 20L14.5 13.5" stroke="#4ade80" strokeWidth="2" strokeLinecap="round"/>
-      {/* Wrench head circle */}
-      <circle cx="17" cy="11" r="3.2" stroke="#4ade80" strokeWidth="2"/>
-      {/* Signal dots */}
-      <circle cx="8" cy="9" r="1.2" fill="#4ade80"/>
-      <circle cx="11" cy="7" r="1.2" fill="#4ade80" opacity="0.6"/>
-      <circle cx="14" cy="5.5" r="1.2" fill="#4ade80" opacity="0.3"/>
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="#171717"/>
+      {/* Car silhouette */}
+      <path d="M6 20h20v2a1 1 0 01-1 1H7a1 1 0 01-1-1v-2z" fill="#4ade80" opacity="0.3"/>
+      <path d="M5 20l3-6h16l3 6H5z" fill="#4ade80" opacity="0.7"/>
+      <path d="M10 14l2-4h8l2 4" fill="#4ade80"/>
+      {/* Wheels */}
+      <circle cx="10" cy="21" r="2.5" fill="#171717" stroke="#4ade80" strokeWidth="1.5"/>
+      <circle cx="22" cy="21" r="2.5" fill="#171717" stroke="#4ade80" strokeWidth="1.5"/>
+      {/* Wrench badge top-right */}
+      <circle cx="25" cy="8" r="5" fill="#171717"/>
+      <path d="M23 6.5c0-1 .8-1.8 1.8-1.8.3 0 .5.1.7.2l-1 1v.8h.8l1-1c.1.2.2.4.2.7 0 1-.8 1.8-1.8 1.8-.2 0-.4 0-.6-.1l-1.5 1.5-.6-.6 1.5-1.5c-.1-.2-.1-.5-.1-.7-.1 0-.4 0-.4-.3z" fill="#4ade80" strokeWidth="0.3"/>
     </svg>
   )
 }
@@ -49,11 +50,13 @@ export default function Sidebar() {
     <>
       {/* Desktop sidebar */}
       <div className="hidden md:flex w-44 flex-shrink-0 bg-white border-r border-neutral-200 flex-col">
-        <div className="px-4 py-4 border-b border-neutral-200 flex items-center gap-2.5">
-          <Logo />
-          <div>
-            <div className="text-sm font-bold text-neutral-900 leading-tight">SDCR</div>
-            <div className="text-xs text-neutral-400 leading-tight">Systems</div>
+        <div className="px-4 py-4 border-b border-neutral-200">
+          <div className="flex items-center gap-2.5 mb-1">
+            <Logo />
+            <div>
+              <div className="text-xs font-bold text-neutral-900 leading-tight tracking-wide">SDCR Systems</div>
+              <div className="text-xs text-neutral-400 leading-tight">by Same Day Car Repair</div>
+            </div>
           </div>
         </div>
         <nav className="flex-1 py-3">
