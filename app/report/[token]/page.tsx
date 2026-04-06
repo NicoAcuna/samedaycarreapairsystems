@@ -306,7 +306,7 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: FlowData; photoMap: R
   const findings   = (flowData.findings   as string) || ''
   const recommendation = (flowData.recommendation as string) || ''
   const estimates  = (flowData.estimates as { task: string; urgency: string; estCost: string; estTime: string }[]) || []
-  const filledEst  = estimates.filter(e => e.task || e.estCost || e.estTime)
+  const filledEst  = estimates.filter(e => e.task || e.estTime)
 
   return (
     <>
@@ -326,14 +326,13 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: FlowData; photoMap: R
         <div className="border-t border-neutral-100">
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Estimates</span></div>
           <div>
-            <div className="grid grid-cols-4 px-5 py-2 border-b border-neutral-100 bg-neutral-50">
-              {['Task','Urgency','Est. Cost','Est. Time'].map(h => <span key={h} className="text-xs font-medium text-neutral-500">{h}</span>)}
+            <div className="grid grid-cols-3 px-5 py-2 border-b border-neutral-100 bg-neutral-50">
+              {['Task','Urgency','Est. Time'].map(h => <span key={h} className="text-xs font-medium text-neutral-500">{h}</span>)}
             </div>
             {filledEst.map((est, i) => (
-              <div key={i} className="grid grid-cols-4 px-5 py-3 border-b border-neutral-100 last:border-0 items-center">
+              <div key={i} className="grid grid-cols-3 px-5 py-3 border-b border-neutral-100 last:border-0 items-center">
                 <span className="text-sm text-neutral-900">{est.task || '—'}</span>
                 <span>{est.urgency ? <span className={`text-xs font-semibold px-2 py-1 rounded ${urgencyStyles[est.urgency] || 'bg-neutral-100 text-neutral-500 border border-neutral-200'}`}>{urgencyLabels[est.urgency] || est.urgency}</span> : <span className="text-sm text-neutral-300">—</span>}</span>
-                <span className="text-sm font-semibold text-neutral-900">{est.estCost ? `$${est.estCost}` : '—'}</span>
                 <span className="text-sm text-neutral-700">{est.estTime || '—'}</span>
               </div>
             ))}
@@ -446,7 +445,6 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
           {/* Meta bar */}
           <div className="flex flex-wrap gap-x-6 gap-y-2 px-5 py-3 border-b border-neutral-100 bg-neutral-50">
             <div><span className="text-neutral-400 text-xs block">Date</span><div className="font-semibold text-neutral-900 text-sm">{date}</div></div>
-            <div><span className="text-neutral-400 text-xs block">Odometer</span><div className="font-semibold text-neutral-900 text-sm">{odo}</div></div>
           </div>
 
           {/* Client + Vehicle */}

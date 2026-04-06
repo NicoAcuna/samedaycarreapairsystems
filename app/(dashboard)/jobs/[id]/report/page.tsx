@@ -541,7 +541,6 @@ function ReportShell({ id, title, subtitle, data, snapshot, children }: {
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 px-5 py-3 border-b border-neutral-100 bg-neutral-50 text-sm">
           <div><span className="text-neutral-400 text-xs block">Date</span><div className="font-semibold text-neutral-900 text-sm">{data.date}</div></div>
-          <div><span className="text-neutral-400 text-xs block">Odometer</span><div className="font-semibold text-neutral-900 text-sm">{data.odometer}</div></div>
           {data.location && data.location !== '—' && <div><span className="text-neutral-400 text-xs block">Location</span><div className="font-semibold text-neutral-900 text-sm">{data.location}</div></div>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 border-b border-neutral-100">
@@ -806,23 +805,14 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: Record<string, unknow
   const urgencyLabels: Record<string, string> = {
     immediate: 'Immediate', next_month: 'Next month', can_wait: 'Can wait',
   }
-  const diagFee = (flowData.diagFee as string) || ''
   const complaint = (flowData.complaint as string) || ''
   const findings = (flowData.findings as string) || ''
   const recommendation = (flowData.recommendation as string) || ''
   const estimates = (flowData.estimates as { task: string; urgency: string; estCost: string; estTime: string }[]) || []
-  const filledEstimates = estimates.filter(e => e.task || e.estCost || e.estTime)
+  const filledEstimates = estimates.filter(e => e.task || e.estTime)
 
   return (
     <>
-      {/* Summary */}
-      {diagFee && (
-        <div className="mx-5 my-4 rounded-lg border px-5 py-4 border-neutral-200 bg-neutral-50 flex items-center justify-between">
-          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Diagnosis Summary</div>
-          <div className="text-right"><div className="text-xs text-neutral-400">Diagnosis fee</div><div className="text-lg font-bold text-neutral-900">${diagFee}</div></div>
-        </div>
-      )}
-
       {/* Sections */}
       {[
         { label: 'Customer Complaint', content: complaint },
@@ -835,19 +825,18 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: Record<string, unknow
         </div>
       ))}
 
-      {/* Estimates table */}
+      {/* Estimates table — no prices */}
       {filledEstimates.length > 0 && (
         <div className="border-t border-neutral-100">
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Estimates</span></div>
           <div className="divide-y divide-neutral-100">
-            {/* Header */}
-            <div className="grid grid-cols-4 px-5 py-2 bg-neutral-50">
-              {['Task', 'Urgency', 'Est. Cost', 'Est. Time'].map(h => (
+            <div className="grid grid-cols-3 px-5 py-2 bg-neutral-50">
+              {['Task', 'Urgency', 'Est. Time'].map(h => (
                 <span key={h} className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">{h}</span>
               ))}
             </div>
             {filledEstimates.map((est, i) => (
-              <div key={i} className="grid grid-cols-4 px-5 py-3 items-center">
+              <div key={i} className="grid grid-cols-3 px-5 py-3 items-center">
                 <span className="text-sm text-neutral-900">{est.task || '—'}</span>
                 <span>
                   {est.urgency
@@ -855,7 +844,6 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: Record<string, unknow
                     : <span className="text-sm text-neutral-300">—</span>
                   }
                 </span>
-                <span className="text-sm font-semibold text-neutral-900">{est.estCost ? `$${est.estCost}` : '—'}</span>
                 <span className="text-sm text-neutral-700">{est.estTime || '—'}</span>
               </div>
             ))}
