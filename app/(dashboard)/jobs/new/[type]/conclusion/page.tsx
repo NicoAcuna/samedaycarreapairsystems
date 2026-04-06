@@ -27,65 +27,63 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
     setSaving(true)
     setError('')
 
-    const raw = typeof window !== 'undefined' ? sessionStorage.getItem('job_flow_data') : null
-    const flowData = raw ? JSON.parse(raw) : {}
+    try {
+      const raw = typeof window !== 'undefined' ? sessionStorage.getItem('job_flow_data') : null
+      const flowData = raw ? JSON.parse(raw) : {}
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
 
-    const [{ data: clientSnap }, { data: vehicleSnap }] = await Promise.all([
-      clientId  ? supabase.from('clients').select('first_name, last_name, phone, email').eq('id', clientId).single()  : Promise.resolve({ data: null }),
-      vehicleId ? supabase.from('vehicles').select('make, model, year, plate, odometer_km').eq('id', vehicleId).single() : Promise.resolve({ data: null }),
-    ])
+      const { data: userData } = await supabase.from('users').select('company_id').eq('id', user.id).single()
 
-    const checklist_data = { ...flowData, _client: clientSnap, _vehicle: vehicleSnap }
-    const jobPayload = {
-      type,
-      status: 'pending',
-      client_id:    clientId  || null,
-      vehicle_id:   vehicleId || null,
-      odometer_km:  flowData.currentKm ? Number(flowData.currentKm) : null,
-      checklist_data,
-    }
+      const [{ data: clientSnap }, { data: vehicleSnap }] = await Promise.all([
+        clientId  ? supabase.from('clients').select('first_name, last_name, phone, email').eq('id', clientId).single()  : Promise.resolve({ data: null }),
+        vehicleId ? supabase.from('vehicles').select('make, model, year, plate, odometer_km').eq('id', vehicleId).single() : Promise.resolve({ data: null }),
+      ])
 
-    let jobId: string | null = null
-    let err: { message: string } | null = null
-
-    if (draftId) {
-      // Update existing auto-saved draft
-      const { error: updateErr } = await supabase
-        .from('jobs')
-        .update(jobPayload)
-        .eq('id', draftId)
-        .eq('user_id', user!.id)
-      if (!updateErr) {
-        jobId = draftId
-      } else {
-        err = updateErr
+      const checklist_data = { ...flowData, _client: clientSnap, _vehicle: vehicleSnap }
+      const jobPayload = {
+        type,
+        status: 'pending',
+        client_id:    clientId  || null,
+        vehicle_id:   vehicleId || null,
+        odometer_km:  flowData.currentKm ? Number(flowData.currentKm) : null,
+        checklist_data,
       }
+
+      let jobId: string | null = null
+
+      if (draftId) {
+        const { error: updateErr } = await supabase
+          .from('jobs')
+          .update(jobPayload)
+          .eq('id', draftId)
+          .eq('user_id', user.id)
+        if (!updateErr) jobId = draftId
+      }
+
+      if (!jobId) {
+        const { data, error: insertErr } = await supabase.from('jobs').insert([{
+          ...jobPayload,
+          user_id:    user.id,
+          company_id: userData?.company_id,
+        }]).select('id').single()
+        if (insertErr) throw new Error(insertErr.message)
+        jobId = data?.id || null
+      }
+
+      if (!jobId) throw new Error('Failed to save job')
+
+      localStorage.removeItem(`job_draft_id_${type}`)
+      localStorage.removeItem(`job_new_draft_${type}_state`)
+
+      router.push(`/jobs/${jobId}/report?type=${type}`)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save. Please try again.')
+    } finally {
+      setSaving(false)
     }
-
-    if (!jobId) {
-      // Create new job (fallback if no draft or update failed)
-      const { data, error: insertErr } = await supabase.from('jobs').insert([{
-        ...jobPayload,
-        user_id:    user!.id,
-        company_id: userData?.company_id,
-      }]).select('id').single()
-      err = insertErr
-      jobId = data?.id || null
-    }
-
-    setSaving(false)
-
-    if (err || !jobId) { setError(err?.message || 'Failed to save'); return }
-
-    // Clean up localStorage draft
-    localStorage.removeItem(`job_draft_id_${type}`)
-    localStorage.removeItem(`job_new_draft_${type}_state`)
-
-    router.push(`/jobs/${jobId}/report?type=${type}`)
   }
 
   return (
