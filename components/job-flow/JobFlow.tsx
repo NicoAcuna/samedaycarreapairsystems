@@ -9,31 +9,38 @@ type Photo = { url: string; name: string }
 function PhotoPicker({ photos, onChange }: { photos: Photo[]; onChange: (photos: Photo[]) => void }) {
   const [preview, setPreview] = useState<string | null>(null)
 
-  function readFiles(files: FileList | null, onDone: (results: Photo[]) => void) {
-    if (!files) return
-    const arr = Array.from(files)
-    const results: Photo[] = []
-    let done = 0
-    arr.forEach(file => {
+  function compressAndRead(file: File): Promise<Photo> {
+    return new Promise(resolve => {
       const reader = new FileReader()
       reader.onload = e => {
-        results.push({ url: e.target?.result as string, name: file.name })
-        done++
-        if (done === arr.length) onDone(results)
+        const img = new Image()
+        img.onload = () => {
+          const MAX = 1200
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+          const canvas = document.createElement('canvas')
+          canvas.width  = Math.round(img.width  * scale)
+          canvas.height = Math.round(img.height * scale)
+          const ctx = canvas.getContext('2d')!
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          resolve({ url: canvas.toDataURL('image/jpeg', 0.7), name: file.name })
+        }
+        img.src = e.target?.result as string
       }
       reader.readAsDataURL(file)
     })
   }
 
-  function addFiles(files: FileList | null) {
-    readFiles(files, results => onChange([...photos, ...results]))
+  async function addFiles(files: FileList | null) {
+    if (!files) return
+    const results = await Promise.all(Array.from(files).map(compressAndRead))
+    onChange([...photos, ...results])
   }
 
-  function replacePhoto(idx: number, files: FileList | null) {
-    readFiles(files, results => {
-      if (!results[0]) return
-      onChange(photos.map((p, i) => i === idx ? results[0] : p))
-    })
+  async function replacePhoto(idx: number, files: FileList | null) {
+    if (!files) return
+    const results = await Promise.all(Array.from(files).map(compressAndRead))
+    if (!results[0]) return
+    onChange(photos.map((p, i) => i === idx ? results[0] : p))
   }
 
   function removePhoto(idx: number) {
@@ -51,7 +58,7 @@ function PhotoPicker({ photos, onChange }: { photos: Photo[]; onChange: (photos:
                 className="w-full h-full object-cover rounded-lg border border-neutral-200 cursor-pointer" />
               <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                 <label className="cursor-pointer text-white bg-black/60 rounded px-1.5 py-1 text-xs hover:bg-black/80" title="Replace">
-                  ↺ <input type="file" accept="image/*" className="hidden" onChange={e => { replacePhoto(idx, e.target.files); (e.target as HTMLInputElement).value = '' }} />
+                  ↺ <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files; replacePhoto(idx, f).then(() => { (e.target as HTMLInputElement).value = '' }) }} />
                 </label>
                 <button onClick={() => removePhoto(idx)} className="text-white bg-red-500/90 rounded px-1.5 py-1 text-xs hover:bg-red-600" title="Remove">✕</button>
               </div>
@@ -61,10 +68,10 @@ function PhotoPicker({ photos, onChange }: { photos: Photo[]; onChange: (photos:
       )}
       <div className="flex gap-2">
         <label className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer">
-          📷 Camera <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
+          📷 Camera <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
         </label>
         <label className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer">
-          🖼️ Gallery <input type="file" accept="image/*" multiple className="hidden" onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
+          🖼️ Gallery <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
         </label>
       </div>
       {preview && (
