@@ -7,7 +7,7 @@ import { createClient } from '../../../lib/supabase/client'
 export default function RegisterPage() {
   const router = useRouter()
   const [step, setStep] = useState<'account' | 'workspace'>('account')
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', workspace: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', workspace: '', phone: '', address: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -15,24 +15,42 @@ export default function RegisterPage() {
     setForm(prev => ({ ...prev, [field]: val }))
   }
 
-  function handleNextStep(e: React.FormEvent) {
+  async function handleAccountStep(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     if (!form.name.trim()) { setError('Your name is required'); return }
     if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
     if (form.password !== form.confirm) { setError('Passwords do not match'); return }
-    setStep('workspace')
-  }
 
-  async function handleRegister(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.workspace.trim()) { setError('Workspace name is required'); return }
-
-    setLoading(true); setError('')
+    setLoading(true)
     try {
       const supabase = createClient()
 
-      // 1. Sign up
+      // Try signing in first — if account already exists, go straight to dashboard
+      const { data: signInData } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      })
+
+      if (signInData?.user) {
+        // Existing user — check if they have a workspace
+        const { data: userData } = await supabase
+          .from('users')
+          .select('active_company_id, company_id')
+          .eq('id', signInData.user.id)
+          .single()
+
+        if (userData?.active_company_id || userData?.company_id) {
+          router.refresh()
+          router.push('/')
+          return
+        }
+        // Has auth account but no workspace → go to workspace step
+        setStep('workspace')
+        return
+      }
+
+      // New user — sign up
       const { error: signUpErr } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
@@ -40,25 +58,51 @@ export default function RegisterPage() {
       })
       if (signUpErr) { setError(signUpErr.message); return }
 
-      // 2. Sign in immediately to establish session
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+      // Sign in to establish session
+      const { data: sessionData, error: signInErr } = await supabase.auth.signInWithPassword({
         email: form.email,
         password: form.password,
       })
-      if (signInErr) { setError(signInErr.message); return }
+      if (signInErr || !sessionData?.user) { setError(signInErr?.message || 'Could not establish session'); return }
 
-      const user = signInData?.user
-      if (!user) { setError('Could not establish session. Please log in manually.'); return }
+      // Upsert user row with super_admin role (no company yet)
+      await supabase.from('users').upsert({
+        id: sessionData.user.id,
+        email: sessionData.user.email,
+        role: 'super_admin',
+      }, { onConflict: 'id' })
 
-      // 2. Create company
+      setStep('workspace')
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleWorkspaceStep(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.workspace.trim()) { setError('Workspace name is required'); return }
+
+    setLoading(true); setError('')
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setError('Session expired. Please start again.'); return }
+
+      // Create company
       const { data: company, error: companyErr } = await supabase
         .from('companies')
-        .insert([{ name: form.workspace.trim() }])
+        .insert([{
+          name: form.workspace.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
+        }])
         .select()
         .single()
       if (companyErr) { setError(companyErr.message); return }
 
-      // 3. Link user → company, set role as super_admin (workspace creator)
+      // Link user → company
       await supabase.from('users').upsert({
         id: user.id,
         email: user.email,
@@ -67,7 +111,7 @@ export default function RegisterPage() {
         role: 'super_admin',
       }, { onConflict: 'id' })
 
-      // 4. Add to user_companies (best-effort)
+      // Add to user_companies (best-effort)
       await supabase.from('user_companies').insert([{ user_id: user.id, company_id: company.id }])
 
       router.refresh()
@@ -91,19 +135,19 @@ export default function RegisterPage() {
           </div>
           {step === 'account' ? (
             <>
-              <h1 className="text-white text-2xl font-semibold">Create your account</h1>
-              <p className="text-neutral-400 text-sm mt-1">Step 1 of 2</p>
+              <h1 className="text-white text-2xl font-semibold">Get started</h1>
+              <p className="text-neutral-400 text-sm mt-1">Create an account or sign in</p>
             </>
           ) : (
             <>
-              <h1 className="text-white text-2xl font-semibold">Name your workspace</h1>
-              <p className="text-neutral-400 text-sm mt-1">Step 2 of 2 · Usually your business name</p>
+              <h1 className="text-white text-2xl font-semibold">Set up your workspace</h1>
+              <p className="text-neutral-400 text-sm mt-1">Name it after your business</p>
             </>
           )}
         </div>
 
         {step === 'account' ? (
-          <form onSubmit={handleNextStep} className="space-y-4">
+          <form onSubmit={handleAccountStep} className="space-y-4">
             <div>
               <label className="block text-sm text-neutral-400 mb-1.5">Your name</label>
               <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
@@ -129,17 +173,33 @@ export default function RegisterPage() {
                 className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
-            <button type="submit"
-              className="w-full py-2.5 bg-white text-black font-medium rounded-lg text-sm hover:bg-neutral-200 transition-colors">
-              Next →
+            <button type="submit" disabled={loading}
+              className="w-full py-2.5 bg-white text-black font-medium rounded-lg text-sm hover:bg-neutral-200 transition-colors disabled:opacity-50">
+              {loading ? 'Checking…' : 'Continue →'}
             </button>
+            <p className="text-center text-neutral-500 text-sm">
+              Already have an account?{' '}
+              <a href="/login" className="text-neutral-300 hover:text-white">Sign in</a>
+            </p>
           </form>
         ) : (
-          <form onSubmit={handleRegister} className="space-y-4">
+          <form onSubmit={handleWorkspaceStep} className="space-y-4">
             <div>
               <label className="block text-sm text-neutral-400 mb-1.5">Workspace name <span className="text-red-400">*</span></label>
               <input type="text" value={form.workspace} onChange={e => set('workspace', e.target.value)}
                 placeholder="Same Day Car Repair" required autoFocus
+                className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
+            </div>
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1.5">Phone</label>
+              <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
+                placeholder="0439 269 598"
+                className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
+            </div>
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1.5">Location</label>
+              <input type="text" value={form.address} onChange={e => set('address', e.target.value)}
+                placeholder="Sydney, NSW"
                 className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -152,13 +212,6 @@ export default function RegisterPage() {
               ← Back
             </button>
           </form>
-        )}
-
-        {step === 'account' && (
-          <p className="text-center text-neutral-500 text-sm mt-6">
-            Already have an account?{' '}
-            <a href="/login" className="text-neutral-300 hover:text-white">Sign in</a>
-          </p>
         )}
       </div>
     </div>
