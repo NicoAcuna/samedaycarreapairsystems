@@ -103,8 +103,12 @@ export default function RegisterPage() {
           address: form.address.trim(),
         }),
       })
-      const json = await res.json()
-      if (!res.ok) { setError(json.error || 'Failed to create workspace'); return }
+      if (!res.ok) {
+        const text = await res.text()
+        let msg = 'Failed to create workspace'
+        try { msg = JSON.parse(text)?.error || msg } catch { /* ignore */ }
+        setError(msg); return
+      }
 
       // Hard redirect so middleware re-evaluates session with new company
       window.location.href = '/'

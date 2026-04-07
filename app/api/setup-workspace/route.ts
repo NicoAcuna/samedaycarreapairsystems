@@ -50,12 +50,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Insert user_companies — ignore if already exists
-  await supabase
+  const { error: ucErr } = await supabase
     .from('user_companies')
-    .upsert([{ user_id: userId, company_id: company.id, role: 'owner' }], {
-      onConflict: 'user_id,company_id',
-      ignoreDuplicates: true,
-    })
+    .insert([{ user_id: userId, company_id: company.id, role: 'owner' }])
+  // Ignore duplicate errors (code 23505 = unique violation)
+  if (ucErr && !ucErr.code?.includes('23505')) {
+    console.error('[setup-workspace] user_companies insert:', ucErr.message)
+  }
 
   return NextResponse.json({ success: true, companyId: company.id })
 }
