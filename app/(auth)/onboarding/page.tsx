@@ -16,12 +16,11 @@ export default function OnboardingPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.name.trim()) { setError('Business name is required'); return }
+    if (!form.name.trim()) { setError('Workspace name is required'); return }
 
     setSaving(true); setError('')
     const supabase = createClient()
 
-    // Get current user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
@@ -39,11 +38,17 @@ export default function OnboardingPage() {
 
     if (companyErr) { setError(companyErr.message); setSaving(false); return }
 
-    // Link user to company
-    const { error: userErr } = await supabase
-      .from('users')
-      .update({ company_id: company.id })
-      .eq('id', user.id)
+    // Link user → company (both legacy and new many-to-many)
+    const [{ error: userErr }] = await Promise.all([
+      supabase.from('users').update({
+        company_id: company.id,
+        active_company_id: company.id,
+      }).eq('id', user.id),
+      supabase.from('user_companies').insert([{
+        user_id: user.id,
+        company_id: company.id,
+      }]),
+    ])
 
     if (userErr) { setError(userErr.message); setSaving(false); return }
 
@@ -55,32 +60,32 @@ export default function OnboardingPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
               <span className="text-black text-sm font-bold">S</span>
             </div>
-            <span className="text-white font-semibold text-lg">MechBase</span>
+            <span className="text-white font-semibold text-lg">SDCR Systems</span>
           </div>
-          <h1 className="text-white text-2xl font-semibold">Set up your business</h1>
-          <p className="text-neutral-400 text-sm mt-1">This is your workspace. You can invite team members later.</p>
+          <h1 className="text-white text-2xl font-semibold">Set up your workspace</h1>
+          <p className="text-neutral-400 text-sm mt-1">Name it after your business. You can always change it later.</p>
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Business name <span className="text-red-400">*</span></label>
+            <label className="block text-sm text-neutral-400 mb-1.5">Workspace name <span className="text-red-400">*</span></label>
             <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
               placeholder="Same Day Car Repair" required autoFocus
               className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
           </div>
           <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Business phone</label>
+            <label className="block text-sm text-neutral-400 mb-1.5">Phone</label>
             <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
               placeholder="0439 269 598"
               className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
           </div>
           <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Business email</label>
+            <label className="block text-sm text-neutral-400 mb-1.5">Email</label>
             <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-              placeholder="info@samedaycarrepair.com.au"
+              placeholder="info@yourbusiness.com"
               className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
           </div>
           <div>
@@ -92,7 +97,7 @@ export default function OnboardingPage() {
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <button type="submit" disabled={saving}
             className="w-full py-2.5 bg-white text-black font-medium rounded-lg text-sm hover:bg-neutral-200 transition-colors disabled:opacity-50">
-            {saving ? 'Setting up…' : 'Launch my workspace →'}
+            {saving ? 'Setting up…' : 'Create workspace →'}
           </button>
         </form>
       </div>

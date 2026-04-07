@@ -40,13 +40,13 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
               <span className="text-black text-sm font-bold">S</span>
             </div>
-            <span className="text-white font-semibold text-lg">MechBase</span>
+            <span className="text-white font-semibold text-lg">SDCR Systems</span>
           </div>
           <h1 className="text-white text-2xl font-semibold">Create your account</h1>
-          <p className="text-neutral-400 text-sm mt-1">You'll set up your business on the next step</p>
+          <p className="text-neutral-400 text-sm mt-1">You'll set up your workspace on the next step</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">
