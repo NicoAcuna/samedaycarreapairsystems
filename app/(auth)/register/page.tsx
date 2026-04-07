@@ -65,12 +65,15 @@ export default function RegisterPage() {
       })
       if (signInErr || !sessionData?.user) { setError(signInErr?.message || 'Could not establish session'); return }
 
-      // Upsert user row with super_admin role (no company yet)
-      await supabase.from('users').upsert({
-        id: sessionData.user.id,
-        email: sessionData.user.email,
-        role: 'super_admin',
-      }, { onConflict: 'id' })
+      // Create user row via service role API (bypasses RLS, no company yet)
+      await fetch('/api/setup-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: sessionData.user.id,
+          email: sessionData.user.email,
+        }),
+      })
 
       setStep('workspace')
     } catch (e) {
@@ -90,29 +93,19 @@ export default function RegisterPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError('Session expired. Please start again.'); return }
 
-      // Create company
-      const { data: company, error: companyErr } = await supabase
-        .from('companies')
-        .insert([{
-          name: form.workspace.trim(),
+      const res = await fetch('/api/setup-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          workspaceName: form.workspace.trim(),
           phone: form.phone.trim(),
           address: form.address.trim(),
-        }])
-        .select()
-        .single()
-      if (companyErr) { setError(companyErr.message); return }
-
-      // Link user → company
-      await supabase.from('users').upsert({
-        id: user.id,
-        email: user.email,
-        company_id: company.id,
-        active_company_id: company.id,
-        role: 'super_admin',
-      }, { onConflict: 'id' })
-
-      // Add to user_companies (best-effort)
-      await supabase.from('user_companies').insert([{ user_id: user.id, company_id: company.id }])
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setError(json.error || 'Failed to create workspace'); return }
 
       router.refresh()
       router.push('/')
