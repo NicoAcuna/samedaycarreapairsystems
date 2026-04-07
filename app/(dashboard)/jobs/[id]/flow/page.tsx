@@ -75,6 +75,48 @@ export default function JobFlowPage({ params }: { params: Promise<{ id: string }
     }
   }, [id])
 
+  const handleComplete = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push(`/jobs/${id}/report`); return }
+
+      const raw = sessionStorage.getItem(`job_flow_${id}_state`) || sessionStorage.getItem('job_flow_data')
+      const flowData = raw ? JSON.parse(raw) : {}
+
+      const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user.id).single()
+      const companyId = userData?.active_company_id || userData?.company_id
+
+      // Fetch client + vehicle snapshots
+      const jobRow = job!
+      const [{ data: clientSnap }, { data: vehicleSnap }] = await Promise.all([
+        jobRow.client_id  ? supabase.from('clients').select('first_name, last_name, phone, email').eq('id', jobRow.client_id).single()  : Promise.resolve({ data: null }),
+        jobRow.vehicle_id ? supabase.from('vehicles').select('make, model, year, plate, odometer_km').eq('id', jobRow.vehicle_id).single() : Promise.resolve({ data: null }),
+      ])
+
+      const snapshot = { ...flowData, _client: clientSnap, _vehicle: vehicleSnap }
+
+      // Update job checklist_data + status
+      await supabase.from('jobs').update({ checklist_data: snapshot, status: 'completed' }).eq('id', id).eq('user_id', user.id)
+
+      // Get current max version
+      const { data: existing } = await supabase.from('job_reports').select('version').eq('job_id', id).order('version', { ascending: false }).limit(1).single()
+      const nextVersion = existing ? existing.version + 1 : 1
+
+      await supabase.from('job_reports').insert([{
+        job_id:     id,
+        version:    nextVersion,
+        snapshot,
+        type:       jobRow.type,
+        company_id: companyId,
+        user_id:    user.id,
+      }])
+    } catch (e) {
+      console.error('Complete save failed:', e)
+    }
+    router.push(`/jobs/${id}/report`)
+  }, [id, job, router])
+
   if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
   if (!job) return <div className="p-6 text-sm text-neutral-400">Job not found.</div>
 
@@ -90,7 +132,7 @@ export default function JobFlowPage({ params }: { params: Promise<{ id: string }
       plate={plateLabel}
       initialDone={doneSections}
       onAutoSave={handleAutoSave}
-      onComplete={() => router.push(`/jobs/${id}/report`)}
+      onComplete={handleComplete}
     />
   )
 }
