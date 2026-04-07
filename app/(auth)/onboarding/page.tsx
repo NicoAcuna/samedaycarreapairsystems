@@ -19,40 +19,43 @@ export default function OnboardingPage() {
     if (!form.name.trim()) { setError('Workspace name is required'); return }
 
     setSaving(true); setError('')
-    const supabase = createClient()
+    try {
+      const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
 
-    // Create company
-    const { data: company, error: companyErr } = await supabase
-      .from('companies')
-      .insert([{
-        name: form.name.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        address: form.address.trim(),
-      }])
-      .select()
-      .single()
+      // Create company
+      const { data: company, error: companyErr } = await supabase
+        .from('companies')
+        .insert([{
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          address: form.address.trim(),
+        }])
+        .select()
+        .single()
 
-    if (companyErr) { setError(companyErr.message); setSaving(false); return }
+      if (companyErr) { setError(companyErr.message); return }
 
-    // Link user → company (both legacy and new many-to-many)
-    const [{ error: userErr }] = await Promise.all([
-      supabase.from('users').update({
-        company_id: company.id,
-        active_company_id: company.id,
-      }).eq('id', user.id),
-      supabase.from('user_companies').insert([{
-        user_id: user.id,
-        company_id: company.id,
-      }]),
-    ])
+      // Link user → company
+      const { error: userErr } = await supabase
+        .from('users')
+        .update({ company_id: company.id, active_company_id: company.id })
+        .eq('id', user.id)
 
-    if (userErr) { setError(userErr.message); setSaving(false); return }
+      if (userErr) { setError(userErr.message); return }
 
-    router.push('/')
+      // Add to user_companies (best-effort, ignore RLS errors)
+      await supabase.from('user_companies').insert([{ user_id: user.id, company_id: company.id }])
+
+      router.push('/')
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
