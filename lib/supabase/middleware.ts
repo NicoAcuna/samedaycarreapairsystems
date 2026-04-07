@@ -36,21 +36,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Logged in → check if company is set up
-  if (user && !isPublic && !isOnboarding) {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('active_company_id, company_id')
-      .eq('id', user.id)
-      .single()
-
-    // No company yet → onboarding
-    if (!(userData?.active_company_id || userData?.company_id)) {
-      return NextResponse.redirect(new URL('/onboarding', request.url))
-    }
-  }
-
-  // Logged in + has company + going to login/register → dashboard
+  // Logged in + going to login/register → dashboard
   if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
     return NextResponse.redirect(new URL('/', request.url))
   }
