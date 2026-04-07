@@ -431,11 +431,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     <div className="mb-5">
       <h2 className="text-lg font-semibold text-neutral-900">{activeSection.label}</h2>
       {vehicle && <p className="text-sm text-neutral-500 mt-1">{vehicle}{plate ? ` · ${plate}` : ''}</p>}
-      {doneSections.has(activeSection.key) && (
-        <div className="mt-3 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-xs text-green-700 font-medium">
-          ✓ This section was already completed. You can review or edit below.
-        </div>
-      )}
     </div>
   )
 

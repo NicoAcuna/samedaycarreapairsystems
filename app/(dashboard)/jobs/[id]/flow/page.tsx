@@ -34,10 +34,21 @@ export default function JobFlowPage({ params }: { params: Promise<{ id: string }
         if (data) {
           setJob(data as unknown as JobData)
 
-          // Restore done sections
+          // Restore done sections from sessionStorage
           const savedDone = sessionStorage.getItem(`job_flow_${id}_done`)
           if (savedDone) {
             try { setDoneSections(new Set(JSON.parse(savedDone))) } catch { /* ignore */ }
+          } else if (data.checklist_data) {
+            // After refresh: sessionStorage is gone but job has saved data —
+            // mark all sections as done so user can navigate freely
+            const allSections: Record<string, string[]> = {
+              pre_purchase: ['body','engine','brakes','suspension','tyres','obd','test_drive'],
+              service:      ['service_type','tasks','checking','observations','alerts'],
+              diagnosis:    ['complaint','findings','outcome'],
+              repair:       ['outcome'],
+            }
+            const keys = allSections[data.type] || []
+            if (keys.length > 0) setDoneSections(new Set(keys))
           }
 
           // If sessionStorage has no state but Supabase has checklist_data, seed it
