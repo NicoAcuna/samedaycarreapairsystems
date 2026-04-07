@@ -6,7 +6,7 @@ import { createClient } from '../../../lib/supabase/client'
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '' })
+  const [form, setForm] = useState({ name: '', phone: '', address: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -31,7 +31,6 @@ export default function OnboardingPage() {
         .insert([{
           name: form.name.trim(),
           phone: form.phone.trim(),
-          email: form.email.trim(),
           address: form.address.trim(),
         }])
         .select()
@@ -83,12 +82,6 @@ export default function OnboardingPage() {
             <label className="block text-sm text-neutral-400 mb-1.5">Phone</label>
             <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
               placeholder="0439 269 598"
-              className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
-          </div>
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Email</label>
-            <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-              placeholder="info@yourbusiness.com"
               className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
           </div>
           <div>
