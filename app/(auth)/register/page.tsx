@@ -58,12 +58,13 @@ export default function RegisterPage() {
         .single()
       if (companyErr) { setError(companyErr.message); return }
 
-      // 3. Link user → company (upsert in case trigger already created the row)
+      // 3. Link user → company, set role as super_admin (workspace creator)
       await supabase.from('users').upsert({
         id: user.id,
         email: user.email,
         company_id: company.id,
         active_company_id: company.id,
+        role: 'super_admin',
       }, { onConflict: 'id' })
 
       // 4. Add to user_companies (best-effort)
