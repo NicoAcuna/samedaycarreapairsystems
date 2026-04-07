@@ -65,7 +65,8 @@ export default function Sidebar() {
         .eq('user_id', user.id)
 
       const list: Company[] = (memberships || [])
-        .map((m: { companies: { id: string; name: string } | null }) => m.companies)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((m: any) => Array.isArray(m.companies) ? m.companies[0] : m.companies)
         .filter(Boolean) as Company[]
 
       // Fallback: if user_companies is empty, load from company_id directly
