@@ -1,45 +1,29 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+  const path = request.nextUrl.pathname
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
+  const isPublic =
+    path.startsWith('/login') ||
+    path.startsWith('/register') ||
+    path.startsWith('/report') ||
+    path.startsWith('/api/') ||
+    path.startsWith('/onboarding') ||
+    path === '/favicon.ico' ||
+    path.startsWith('/_next')
+
+  // Check session by looking for the Supabase auth cookie (no network call)
+  const hasSession = request.cookies.getAll().some(c =>
+    c.name.startsWith('sb-') && c.name.endsWith('-auth-token')
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const path = request.nextUrl.pathname
-  const isPublic = path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/report') || path.startsWith('/api/public-report')
-  const isOnboarding = path.startsWith('/onboarding')
-
-  // Not logged in → login
-  if (!user && !isPublic) {
+  if (!hasSession && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Logged in + going to login/register → dashboard
-  if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
+  if (hasSession && (path.startsWith('/login') || path.startsWith('/register'))) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  return supabaseResponse
+  return NextResponse.next({ request })
 }
