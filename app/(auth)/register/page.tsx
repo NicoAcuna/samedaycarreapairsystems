@@ -6,7 +6,8 @@ import { createClient } from '../../../lib/supabase/client'
 
 export default function RegisterPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' })
+  const [step, setStep] = useState<'account' | 'workspace'>('account')
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', workspace: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -14,25 +15,57 @@ export default function RegisterPage() {
     setForm(prev => ({ ...prev, [field]: val }))
   }
 
-  async function handleRegister(e: React.FormEvent) {
+  function handleNextStep(e: React.FormEvent) {
     e.preventDefault()
+    setError('')
     if (!form.name.trim()) { setError('Your name is required'); return }
     if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
     if (form.password !== form.confirm) { setError('Passwords do not match'); return }
+    setStep('workspace')
+  }
+
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.workspace.trim()) { setError('Workspace name is required'); return }
 
     setLoading(true); setError('')
-    const supabase = createClient()
+    try {
+      const supabase = createClient()
 
-    const { error: signUpErr } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: { data: { full_name: form.name.trim() } },
-    })
+      // 1. Sign up
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: { data: { full_name: form.name.trim() } },
+      })
+      if (signUpErr) { setError(signUpErr.message); return }
 
-    if (signUpErr) { setError(signUpErr.message); setLoading(false); return }
+      const user = signUpData?.user
+      if (!user) { setError('Account created — check your email to confirm, then log in.'); return }
 
-    // Go to onboarding to set up the company
-    router.push('/onboarding')
+      // 2. Create company
+      const { data: company, error: companyErr } = await supabase
+        .from('companies')
+        .insert([{ name: form.workspace.trim() }])
+        .select()
+        .single()
+      if (companyErr) { setError(companyErr.message); return }
+
+      // 3. Link user → company
+      await supabase.from('users').update({
+        company_id: company.id,
+        active_company_id: company.id,
+      }).eq('id', user.id)
+
+      // 4. Add to user_companies (best-effort)
+      await supabase.from('user_companies').insert([{ user_id: user.id, company_id: company.id }])
+
+      router.push('/')
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -45,46 +78,77 @@ export default function RegisterPage() {
             </div>
             <span className="text-white font-semibold text-lg">SDCR Systems</span>
           </div>
-          <h1 className="text-white text-2xl font-semibold">Create your account</h1>
-          <p className="text-neutral-400 text-sm mt-1">You'll set up your workspace on the next step</p>
+          {step === 'account' ? (
+            <>
+              <h1 className="text-white text-2xl font-semibold">Create your account</h1>
+              <p className="text-neutral-400 text-sm mt-1">Step 1 of 2</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-white text-2xl font-semibold">Name your workspace</h1>
+              <p className="text-neutral-400 text-sm mt-1">Step 2 of 2 · Usually your business name</p>
+            </>
+          )}
         </div>
 
-        <form onSubmit={handleRegister} className="space-y-4">
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Your name</label>
-            <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
-              placeholder="Nicolas Acuna" required
-              className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
-          </div>
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Email</label>
-            <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-              placeholder="nico@samedaycarrepair.com.au" required
-              className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
-          </div>
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Password</label>
-            <input type="password" value={form.password} onChange={e => set('password', e.target.value)}
-              placeholder="Min. 8 characters" required
-              className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
-          </div>
-          <div>
-            <label className="block text-sm text-neutral-400 mb-1.5">Confirm password</label>
-            <input type="password" value={form.confirm} onChange={e => set('confirm', e.target.value)}
-              placeholder="Repeat your password" required
-              className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
-          </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full py-2.5 bg-white text-black font-medium rounded-lg text-sm hover:bg-neutral-200 transition-colors disabled:opacity-50">
-            {loading ? 'Creating account…' : 'Create account →'}
-          </button>
-        </form>
+        {step === 'account' ? (
+          <form onSubmit={handleNextStep} className="space-y-4">
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1.5">Your name</label>
+              <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
+                placeholder="Nicolas Acuna" required autoFocus
+                className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
+            </div>
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1.5">Email</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
+                placeholder="nico@example.com" required
+                className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
+            </div>
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1.5">Password</label>
+              <input type="password" value={form.password} onChange={e => set('password', e.target.value)}
+                placeholder="Min. 8 characters" required
+                className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
+            </div>
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1.5">Confirm password</label>
+              <input type="password" value={form.confirm} onChange={e => set('confirm', e.target.value)}
+                placeholder="Repeat your password" required
+                className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
+            </div>
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+            <button type="submit"
+              className="w-full py-2.5 bg-white text-black font-medium rounded-lg text-sm hover:bg-neutral-200 transition-colors">
+              Next →
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleRegister} className="space-y-4">
+            <div>
+              <label className="block text-sm text-neutral-400 mb-1.5">Workspace name <span className="text-red-400">*</span></label>
+              <input type="text" value={form.workspace} onChange={e => set('workspace', e.target.value)}
+                placeholder="Same Day Car Repair" required autoFocus
+                className="w-full px-3 py-2.5 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600" />
+            </div>
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+            <button type="submit" disabled={loading}
+              className="w-full py-2.5 bg-white text-black font-medium rounded-lg text-sm hover:bg-neutral-200 transition-colors disabled:opacity-50">
+              {loading ? 'Creating workspace…' : 'Create workspace →'}
+            </button>
+            <button type="button" onClick={() => { setStep('account'); setError('') }}
+              className="w-full py-2 text-sm text-neutral-500 hover:text-neutral-300 transition-colors">
+              ← Back
+            </button>
+          </form>
+        )}
 
-        <p className="text-center text-neutral-500 text-sm mt-6">
-          Already have an account?{' '}
-          <a href="/login" className="text-neutral-300 hover:text-white">Sign in</a>
-        </p>
+        {step === 'account' && (
+          <p className="text-center text-neutral-500 text-sm mt-6">
+            Already have an account?{' '}
+            <a href="/login" className="text-neutral-300 hover:text-white">Sign in</a>
+          </p>
+        )}
       </div>
     </div>
   )
