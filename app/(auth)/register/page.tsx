@@ -58,11 +58,13 @@ export default function RegisterPage() {
         .single()
       if (companyErr) { setError(companyErr.message); return }
 
-      // 3. Link user → company
-      await supabase.from('users').update({
+      // 3. Link user → company (upsert in case trigger already created the row)
+      await supabase.from('users').upsert({
+        id: user.id,
+        email: user.email,
         company_id: company.id,
         active_company_id: company.id,
-      }).eq('id', user.id)
+      }, { onConflict: 'id' })
 
       // 4. Add to user_companies (best-effort)
       await supabase.from('user_companies').insert([{ user_id: user.id, company_id: company.id }])
