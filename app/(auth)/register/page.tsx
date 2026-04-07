@@ -33,15 +33,22 @@ export default function RegisterPage() {
       const supabase = createClient()
 
       // 1. Sign up
-      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      const { error: signUpErr } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: { data: { full_name: form.name.trim() } },
       })
       if (signUpErr) { setError(signUpErr.message); return }
 
-      const user = signUpData?.user
-      if (!user) { setError('Account created — check your email to confirm, then log in.'); return }
+      // 2. Sign in immediately to establish session
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      })
+      if (signInErr) { setError(signInErr.message); return }
+
+      const user = signInData?.user
+      if (!user) { setError('Could not establish session. Please log in manually.'); return }
 
       // 2. Create company
       const { data: company, error: companyErr } = await supabase
@@ -60,6 +67,7 @@ export default function RegisterPage() {
       // 4. Add to user_companies (best-effort)
       await supabase.from('user_companies').insert([{ user_id: user.id, company_id: company.id }])
 
+      router.refresh()
       router.push('/')
     } catch (e) {
       setError(String(e))
