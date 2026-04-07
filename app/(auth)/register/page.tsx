@@ -41,8 +41,7 @@ export default function RegisterPage() {
           .single()
 
         if (userData?.active_company_id || userData?.company_id) {
-          router.refresh()
-          router.push('/')
+          window.location.href = '/'
           return
         }
         // Has auth account but no workspace → go to workspace step
@@ -107,8 +106,8 @@ export default function RegisterPage() {
       const json = await res.json()
       if (!res.ok) { setError(json.error || 'Failed to create workspace'); return }
 
-      router.refresh()
-      router.push('/')
+      // Hard redirect so middleware re-evaluates session with new company
+      window.location.href = '/'
     } catch (e) {
       setError(String(e))
     } finally {
