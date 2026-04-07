@@ -277,17 +277,21 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   // Save on unmount (e.g. user navigates to another tab mid-flow)
   const saveOnUnmountRef = useRef<() => void>(() => {})
   saveOnUnmountRef.current = () => {
-    if (jobId) return
-    try {
-      const flowData = buildFlowData()
-      localStorage.setItem(`job_new_draft_${type}_state`, JSON.stringify({
-        ...flowData,
-        activeIdx,
-        doneSections: [...doneSections],
-        _clientId: clientId,
-        _vehicleId: vehicleId,
-      }))
-    } catch { /* quota exceeded */ }
+    const flowData = buildFlowData()
+    if (jobId) {
+      // Persist existing job to Supabase on navigate away
+      onAutoSave?.(flowData)
+    } else {
+      try {
+        localStorage.setItem(`job_new_draft_${type}_state`, JSON.stringify({
+          ...flowData,
+          activeIdx,
+          doneSections: [...doneSections],
+          _clientId: clientId,
+          _vehicleId: vehicleId,
+        }))
+      } catch { /* quota exceeded */ }
+    }
   }
   useEffect(() => {
     return () => { saveOnUnmountRef.current() }
@@ -321,6 +325,8 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     if (jobId) {
       sessionStorage.setItem(`job_flow_${jobId}_done`,  JSON.stringify([...updatedDone]))
       sessionStorage.setItem(`job_flow_${jobId}_state`, JSON.stringify(flowData))
+      // Also persist to Supabase so refresh doesn't lose data
+      onAutoSave?.(flowData)
     } else {
       // Persist new-job draft to localStorage (survives tab close + refresh)
       try {
