@@ -148,12 +148,12 @@ function AddVehicleModal({ clientId, onClose, onSaved }: { clientId: string; onC
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+    const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const { data, error: err } = await supabase.from('vehicles')
       .insert([{
         client_id: clientId,
         user_id: user!.id,
-        company_id: userData?.company_id,
+        company_id: userData?.active_company_id || userData?.company_id,
         make: form.make.trim(),
         model: form.model.trim(),
         year: form.year.trim(),
@@ -257,12 +257,12 @@ function NewJobModal({ clientId, vehicles, onClose, onSaved }: { clientId: strin
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+    const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const { data, error: err } = await supabase.from('jobs')
       .insert([{
         client_id: clientId,
         user_id: user!.id,
-        company_id: userData?.company_id,
+        company_id: userData?.active_company_id || userData?.company_id,
         type: form.type,
         status: 'pending',
         vehicle_id: form.vehicle_id || null,

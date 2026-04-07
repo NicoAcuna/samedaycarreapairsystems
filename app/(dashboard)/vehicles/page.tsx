@@ -38,11 +38,11 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+    const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const { data, error: err } = await supabase.from('vehicles')
       .insert([{
         user_id: user!.id,
-        company_id: userData?.company_id,
+        company_id: userData?.active_company_id || userData?.company_id,
         client_id: form.client_id || null,
         make: form.make.trim(),
         model: form.model.trim(),

@@ -35,7 +35,7 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { data: userData } = await supabase.from('users').select('company_id').eq('id', user.id).single()
+      const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user.id).single()
 
       const [{ data: clientSnap }, { data: vehicleSnap }] = await Promise.all([
         clientId  ? supabase.from('clients').select('first_name, last_name, phone, email').eq('id', clientId).single()  : Promise.resolve({ data: null }),
@@ -67,7 +67,7 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
         const { data, error: insertErr } = await supabase.from('jobs').insert([{
           ...jobPayload,
           user_id:    user.id,
-          company_id: userData?.company_id,
+          company_id: userData?.active_company_id || userData?.company_id,
         }]).select('id').single()
         if (insertErr) throw new Error(insertErr.message)
         jobId = data?.id || null
@@ -81,7 +81,7 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
         version:    1,
         snapshot:   checklist_data,
         type,
-        company_id: userData?.company_id,
+        company_id: userData?.active_company_id || userData?.company_id,
         user_id:    user.id,
       }])
 

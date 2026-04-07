@@ -141,10 +141,10 @@ function NewJobPageInner() {
     setSavingClient(true); setClientError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+    const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const { data, error: err } = await supabase.from('clients').insert([{
       user_id: user!.id,
-      company_id: userData?.company_id,
+      company_id: userData?.active_company_id || userData?.company_id,
       first_name: newClientForm.first_name.trim(),
       last_name: newClientForm.last_name.trim(),
       phone: newClientForm.phone.trim(),
@@ -166,10 +166,10 @@ function NewJobPageInner() {
     setSavingVehicle(true); setVehicleError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: userData } = await supabase.from('users').select('company_id').eq('id', user!.id).single()
+    const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const { data, error: err } = await supabase.from('vehicles').insert([{
       user_id: user!.id,
-      company_id: userData?.company_id,
+      company_id: userData?.active_company_id || userData?.company_id,
       client_id: selectedClient.id,
       make: newVehicleForm.make.trim(),
       model: newVehicleForm.model.trim(),

@@ -40,12 +40,12 @@ export async function updateSession(request: NextRequest) {
   if (user && !isPublic && !isOnboarding) {
     const { data: userData } = await supabase
       .from('users')
-      .select('company_id')
+      .select('active_company_id, company_id')
       .eq('id', user.id)
       .single()
 
     // No company yet → onboarding
-    if (!userData?.company_id) {
+    if (!(userData?.active_company_id || userData?.company_id)) {
       return NextResponse.redirect(new URL('/onboarding', request.url))
     }
   }

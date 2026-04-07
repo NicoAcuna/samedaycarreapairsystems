@@ -440,14 +440,14 @@ function ReportShell({ id, title, subtitle, data, snapshot, children }: {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: userData } = await supabase.from('users').select('company_id').eq('id', user.id).single()
+      const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user.id).single()
       const nextVersion = versions.length > 0 ? versions[0].version + 1 : 1
       await supabase.from('job_reports').insert([{
         job_id:     id,
         version:    nextVersion,
         snapshot,
         type:       title.toLowerCase().replace(/ /g, '_'),
-        company_id: userData?.company_id,
+        company_id: userData?.active_company_id || userData?.company_id,
         user_id:    user.id,
       }])
       loadVersions()

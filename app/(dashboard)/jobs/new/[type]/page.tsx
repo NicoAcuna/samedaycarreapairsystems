@@ -43,14 +43,14 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
         }).eq('id', existingId).eq('user_id', user.id)
       } else {
         const { data: userData } = await supabase
-          .from('users').select('company_id').eq('id', user.id).single()
+          .from('users').select('active_company_id, company_id').eq('id', user.id).single()
         const { data } = await supabase.from('jobs').insert([{
           type,
           status: 'pending',
           client_id: clientId || null,
           vehicle_id: vehicleId || null,
           user_id: user.id,
-          company_id: userData?.company_id,
+          company_id: userData?.active_company_id || userData?.company_id,
           checklist_data: flowData,
         }]).select('id').single()
 
