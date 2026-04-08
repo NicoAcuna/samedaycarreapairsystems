@@ -323,7 +323,35 @@ function ServiceBody({ sections, nextService, flowData, photoMap }: { sections: 
 }
 
 // ── Diagnosis Body ─────────────────────────────────────────────────────────────
-function DiagnosisBody({ flowData, photoMap }: { flowData: FlowData; photoMap: Record<string, Photo[]> }) {
+type Video = { url: string; name: string }
+
+function InlineVideos({ videos }: { videos: Video[] }) {
+  const [preview, setPreview] = useState<string | null>(null)
+  if (!videos || videos.length === 0) return null
+  return (
+    <>
+      <div className="flex flex-wrap gap-2 mt-3">
+        {videos.map((video, idx) => (
+          <div key={idx} className="relative group w-20 h-20 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center cursor-pointer hover:opacity-90"
+            onClick={() => setPreview(video.url)}>
+            <span className="text-2xl">▶</span>
+          </div>
+        ))}
+      </div>
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <video src={preview} controls autoPlay className="max-w-[90vw] max-h-[80vh] rounded-xl shadow-2xl" />
+            <button onClick={() => setPreview(null)}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: FlowData; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]> }) {
   const urgencyStyles: Record<string, string> = {
     immediate:  'bg-red-50 text-red-700 border border-red-200',
     next_month: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -345,6 +373,7 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: FlowData; photoMap: R
           <div className="px-5 py-4">
             <p className="text-sm text-neutral-700 leading-relaxed">{complaint}</p>
             <InlinePhotos photos={photoMap['complaint'] || []} />
+            <InlineVideos videos={videoMap['complaint'] || []} />
           </div>
         </div>
       )}
@@ -354,6 +383,7 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: FlowData; photoMap: R
           <div className="px-5 py-4">
             <p className="text-sm text-neutral-700 leading-relaxed">{findings}</p>
             <InlinePhotos photos={photoMap['findings'] || []} />
+            <InlineVideos videos={videoMap['findings'] || []} />
           </div>
         </div>
       )}
@@ -418,6 +448,7 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
 
   const flowData: FlowData = job.checklist_data || {}
   const photoMap = (flowData.photoMap as Record<string, Photo[]>) || {}
+  const videoMap = (flowData.videoMap as Record<string, Video[]>) || {}
   const jobType = job.type
 
   // Use RLS-joined data if available, otherwise fall back to embedded snapshot in checklist_data
@@ -531,10 +562,10 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
             />
           )}
           {jobType === 'diagnosis' && (
-            <DiagnosisBody flowData={flowData} photoMap={photoMap} />
+            <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
           )}
           {jobType === 'repair' && (
-            <DiagnosisBody flowData={flowData} photoMap={photoMap} />
+            <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
           )}
 
           {/* Disclaimer */}

@@ -3,44 +3,52 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
-// ── PHOTO PICKER ──────────────────────────────────────────────────────────────
+// ── MEDIA TYPES ───────────────────────────────────────────────────────────────
 type Photo = { url: string; name: string }
+type Video = { url: string; name: string }
 
-function PhotoPicker({ photos, onChange }: { photos: Photo[]; onChange: (photos: Photo[]) => void }) {
+// ── BUNNY UPLOAD ──────────────────────────────────────────────────────────────
+async function uploadToBunny(file: File, folder: string): Promise<string> {
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('folder', folder)
+  const res = await fetch('/api/upload-media', { method: 'POST', body: fd })
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error || 'Upload failed')
+  return json.url as string
+}
+
+// ── PHOTO PICKER ──────────────────────────────────────────────────────────────
+function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[]; onChange: (photos: Photo[]) => void; folder?: string }) {
   const [preview, setPreview] = useState<string | null>(null)
-
-  function compressAndRead(file: File): Promise<Photo> {
-    return new Promise(resolve => {
-      const reader = new FileReader()
-      reader.onload = e => {
-        const img = new Image()
-        img.onload = () => {
-          const MAX = 1200
-          const scale = Math.min(1, MAX / Math.max(img.width, img.height))
-          const canvas = document.createElement('canvas')
-          canvas.width  = Math.round(img.width  * scale)
-          canvas.height = Math.round(img.height * scale)
-          const ctx = canvas.getContext('2d')!
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-          resolve({ url: canvas.toDataURL('image/jpeg', 0.7), name: file.name })
-        }
-        img.src = e.target?.result as string
-      }
-      reader.readAsDataURL(file)
-    })
-  }
+  const [uploading, setUploading] = useState(false)
 
   async function addFiles(files: FileList | null) {
     if (!files) return
-    const results = await Promise.all(Array.from(files).map(compressAndRead))
-    onChange([...photos, ...results])
+    setUploading(true)
+    try {
+      const urls = await Promise.all(
+        Array.from(files).map(f => uploadToBunny(f, folder))
+      )
+      onChange([...photos, ...urls.map((url, i) => ({ url, name: files[i].name }))])
+    } catch (e) {
+      console.error('Photo upload failed:', e)
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function replacePhoto(idx: number, files: FileList | null) {
-    if (!files) return
-    const results = await Promise.all(Array.from(files).map(compressAndRead))
-    if (!results[0]) return
-    onChange(photos.map((p, i) => i === idx ? results[0] : p))
+    if (!files || !files[0]) return
+    setUploading(true)
+    try {
+      const url = await uploadToBunny(files[0], folder)
+      onChange(photos.map((p, i) => i === idx ? { url, name: files[0].name } : p))
+    } catch (e) {
+      console.error('Photo replace failed:', e)
+    } finally {
+      setUploading(false)
+    }
   }
 
   function removePhoto(idx: number) {
@@ -66,18 +74,80 @@ function PhotoPicker({ photos, onChange }: { photos: Photo[]; onChange: (photos:
           ))}
         </div>
       )}
-      <div className="flex gap-2">
-        <label className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer">
+      <div className="flex gap-2 flex-wrap">
+        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
           📷 Camera <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
         </label>
-        <label className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer">
+        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
           🖼️ Gallery <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
         </label>
+        {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
       </div>
       {preview && (
         <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="relative" onClick={e => e.stopPropagation()}>
             <img src={preview} alt="Preview" className="max-w-[90vw] max-h-[80vh] rounded-xl object-contain shadow-2xl" />
+            <button onClick={() => setPreview(null)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── VIDEO PICKER ──────────────────────────────────────────────────────────────
+function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[]; onChange: (videos: Video[]) => void; folder?: string }) {
+  const [uploading, setUploading] = useState(false)
+  const [preview, setPreview] = useState<string | null>(null)
+
+  async function addFiles(files: FileList | null) {
+    if (!files) return
+    setUploading(true)
+    try {
+      const urls = await Promise.all(
+        Array.from(files).map(f => uploadToBunny(f, folder))
+      )
+      onChange([...videos, ...urls.map((url, i) => ({ url, name: files[i].name }))])
+    } catch (e) {
+      console.error('Video upload failed:', e)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function removeVideo(idx: number) {
+    onChange(videos.filter((_, i) => i !== idx))
+    setPreview(null)
+  }
+
+  return (
+    <div className="mt-2">
+      {videos.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {videos.map((video, idx) => (
+            <div key={idx} className="relative group w-16 h-16 flex-shrink-0 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center cursor-pointer"
+              onClick={() => setPreview(video.url)}>
+              <span className="text-2xl">▶</span>
+              <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <button onClick={e => { e.stopPropagation(); removeVideo(idx) }} className="text-white bg-red-500/90 rounded px-1.5 py-1 text-xs hover:bg-red-600" title="Remove">✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 flex-wrap">
+        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+          🎥 Record <input type="file" accept="video/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
+        </label>
+        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+          📂 Video <input type="file" accept="video/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
+        </label>
+        {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
+      </div>
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <video src={preview} controls autoPlay className="max-w-[90vw] max-h-[80vh] rounded-xl shadow-2xl" />
             <button onClick={() => setPreview(null)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
           </div>
         </div>
@@ -199,8 +269,11 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   const [selections, setSelections] = useState<Record<string, Record<string, string>>>({})
   const [comments, setComments] = useState<Record<string, Record<string, string>>>({})
   const [photoMap, setPhotoMap] = useState<Record<string, Photo[]>>({})
+  const [videoMap, setVideoMap] = useState<Record<string, Video[]>>({})
   function ph(key: string) { return photoMap[key] || [] }
   function setPh(key: string, photos: Photo[]) { setPhotoMap(prev => ({ ...prev, [key]: photos })) }
+  function vid(key: string) { return videoMap[key] || [] }
+  function setVid(key: string, videos: Video[]) { setVideoMap(prev => ({ ...prev, [key]: videos })) }
 
   // Pre-purchase state
   const [inspectionFee, setInspectionFee] = useState('')
@@ -253,6 +326,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       if (s.selections)   setSelections(s.selections)
       if (s.comments)     setComments(s.comments)
       if (s.photoMap)     setPhotoMap(s.photoMap)
+      if (s.videoMap)     setVideoMap(s.videoMap)
       if (s.inspectionFee !== undefined) setInspectionFee(s.inspectionFee)
       if (s.serviceFee    !== undefined) setServiceFee(s.serviceFee)
       if (s.serviceType   !== undefined) setServiceType(s.serviceType || initialServiceSubtype)
@@ -321,7 +395,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       type, serviceType, serviceFee, inspectionFee, currentKm, observations,
       alertService, alertBrakes, customTasks, diagFee, complaint, findings, recommendation,
       estimates, repairSource, problem, diagNotes, parts, labour, repairResult,
-      finalNotes, selections, comments, photoMap,
+      finalNotes, selections, comments, photoMap, videoMap,
     }
   }
 
@@ -698,7 +772,8 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
             <textarea value={complaint} onChange={e => setComplaint(e.target.value)}
               placeholder="Describe what the customer reported..." rows={4}
               className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-            <PhotoPicker photos={ph('complaint')} onChange={ps => setPh('complaint', ps)} />
+            <PhotoPicker photos={ph('complaint')} onChange={ps => setPh('complaint', ps)} folder="photos" />
+            <VideoPicker videos={vid('complaint')} onChange={vs => setVid('complaint', vs)} folder="videos" />
           </div>
         </div>
       )
@@ -708,7 +783,8 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
           <textarea value={findings} onChange={e => setFindings(e.target.value)}
             placeholder="Describe what you found..." rows={5}
             className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-          <PhotoPicker photos={ph('findings')} onChange={ps => setPh('findings', ps)} />
+          <PhotoPicker photos={ph('findings')} onChange={ps => setPh('findings', ps)} folder="photos" />
+          <VideoPicker videos={vid('findings')} onChange={vs => setVid('findings', vs)} folder="videos" />
         </div>
       )
       if (key === 'outcome') {
