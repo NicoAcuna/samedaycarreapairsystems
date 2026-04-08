@@ -70,7 +70,7 @@ function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
 
 // ── Send Modal ────────────────────────────────────────────────────────────────
 function SendModal({
-  onClose, onSent, id, reportToken, vehicleMake, vehicleModel, vehiclePlate, clientEmail, clientPhone, reportTitle,
+  onClose, onSent, id, reportToken, vehicleMake, vehicleModel, vehiclePlate, clientEmail, clientPhone, reportTitle, company,
 }: {
   onClose: () => void
   onSent: () => void
@@ -82,7 +82,9 @@ function SendModal({
   clientEmail?: string
   clientPhone?: string
   reportTitle?: string
+  company?: { name: string; phone: string; address: string }
 }) {
+  const companyName = company?.name || 'Same Day Car Repair'
   const vehicleStr = [vehicleMake, vehicleModel, vehiclePlate].filter(Boolean).join(' ')
   const titleStr = reportTitle || 'Inspection Report'
   const dateStr = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -96,7 +98,7 @@ function SendModal({
   const [subject, setSubject] = useState(subjectDefault)
   const [message, setMessage] = useState('Please find your report attached below. You can view and download it using the link.')
   const [phone, setPhone] = useState(clientPhone || '')
-  const [waMessage, setWaMessage] = useState(`Hi! Here is your ${titleStr.toLowerCase()} from Same Day Car Repair:\n\n${fullReportUrl}\n\nFeel free to download or save it for your records.`)
+  const [waMessage, setWaMessage] = useState(`Hi! Here is your ${titleStr.toLowerCase()} from ${companyName}:\n\n${fullReportUrl}\n\nFeel free to download or save it for your records.`)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
@@ -111,6 +113,21 @@ function SendModal({
     onSent()
   }
 
+  async function logSend(channel: 'email' | 'whatsapp', recipients: string[]) {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      await supabase.from('report_sends').insert([{
+        job_id:       id,
+        report_token: reportToken,
+        sent_to:      recipients,
+        channel,
+        sent_by:      user.id,
+      }])
+    } catch { /* non-fatal */ }
+  }
+
   async function handleSendEmail() {
     const valid = emails.filter(e => e.trim() && e.includes('@'))
     if (!valid.length) { setError('Please enter at least one valid email address'); return }
@@ -119,11 +136,11 @@ function SendModal({
       const res = await fetch('/api/send-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: valid, subject, message, reportUrl }),
+        body: JSON.stringify({ to: valid, subject, message, reportUrl, company }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to send')
-      await markCompleted()
+      await Promise.all([markCompleted(), logSend('email', valid)])
       setSent(true)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send. Please try again.')
@@ -133,13 +150,13 @@ function SendModal({
   }
 
   function handleSendWhatsApp() {
-    // Normalise phone: strip spaces/dashes, ensure no leading 0 for intl
     const normalised = phone.replace(/[\s\-()]/g, '')
     const encoded = encodeURIComponent(waMessage)
     const url = normalised
       ? `https://wa.me/${normalised.replace(/^\+/, '')}?text=${encoded}`
       : `https://wa.me/?text=${encoded}`
     window.open(url, '_blank')
+    logSend('whatsapp', [phone])
     markCompleted()
     setSent(true)
   }
@@ -401,12 +418,13 @@ function countResults(sections: typeof REPORT.sections) {
   return { good, fair, poor }
 }
 
-function ReportShell({ id, title, subtitle, data, snapshot, children }: {
+function ReportShell({ id, title, subtitle, data, snapshot, company, children }: {
   id: string
   title: string
   subtitle: string
   data: { date: string; odometer: string; location: string; client: { name: string; phone: string; email: string }; vehicle: { make: string; plate: string; odometer: string } }
   snapshot: Record<string, unknown>
+  company?: { name: string; phone: string; address: string }
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -487,6 +505,7 @@ function ReportShell({ id, title, subtitle, data, snapshot, children }: {
           clientEmail={data.client.email}
           clientPhone={data.client.phone}
           reportTitle={title}
+          company={company}
         />
       )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
@@ -537,7 +556,7 @@ function ReportShell({ id, title, subtitle, data, snapshot, children }: {
         <div className="bg-neutral-900 px-6 py-5">
           <div className="text-xs font-semibold text-green-400 uppercase tracking-widest mb-1">{title}</div>
           <div className="text-xl font-bold text-white">{subtitle}</div>
-          <div className="text-xs text-neutral-400 mt-1">Same Day Car Repair · Mobile Mechanic · 0439 269 598</div>
+          <div className="text-xs text-neutral-400 mt-1">{company?.name || 'Same Day Car Repair'}{company?.phone ? ` · ${company.phone}` : ''}{company?.address ? ` · ${company.address}` : ''}</div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 px-5 py-3 border-b border-neutral-100 bg-neutral-50 text-sm">
           <div><span className="text-neutral-400 text-xs block">Date</span><div className="font-semibold text-neutral-900 text-sm">{data.date}</div></div>
@@ -870,9 +889,12 @@ type JobRecord = {
   vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
 }
 
+type Company = { name: string; phone: string; address: string }
+
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [job, setJob] = useState<JobRecord | null>(null)
+  const [company, setCompany] = useState<Company | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -886,6 +908,24 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         setJob(data as unknown as JobRecord)
         setLoading(false)
       })
+
+    // Load company via current user
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: userData } = await supabase
+        .from('users')
+        .select('active_company_id, company_id')
+        .eq('id', user.id)
+        .single()
+      const companyId = userData?.active_company_id || userData?.company_id
+      if (!companyId) return
+      const { data: co } = await supabase
+        .from('companies')
+        .select('name, phone, address')
+        .eq('id', companyId)
+        .single()
+      if (co) setCompany(co as Company)
+    })
   }, [id])
 
   if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
@@ -922,7 +962,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
   if (jobType === 'diagnosis') {
     return (
-      <ReportShell id={id} title="Diagnosis" subtitle="Diagnosis Report" data={reportData} snapshot={flowData}>
+      <ReportShell id={id} title="Diagnosis" subtitle="Diagnosis Report" data={reportData} snapshot={flowData} company={company}>
         <DiagnosisBody flowData={flowData} photoMap={photoMap} />
       </ReportShell>
     )
@@ -934,7 +974,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     const additionalNotes = (flowData.observations as string) || ''
     const typeLabel = (flowData.serviceType as string) || 'Service'
     return (
-      <ReportShell id={id} title={typeLabel} subtitle="Service Report" data={reportData} snapshot={flowData}>
+      <ReportShell id={id} title={typeLabel} subtitle="Service Report" data={reportData} snapshot={flowData} company={company}>
         <ServiceBody sections={sections} nextService={nextService} additionalNotes={additionalNotes} photoMap={photoMap} />
       </ReportShell>
     )
@@ -944,7 +984,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const sections = buildPrePurchaseSections(flowData)
   const additionalNotes = (flowData.finalNotes as string) || ''
   return (
-    <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData} snapshot={flowData}>
+    <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData} snapshot={flowData} company={company}>
       <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={[]} photoMap={photoMap} />
     </ReportShell>
   )
