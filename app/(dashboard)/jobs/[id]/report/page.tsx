@@ -815,6 +815,36 @@ function buildNextService(flowData: Record<string, unknown>) {
   return []
 }
 
+function InlinePhotos({ photos }: { photos: Photo[] }) {
+  const [preview, setPreview] = useState<string | null>(null)
+  if (!photos || photos.length === 0) return null
+  return (
+    <>
+      <div className="flex flex-wrap gap-2 mt-3">
+        {photos.map((photo, idx) => (
+          <div key={idx} className="relative group">
+            <img src={photo.url} alt={photo.name} onClick={() => setPreview(photo.url)}
+              className="w-20 h-20 object-cover rounded-lg border border-neutral-200 cursor-pointer hover:opacity-90" />
+            <a href={photo.url} download={photo.name}
+              className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">↓</a>
+          </div>
+        ))}
+      </div>
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <img src={preview} alt="Preview" className="max-w-[90vw] max-h-[80vh] rounded-xl object-contain shadow-2xl" />
+            <a href={preview} download="photo.jpg"
+              className="absolute bottom-3 left-3 text-xs bg-white/20 text-white px-3 py-1.5 rounded-lg hover:bg-white/30">↓ Download</a>
+            <button onClick={() => setPreview(null)}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 function DiagnosisBody({ flowData, photoMap }: { flowData: Record<string, unknown>; photoMap: Record<string, Photo[]> }) {
   const urgencyStyles: Record<string, string> = {
     immediate:  'bg-red-50 text-red-700 border border-red-200',
@@ -830,19 +860,43 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: Record<string, unknow
   const estimates = (flowData.estimates as { task: string; urgency: string; estCost: string; estTime: string }[]) || []
   const filledEstimates = estimates.filter(e => e.task || e.estTime)
 
+  // Photos not tied to a specific section go at the bottom
+  const knownKeys = ['complaint', 'findings']
+  const remainingPhotos: Record<string, Photo[]> = Object.fromEntries(
+    Object.entries(photoMap).filter(([k]) => !knownKeys.includes(k) && (photoMap[k]?.length ?? 0) > 0)
+  )
+
   return (
     <>
-      {/* Sections */}
-      {[
-        { label: 'Customer Complaint', content: complaint },
-        { label: "Mechanic's Findings", content: findings },
-        { label: 'Repair Recommendation', content: recommendation },
-      ].filter(s => s.content).map(s => (
-        <div key={s.label} className="border-t border-neutral-100">
-          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">{s.label}</span></div>
-          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{s.content}</p></div>
+      {/* Customer Complaint */}
+      {complaint && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Customer Complaint</span></div>
+          <div className="px-5 py-4">
+            <p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{complaint}</p>
+            <InlinePhotos photos={photoMap['complaint'] || []} />
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* Mechanic's Findings */}
+      {findings && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Mechanic's Findings</span></div>
+          <div className="px-5 py-4">
+            <p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{findings}</p>
+            <InlinePhotos photos={photoMap['findings'] || []} />
+          </div>
+        </div>
+      )}
+
+      {/* Repair Recommendation */}
+      {recommendation && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Recommendation</span></div>
+          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{recommendation}</p></div>
+        </div>
+      )}
 
       {/* Estimates table — no prices */}
       {filledEstimates.length > 0 && (
@@ -873,7 +927,9 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: Record<string, unknow
       <div className="border-t border-neutral-100 mx-5 my-4 rounded-lg border px-4 py-3 bg-amber-50 text-xs text-amber-700">
         A Repair job can be created from this diagnosis.
       </div>
-      <PhotosSection photoMap={photoMap} />
+
+      {/* Any remaining photos not tied to a section */}
+      {Object.keys(remainingPhotos).length > 0 && <PhotosSection photoMap={remainingPhotos} />}
     </>
   )
 }

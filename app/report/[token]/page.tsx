@@ -6,6 +6,8 @@ import { use, useEffect, useState } from 'react'
 type Photo = { url: string; name: string }
 type FlowData = Record<string, unknown>
 
+type Company = { name: string; phone: string; address: string }
+
 type JobRecord = {
   id: string
   type: string
@@ -15,6 +17,7 @@ type JobRecord = {
   checklist_data: FlowData | null
   clients?: { first_name: string; last_name: string; phone: string; email: string } | null
   vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
+  company?: Company | null
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -111,6 +114,32 @@ function countResults(sections: Section[]) {
 }
 
 // ── Photos Section ─────────────────────────────────────────────────────────────
+function InlinePhotos({ photos }: { photos: Photo[] }) {
+  const [preview, setPreview] = useState<string | null>(null)
+  if (!photos || photos.length === 0) return null
+  return (
+    <>
+      <div className="flex flex-wrap gap-2 mt-3">
+        {photos.map((photo, idx) => (
+          <div key={idx} className="relative group">
+            <img src={photo.url} alt={photo.name} onClick={() => setPreview(photo.url)}
+              className="w-20 h-20 object-cover rounded-lg border border-neutral-200 cursor-pointer hover:opacity-90" />
+          </div>
+        ))}
+      </div>
+      {preview && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <img src={preview} alt="Preview" className="max-w-[90vw] max-h-[80vh] rounded-xl object-contain shadow-2xl" />
+            <button onClick={() => setPreview(null)}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
   const [preview, setPreview] = useState<string | null>(null)
   const LABELS: Record<string, string> = {
@@ -313,13 +342,19 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: FlowData; photoMap: R
       {complaint && (
         <div className="border-t border-neutral-100">
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Customer Complaint</span></div>
-          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{complaint}</p></div>
+          <div className="px-5 py-4">
+            <p className="text-sm text-neutral-700 leading-relaxed">{complaint}</p>
+            <InlinePhotos photos={photoMap['complaint'] || []} />
+          </div>
         </div>
       )}
       {findings && (
         <div className="border-t border-neutral-100">
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Mechanic&apos;s Findings</span></div>
-          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{findings}</p></div>
+          <div className="px-5 py-4">
+            <p className="text-sm text-neutral-700 leading-relaxed">{findings}</p>
+            <InlinePhotos photos={photoMap['findings'] || []} />
+          </div>
         </div>
       )}
       {filledEst.length > 0 && (
@@ -345,7 +380,9 @@ function DiagnosisBody({ flowData, photoMap }: { flowData: FlowData; photoMap: R
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{recommendation}</p></div>
         </div>
       )}
-      <PhotosSection photoMap={photoMap} />
+      {Object.keys(photoMap).filter(k => !['complaint','findings'].includes(k) && photoMap[k]?.length > 0).length > 0 && (
+        <PhotosSection photoMap={Object.fromEntries(Object.entries(photoMap).filter(([k]) => !['complaint','findings'].includes(k)))} />
+      )}
     </>
   )
 }
@@ -424,7 +461,7 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
       <div className="max-w-3xl mx-auto">
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-5 no-print">
-          <div className="text-xs text-neutral-400">Same Day Car Repair · Inspection Report</div>
+          <div className="text-xs text-neutral-400">{job.company?.name || 'Same Day Car Repair'} · Inspection Report</div>
           <button onClick={() => window.print()}
             className="text-sm px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">
             Download PDF
