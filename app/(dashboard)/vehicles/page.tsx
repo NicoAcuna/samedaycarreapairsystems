@@ -238,7 +238,7 @@ export default function VehiclesPage() {
                 </td>
                 <td className="px-4 py-3">
                   <button onClick={e => { e.stopPropagation(); router.push(`/vehicles/${v.id}`) }}
-                    className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-50">View</button>
+                    className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer text-neutral-600">View</button>
                 </td>
               </tr>
             ))}
