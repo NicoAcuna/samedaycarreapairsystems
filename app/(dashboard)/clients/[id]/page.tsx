@@ -450,6 +450,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [showEdit, setShowEdit]         = useState(false)
   const [showAddVehicle, setShowAddVehicle] = useState(false)
   const [showNewJob, setShowNewJob]     = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     const supabase = createClient()
@@ -478,6 +481,39 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   if (!client) return <div className="p-6 text-sm text-neutral-400">Client not found.</div>
 
   const clientStatus = getClientStatus(latestNps?.nps_score ?? null)
+  const cannotDeleteClient = vehicles.length > 0 || jobs.length > 0
+
+  async function handleDelete() {
+    if (cannotDeleteClient) {
+      setDeleteError('Remove this client\'s vehicles and jobs before deleting the client.')
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError('')
+    const supabase = createClient()
+
+    const { error: interactionError } = await supabase
+      .from('client_interactions')
+      .delete()
+      .eq('client_id', id)
+
+    if (interactionError) {
+      setDeleteError(interactionError.message)
+      setDeleting(false)
+      return
+    }
+
+    const { error } = await supabase.from('clients').delete().eq('id', id)
+
+    if (error) {
+      setDeleteError(error.message)
+      setDeleting(false)
+      return
+    }
+
+    router.push('/clients')
+  }
 
   return (
     <div className="p-6 max-w-3xl">
@@ -485,11 +521,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       {showAddVehicle && <AddVehicleModal clientId={id} onClose={() => setShowAddVehicle(false)} onSaved={v => { setVehicles(prev => [v, ...prev]); setShowAddVehicle(false) }} />}
       {showNewJob     && <NewJobModal clientId={id} vehicles={vehicles} onClose={() => setShowNewJob(false)} onSaved={j => { setJobs(prev => [j, ...prev]); setShowNewJob(false) }} />}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button onClick={() => router.push('/clients')} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to clients</button>
-        <button onClick={() => setShowEdit(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Edit</button>
-      </div>
+	      {/* Header */}
+	      <div className="flex items-center justify-between mb-6">
+	        <button onClick={() => router.push('/clients')} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to clients</button>
+          <div className="flex items-center gap-2">
+	        <button onClick={() => setShowEdit(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Edit</button>
+            <button onClick={() => { setDeleteError(''); setShowDelete(true) }} className="text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600">Delete</button>
+          </div>
+	      </div>
 
       {/* Client card */}
 	      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
@@ -582,8 +621,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         )}
       </div>
 
-      {/* Jobs */}
-      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+	      {/* Jobs */}
+	      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100">
           <span className="text-sm font-semibold text-neutral-900">Job history ({jobs.length})</span>
           <button onClick={() => setShowNewJob(true)} className="text-xs px-3 py-1.5 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">+ New job</button>
@@ -615,7 +654,33 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             })}
           </div>
         )}
-      </div>
-    </div>
+	      </div>
+
+        {showDelete && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-20 px-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">⚠️</div>
+              <h2 className="text-base font-semibold text-neutral-900 mb-2">Delete this client?</h2>
+              <p className="text-sm text-neutral-500 mb-4">
+                {cannotDeleteClient
+                  ? 'This client still has vehicles or jobs linked to it.'
+                  : 'This action cannot be undone.'}
+              </p>
+              {deleteError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4 text-left">{deleteError}</div>}
+              {cannotDeleteClient && (
+                <div className="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 mb-4 text-left">
+                  Vehicles: {vehicles.length} · Jobs: {jobs.length}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => setShowDelete(false)} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Cancel</button>
+                <button onClick={handleDelete} disabled={deleting || cannotDeleteClient} className="flex-1 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50">
+                  {deleting ? 'Deleting…' : 'Yes, delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+	    </div>
   )
 }

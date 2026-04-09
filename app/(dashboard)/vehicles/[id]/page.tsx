@@ -185,6 +185,9 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const [jobs, setJobs]       = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     const supabase = createClient()
@@ -201,6 +204,28 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
   if (!vehicle) return <div className="p-6 text-sm text-neutral-400">Vehicle not found.</div>
 
+  const cannotDeleteVehicle = jobs.length > 0
+
+  async function handleDelete() {
+    if (cannotDeleteVehicle) {
+      setDeleteError('This vehicle still has job history. Delete or reassign those jobs first.')
+      return
+    }
+
+    setDeleting(true)
+    setDeleteError('')
+    const supabase = createClient()
+    const { error } = await supabase.from('vehicles').delete().eq('id', id)
+
+    if (error) {
+      setDeleteError(error.message)
+      setDeleting(false)
+      return
+    }
+
+    router.push('/vehicles')
+  }
+
   const details = [
     { label: 'Make',       value: vehicle.make },
     { label: 'Model',      value: vehicle.model },
@@ -216,11 +241,14 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
     <div className="p-6 max-w-3xl">
       {showEdit && <EditModal vehicle={vehicle} onClose={() => setShowEdit(false)} onSaved={v => { setVehicle(v); setShowEdit(false) }} />}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button onClick={() => router.push('/vehicles')} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to vehicles</button>
-        <button onClick={() => setShowEdit(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Edit</button>
-      </div>
+	      {/* Header */}
+	      <div className="flex items-center justify-between mb-6">
+	        <button onClick={() => router.push('/vehicles')} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to vehicles</button>
+          <div className="flex items-center gap-2">
+	        <button onClick={() => setShowEdit(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Edit</button>
+            <button onClick={() => { setDeleteError(''); setShowDelete(true) }} className="text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600">Delete</button>
+          </div>
+	      </div>
 
       {/* Vehicle card */}
       <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
@@ -250,8 +278,8 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {/* Job history */}
-      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+	      {/* Job history */}
+	      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100">
           <span className="text-sm font-semibold text-neutral-900">Job history ({jobs.length})</span>
         </div>
@@ -283,7 +311,33 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
             })}
           </div>
         )}
-      </div>
-    </div>
+	      </div>
+
+        {showDelete && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-20 px-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">⚠️</div>
+              <h2 className="text-base font-semibold text-neutral-900 mb-2">Delete this vehicle?</h2>
+              <p className="text-sm text-neutral-500 mb-4">
+                {cannotDeleteVehicle
+                  ? 'This vehicle still has jobs linked to it.'
+                  : 'This action cannot be undone.'}
+              </p>
+              {deleteError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4 text-left">{deleteError}</div>}
+              {cannotDeleteVehicle && (
+                <div className="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 mb-4 text-left">
+                  Jobs linked: {jobs.length}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => setShowDelete(false)} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Cancel</button>
+                <button onClick={handleDelete} disabled={deleting || cannotDeleteVehicle} className="flex-1 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50">
+                  {deleting ? 'Deleting…' : 'Yes, delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+	    </div>
   )
 }
