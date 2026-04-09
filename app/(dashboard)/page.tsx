@@ -10,6 +10,13 @@ type Job = {
   status: string
   scheduled_at: string | null
   created_at: string
+  checklist_data?: {
+    serviceFee?: string
+    inspectionFee?: string
+    diagFee?: string
+    labour?: string
+    parts?: { qty?: number; price?: string }[]
+  } | null
   clients?: { first_name: string; last_name: string } | null
   vehicles?: { make: string; model: string; year: string } | null
 }
@@ -65,6 +72,42 @@ function isOverdue(job: Job) {
   return false
 }
 
+function parseMoney(value: string | number | null | undefined) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value !== 'string') return 0
+  const normalized = value.replace(/[^0-9.-]/g, '')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function getJobValue(job: Job) {
+  const data = job.checklist_data
+  if (!data) return 0
+
+  if (job.type === 'repair') {
+    const labour = parseMoney(data.labour)
+    const parts = (data.parts || []).reduce((sum, part) => {
+      const qty = typeof part.qty === 'number' && Number.isFinite(part.qty) ? part.qty : 0
+      return sum + (qty * parseMoney(part.price))
+    }, 0)
+    return labour + parts
+  }
+
+  if (job.type === 'service') return parseMoney(data.serviceFee)
+  if (job.type === 'pre_purchase') return parseMoney(data.inspectionFee)
+  if (job.type === 'diagnosis') return parseMoney(data.diagFee)
+
+  return 0
+}
+
+function formatMoney(amount: number) {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
 type Filter = 'all' | 'today' | 'in_progress' | 'overdue'
 
 export default function DashboardPage() {
@@ -78,7 +121,7 @@ export default function DashboardPage() {
     const supabase = createClient()
     supabase
       .from('jobs')
-      .select('id, type, status, scheduled_at, created_at, clients(first_name, last_name), vehicles(make, model, year)')
+      .select('id, type, status, scheduled_at, created_at, checklist_data, clients(first_name, last_name), vehicles(make, model, year)')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setJobs((data as unknown as Job[]) || [])
@@ -93,12 +136,16 @@ export default function DashboardPage() {
   const overdueJobs   = jobs.filter(j => isOverdue(j))
   const pendingCount  = todayJobs.filter(j => j.status !== 'completed').length
   const doneCount     = todayJobs.filter(j => j.status === 'completed').length
+  const todayValue = todayJobs.reduce((sum, job) => sum + getJobValue(job), 0)
+  const inProgressValue = inProgressJobs.reduce((sum, job) => sum + getJobValue(job), 0)
+  const weekValue = weekJobs.reduce((sum, job) => sum + getJobValue(job), 0)
+  const overdueValue = overdueJobs.reduce((sum, job) => sum + getJobValue(job), 0)
 
   const metrics = [
-    { key: 'today',       label: "Today's Jobs",   value: loading ? '…' : todayJobs.length,      sub: loading ? '' : `${pendingCount} pending · ${doneCount} done`, dark: true,  red: false },
-    { key: 'in_progress', label: 'In Progress',    value: loading ? '…' : inProgressJobs.length, sub: 'Active right now',    dark: false, red: false },
-    { key: 'all',         label: 'Weekly Jobs',    value: loading ? '…' : weekJobs.length,       sub: 'This week',           dark: false, red: false },
-    { key: 'overdue',     label: 'Overdue',        value: loading ? '…' : overdueJobs.length,    sub: 'Past scheduled date', dark: false, red: true  },
+    { key: 'today',       label: "Today's Jobs",   value: loading ? '…' : formatMoney(todayValue),      sub: loading ? '' : `${todayJobs.length} jobs · ${pendingCount} pending · ${doneCount} done`, dark: true,  red: false },
+    { key: 'in_progress', label: 'In Progress',    value: loading ? '…' : formatMoney(inProgressValue), sub: loading ? '' : `${inProgressJobs.length} active jobs`,          dark: false, red: false },
+    { key: 'all',         label: 'Weekly Jobs',    value: loading ? '…' : formatMoney(weekValue),       sub: loading ? '' : `${weekJobs.length} jobs this week`,            dark: false, red: false },
+    { key: 'overdue',     label: 'Overdue',        value: loading ? '…' : formatMoney(overdueValue),    sub: loading ? '' : `${overdueJobs.length} overdue jobs`,           dark: false, red: true  },
   ]
 
   const filteredJobs = jobs.filter(job => {
