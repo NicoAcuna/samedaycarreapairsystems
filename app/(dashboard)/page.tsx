@@ -130,17 +130,15 @@ export default function DashboardPage() {
   const weekJobs      = jobs.filter(j => isThisWeek(j.scheduled_at ?? j.created_at))
   const inProgressJobs = jobs.filter(j => j.status === 'in_progress' || j.status === 'pending')
   const overdueJobs   = jobs.filter(j => isOverdue(j))
-  const pendingCount  = todayJobs.filter(j => j.status !== 'completed').length
-  const doneCount     = todayJobs.filter(j => j.status === 'completed').length
   const todayValue = todayJobs.reduce((sum, job) => sum + getJobValue(job), 0)
   const inProgressValue = inProgressJobs.reduce((sum, job) => sum + getJobValue(job), 0)
   const weekValue = weekJobs.reduce((sum, job) => sum + getJobValue(job), 0)
   const overdueValue = overdueJobs.reduce((sum, job) => sum + getJobValue(job), 0)
 
   const metrics = [
-    { key: 'today',       label: "Today's Jobs",   value: loading ? '…' : formatMoney(todayValue),      sub: loading ? '' : `${todayJobs.length} jobs · ${pendingCount} pending · ${doneCount} done`, dark: true,  red: false },
+    { key: 'today',       label: "Today's Jobs",   value: loading ? '…' : formatMoney(todayValue),      sub: loading ? '' : `${todayJobs.length} jobs today`,               dark: true,  red: false },
     { key: 'in_progress', label: 'In Progress',    value: loading ? '…' : formatMoney(inProgressValue), sub: loading ? '' : `${inProgressJobs.length} active jobs`,          dark: false, red: false },
-    { key: 'all',         label: 'Weekly Jobs',    value: loading ? '…' : formatMoney(weekValue),       sub: loading ? '' : `${todayJobs.length} jobs today`,               dark: false, red: false },
+    { key: 'all',         label: 'Weekly Jobs',    value: loading ? '…' : formatMoney(weekValue),       sub: loading ? '' : `${weekJobs.length} jobs this week`,            dark: false, red: false },
     { key: 'overdue',     label: 'Overdue',        value: loading ? '…' : formatMoney(overdueValue),    sub: loading ? '' : `${overdueJobs.length} overdue jobs`,           dark: false, red: true  },
   ]
 
