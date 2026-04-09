@@ -12,7 +12,7 @@ type Job = {
   odometer_km: number | null
   created_at: string
   clients?: { first_name: string; last_name: string; phone: string; email: string } | null
-  vehicles?: { make: string; model: string; year: string; plate: string } | null
+  vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
 }
 
 const TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -43,7 +43,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const supabase = createClient()
     supabase
       .from('jobs')
-      .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate)')
+      .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, odometer_km)')
       .eq('id', id)
       .single()
       .then(({ data }) => {
@@ -79,6 +79,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const clientName = job.clients ? `${job.clients.first_name} ${job.clients.last_name}` : '—'
   const vehicleLabel = job.vehicles ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}` : '—'
   const plate = job.vehicles?.plate || '—'
+  const odometerLabel = job.odometer_km
+    ? `${job.odometer_km.toLocaleString()} km`
+    : job.vehicles?.odometer_km
+      ? `${job.vehicles.odometer_km.toLocaleString()} km`
+      : '—'
   const dateLabel = job.scheduled_at
     ? new Date(job.scheduled_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
     : new Date(job.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -124,7 +129,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             { label: 'Vehicle',  value: vehicleLabel },
             { label: 'Plate',    value: plate },
             { label: 'Date',     value: dateLabel },
-            { label: 'Odometer', value: job.odometer_km ? `${job.odometer_km.toLocaleString()} km` : '—' },
+            { label: 'Odometer', value: odometerLabel },
           ].map((row) => (
             <div key={row.label}>
               <div className="text-xs text-neutral-400 mb-1">{row.label}</div>
@@ -137,7 +142,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {/* Status banner */}
       {status === 'pending' && (
         <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-4">
-          <div className="text-sm text-neutral-500 mb-3">This job hasn't been started yet.</div>
+          <div className="text-sm text-neutral-500 mb-3">This job hasn&apos;t been started yet.</div>
           <div className="flex flex-col sm:flex-row gap-2">
             <button onClick={() => setShowStatusConfirm(true)} className="flex-1 bg-green-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-green-700 transition-colors">Mark as completed ✓</button>
             <button onClick={() => router.push(`/jobs/${id}/flow`)} className="flex-1 bg-neutral-900 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-neutral-700 transition-colors">Continue job →</button>
