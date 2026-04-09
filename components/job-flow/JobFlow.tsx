@@ -426,6 +426,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   const [diagNotes, setDiagNotes] = useState<string>('')
   const [parts, setParts] = useState<Part[]>([{ name: '', qty: 1, price: '' }])
   const [labour, setLabour] = useState<string>('')
+  const [repairFee, setRepairFee] = useState<string>('')
   const [repairResult, setRepairResult] = useState<string>('')
   const [finalNotes, setFinalNotes] = useState<string>('')
   const hasHydratedRef = useRef(false)
@@ -470,6 +471,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       if (s.diagNotes     !== undefined) setDiagNotes(s.diagNotes)
       if (s.parts         !== undefined) setParts(s.parts)
       if (s.labour        !== undefined) setLabour(s.labour)
+      if (s.repairFee     !== undefined) setRepairFee(s.repairFee)
       if (s.repairResult  !== undefined) setRepairResult(s.repairResult)
       if (s.finalNotes    !== undefined) setFinalNotes(s.finalNotes)
       if (!jobId && s.activeIdx !== undefined) {
@@ -531,7 +533,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     return {
       type, serviceType, serviceFee, inspectionFee, currentKm, observations,
       alertService, alertBrakes, customTasks, diagFee, complaint, findings, recommendation,
-      estimates, repairSource, problem, diagNotes, parts, labour, repairResult,
+      estimates, repairSource, problem, diagNotes, parts, labour, repairFee, repairResult,
       finalNotes, selections, comments,
       photoMap: sanitizeMediaMap(photoMap),
       videoMap: sanitizeMediaMap(videoMap),
@@ -556,6 +558,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     diagNotes,
     parts,
     labour,
+    repairFee,
     repairResult,
     finalNotes,
     selections,
@@ -598,6 +601,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     diagNotes,
     parts,
     labour,
+    repairFee,
     repairResult,
     finalNotes,
     selections,
@@ -1124,6 +1128,18 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
             <textarea value={recommendation} onChange={e => setRecommendation(e.target.value)}
               placeholder="Describe what was done..." rows={3}
               className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
+          </div>
+
+          <div className="bg-white border border-neutral-200 rounded-xl p-4">
+            <label className="text-xs text-neutral-500 mb-2 block">Repair amount ($)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={repairFee}
+              onChange={e => setRepairFee(e.target.value)}
+              placeholder="0.00"
+              className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none bg-neutral-50"
+            />
           </div>
 
           <div className="bg-white border border-neutral-200 rounded-xl p-4">

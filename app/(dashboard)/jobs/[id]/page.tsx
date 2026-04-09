@@ -15,6 +15,7 @@ type Job = {
     serviceFee?: string
     inspectionFee?: string
     diagFee?: string
+    repairFee?: string
     labour?: string
     parts?: { qty?: number; price?: string }[]
   } | null
@@ -48,6 +49,8 @@ function getJobValue(job: Job) {
   if (!data) return 0
 
   if (job.type === 'repair') {
+    const repairFee = parseMoney(data.repairFee)
+    if (repairFee > 0) return repairFee
     const labour = parseMoney(data.labour)
     const parts = (data.parts || []).reduce((sum, part) => {
       const qty = typeof part.qty === 'number' && Number.isFinite(part.qty) ? part.qty : 0

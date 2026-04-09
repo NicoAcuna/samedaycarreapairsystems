@@ -97,7 +97,7 @@ function SendModal({
 }) {
   const companyName = company?.name || 'Same Day Car Repair'
   const vehicleStr = [vehicleMake, vehicleModel, vehiclePlate].filter(Boolean).join(' ')
-  const titleStr = reportTitle || 'Inspection Report'
+  const titleStr = reportTitle || 'Report'
   const dateStr = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
   const subjectDefault = `Your ${titleStr}${vehicleStr ? ` — ${vehicleStr}` : ''} — ${dateStr}`
   const reportUrl = reportToken ? `/report/${reportToken}` : null
@@ -1105,6 +1105,14 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   if (jobType === 'diagnosis') {
     return (
       <ReportShell id={id} title="Diagnosis" subtitle="Diagnosis Report" data={reportData} snapshot={flowData} company={company}>
+        <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
+      </ReportShell>
+    )
+  }
+
+  if (jobType === 'repair') {
+    return (
+      <ReportShell id={id} title="Repair" subtitle="Repair Report" data={reportData} snapshot={flowData} company={company}>
         <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
       </ReportShell>
     )
