@@ -1,72 +1,59 @@
-export type LocationOption = {
-  city: string
-  state: string
-  suburbs: string[]
-}
+export const NSW_STATE = 'NSW'
 
-export const LOCATION_OPTIONS: LocationOption[] = [
-  {
-    city: 'Sydney',
-    state: 'NSW',
-    suburbs: [
-      'Alexandria',
-      'Bondi',
-      'Bondi Junction',
-      'Bronte',
-      'Coogee',
-      'Marrickville',
-      'Maroubra',
-      'Newtown',
-      'Randwick',
-      'Surry Hills',
-    ],
-  },
-  {
-    city: 'Parramatta',
-    state: 'NSW',
-    suburbs: [
-      'Granville',
-      'Harris Park',
-      'Merrylands',
-      'North Parramatta',
-      'Parramatta',
-      'Westmead',
-    ],
-  },
-  {
-    city: 'Blacktown',
-    state: 'NSW',
-    suburbs: [
-      'Blacktown',
-      'Doonside',
-      'Mount Druitt',
-      'Prospect',
-      'Rooty Hill',
-      'Seven Hills',
-    ],
-  },
-  {
-    city: 'Liverpool',
-    state: 'NSW',
-    suburbs: [
-      'Casula',
-      'Chipping Norton',
-      'Hoxton Park',
-      'Liverpool',
-      'Moorebank',
-      'Prestons',
-    ],
-  },
+export const NSW_SUBURB_SUGGESTIONS = [
+  'Alexandria',
+  'Ashfield',
+  'Bankstown',
+  'Blacktown',
+  'Bondi',
+  'Bondi Beach',
+  'Bondi Junction',
+  'Bronte',
+  'Burwood',
+  'Campsie',
+  'Canterbury',
+  'Chatswood',
+  'Coogee',
+  'Croydon',
+  'Croydon Park',
+  'Drummoyne',
+  'Dulwich Hill',
+  'Five Dock',
+  'Granville',
+  'Harris Park',
+  'Homebush',
+  'Hurstville',
+  'Leichhardt',
+  'Liverpool',
+  'Marrickville',
+  'Mascot',
+  'Merrylands',
+  'Miranda',
+  'Moorebank',
+  'Newtown',
+  'North Parramatta',
+  'Parramatta',
+  'Penrith',
+  'Petersham',
+  'Randwick',
+  'Rhodes',
+  'Rockdale',
+  'Rozelle',
+  'Surry Hills',
+  'Strathfield',
+  'Summer Hill',
+  'Sydney',
+  'Tempe',
+  'Waverley',
+  'Westmead',
+  'Wiley Park',
+  'Wolli Creek',
 ]
 
-export function getSuburbsForCity(city: string) {
-  return LOCATION_OPTIONS.find(option => option.city === city)?.suburbs ?? []
+export function normalizeNswState() {
+  return NSW_STATE
 }
 
-export function getStateForCity(city: string) {
-  return LOCATION_OPTIONS.find(option => option.city === city)?.state ?? ''
-}
-
-export function formatClientLocation(city?: string | null, suburb?: string | null, state?: string | null) {
-  return [suburb, city, state].filter(Boolean).join(', ') || '—'
+export function formatClientLocation(suburb?: string | null, state?: string | null, postcode?: string | null) {
+  return [suburb, state, postcode].filter(Boolean).join(' ') || '—'
 }

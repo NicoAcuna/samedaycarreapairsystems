@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
-import { LOCATION_OPTIONS, formatClientLocation, getStateForCity, getSuburbsForCity } from '../../../lib/reference-data/locations'
+import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, formatClientLocation, normalizeNswState } from '../../../lib/reference-data/locations'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = {
@@ -16,6 +16,7 @@ type Client = {
   suburb?: string | null
   city?: string | null
   state?: string | null
+  postcode?: string | null
   notes: string
   created_at: string
 }
@@ -106,16 +107,14 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
     email:      client.email      || '',
     address:    client.address    || '',
     suburb:     client.suburb     || '',
-    city:       client.city       || '',
-    state:      client.state      || '',
+    postcode:   client.postcode   || '',
+    state:      client.state      || NSW_STATE,
     notes:      client.notes      || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const suburbOptions = getSuburbsForCity(form.city)
 
   function set(field: string, val: string) { setForm(prev => ({ ...prev, [field]: val })) }
-  function setCity(city: string) { setForm(prev => ({ ...prev, city, state: getStateForCity(city), suburb: '' })) }
 
   async function handleSave() {
     if (!form.first_name.trim()) { setError('First name is required'); return }
@@ -129,8 +128,9 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
         email: form.email.trim(),
         address: form.address.trim(),
         suburb: form.suburb || null,
-        city: form.city || null,
-        state: form.state || null,
+        city: null,
+        state: normalizeNswState(),
+        postcode: form.postcode.trim() || null,
         notes: form.notes.trim(),
       })
       .eq('id', client.id).select().single()
@@ -178,24 +178,19 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">City</label>
-              <select value={form.city} onChange={e => setCity(e.target.value)}
-                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400 bg-white">
-                <option value="">Select city</option>
-                {LOCATION_OPTIONS.map(option => (
-                  <option key={option.city} value={option.city}>{option.city}</option>
+              <label className="text-xs font-medium text-neutral-500 mb-1 block">Suburb</label>
+              <input list="nsw-suburbs-edit-client" value={form.suburb} onChange={e => set('suburb', e.target.value)} placeholder="e.g. Croydon Park"
+                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+              <datalist id="nsw-suburbs-edit-client">
+                {NSW_SUBURB_SUGGESTIONS.map(suburb => (
+                  <option key={suburb} value={suburb} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">Suburb</label>
-              <select value={form.suburb} onChange={e => set('suburb', e.target.value)} disabled={!form.city}
-                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400 bg-white disabled:opacity-50">
-                <option value="">{form.city ? 'Select suburb' : 'Choose city first'}</option>
-                {suburbOptions.map(suburb => (
-                  <option key={suburb} value={suburb}>{suburb}</option>
-                ))}
-              </select>
+              <label className="text-xs font-medium text-neutral-500 mb-1 block">Postcode</label>
+              <input value={form.postcode} onChange={e => set('postcode', e.target.value)} inputMode="numeric" placeholder="2133"
+                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
             </div>
           </div>
           <div>
@@ -510,7 +505,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	        </div>
         <div className="grid grid-cols-2 divide-x divide-neutral-100">
           <div className="p-5 space-y-3">
-            {[{ label: 'Phone', value: client.phone }, { label: 'Email', value: client.email }, { label: 'Address', value: client.address }, { label: 'Location', value: formatClientLocation(client.city, client.suburb, client.state) }].map(row => (
+            {[{ label: 'Phone', value: client.phone }, { label: 'Email', value: client.email }, { label: 'Address', value: client.address }, { label: 'Location', value: formatClientLocation(client.suburb, client.state, client.postcode) }].map(row => (
               <div key={row.label}>
                 <div className="text-xs text-neutral-400 mb-0.5">{row.label}</div>
                 <div className="text-sm font-medium text-neutral-900">{row.value || '—'}</div>

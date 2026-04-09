@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
+import { NSW_STATE, NSW_SUBURB_SUGGESTIONS, normalizeNswState } from '../../../lib/reference-data/locations'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = { id: string; first_name: string; last_name: string; phone: string; email: string }
@@ -57,7 +58,7 @@ function NewJobPageInner() {
   const [showNewVehicle, setShowNewVehicle] = useState(false)
 
   // New client form
-  const [newClientForm, setNewClientForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '' })
+  const [newClientForm, setNewClientForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE })
   const [savingClient, setSavingClient] = useState(false)
   const [clientError, setClientError] = useState('')
 
@@ -153,6 +154,10 @@ function NewJobPageInner() {
       phone: newClientForm.phone.trim(),
       email: newClientForm.email.trim(),
       address: newClientForm.address.trim(),
+      suburb: newClientForm.suburb.trim() || null,
+      postcode: newClientForm.postcode.trim() || null,
+      state: normalizeNswState(),
+      city: null,
     }]).select('id, first_name, last_name, phone, email').single()
     setSavingClient(false)
     if (err) { setClientError(err.message); return }
@@ -160,7 +165,7 @@ function NewJobPageInner() {
     setAllClients(prev => [newClient, ...prev])
     selectClient(newClient)
     setShowNewClient(false)
-    setNewClientForm({ first_name: '', last_name: '', phone: '', email: '', address: '' })
+    setNewClientForm({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE })
   }
 
   async function handleSaveNewVehicle() {
@@ -458,13 +463,35 @@ function NewJobPageInner() {
                     className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
                 </div>
               </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Address (optional)</label>
-                <input value={newClientForm.address} onChange={e => setNcf('address', e.target.value)} placeholder="Street, suburb, state"
-                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
-              </div>
-              {clientError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{clientError}</div>}
-            </div>
+	              <div>
+	                <label className="text-xs text-neutral-500 mb-1 block">Address (optional)</label>
+	                <input value={newClientForm.address} onChange={e => setNcf('address', e.target.value)} placeholder="Street address"
+	                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+	              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-neutral-500 mb-1 block">Suburb</label>
+                    <input list="nsw-suburbs-job-client" value={newClientForm.suburb} onChange={e => setNcf('suburb', e.target.value)} placeholder="e.g. Croydon Park"
+                      className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                    <datalist id="nsw-suburbs-job-client">
+                      {NSW_SUBURB_SUGGESTIONS.map(suburb => (
+                        <option key={suburb} value={suburb} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-500 mb-1 block">Postcode</label>
+                    <input value={newClientForm.postcode} onChange={e => setNcf('postcode', e.target.value)} inputMode="numeric" placeholder="2133"
+                      className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">State</label>
+                  <input value={newClientForm.state} readOnly
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-100 text-neutral-500 focus:outline-none" />
+                </div>
+	              {clientError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{clientError}</div>}
+	            </div>
             <div className="flex gap-3 mt-4">
               <button onClick={() => setShowNewClient(false)} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 hover:bg-neutral-50">Cancel</button>
               <button onClick={handleSaveNewClient} disabled={savingClient} className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 disabled:opacity-50">
