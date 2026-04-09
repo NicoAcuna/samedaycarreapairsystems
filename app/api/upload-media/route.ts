@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const BUNNY_API_KEY   = process.env.BUNNY_API_KEY!
 const BUNNY_STORAGE   = 'sdcrsystems'
-const BUNNY_REGION    = 'sy'   // Sydney endpoint prefix
+const BUNNY_REGION    = 'syd'  // Sydney endpoint prefix
 const BUNNY_CDN_URL   = 'https://sdcrsystems.b-cdn.net'
 
 // PUT https://sy.storage.bunnycdn.com/{storageZone}/{path}
