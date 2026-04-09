@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
+import { LOCATION_OPTIONS, getStateForCity, getSuburbsForCity } from '../../lib/reference-data/locations'
 
 type Client = {
   id: string
@@ -11,6 +12,9 @@ type Client = {
   phone: string
   email: string
   address: string
+  suburb?: string | null
+  city?: string | null
+  state?: string | null
   notes: string
   created_at: string
 }
@@ -67,12 +71,17 @@ function buildLatestNpsMap(interactions: ClientInteraction[]) {
 }
 
 function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c: Client) => void }) {
-  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', notes: '' })
+  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', city: '', state: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const suburbOptions = getSuburbsForCity(form.city)
 
   function set(field: string, val: string) {
     setForm(prev => ({ ...prev, [field]: val }))
+  }
+
+  function setCity(city: string) {
+    setForm(prev => ({ ...prev, city, state: getStateForCity(city), suburb: '' }))
   }
 
   async function handleSave() {
@@ -89,6 +98,9 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
         phone: form.phone.trim(),
         email: form.email.trim(),
         address: form.address.trim(),
+        suburb: form.suburb || null,
+        city: form.city || null,
+        state: form.state || null,
         notes: form.notes.trim(),
       }])
       .select()
@@ -136,6 +148,33 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
             <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Address</label>
             <input value={form.address} onChange={e => set('address', e.target.value)} placeholder="e.g. Bondi, NSW"
               className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">City</label>
+              <select value={form.city} onChange={e => setCity(e.target.value)}
+                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50">
+                <option value="">Select city</option>
+                {LOCATION_OPTIONS.map(option => (
+                  <option key={option.city} value={option.city}>{option.city}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Suburb</label>
+              <select value={form.suburb} onChange={e => set('suburb', e.target.value)} disabled={!form.city}
+                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50 disabled:opacity-50">
+                <option value="">{form.city ? 'Select suburb' : 'Choose city first'}</option>
+                {suburbOptions.map(suburb => (
+                  <option key={suburb} value={suburb}>{suburb}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">State</label>
+            <input value={form.state} readOnly placeholder="State will be set from city"
+              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 bg-neutral-100 text-neutral-500 focus:outline-none" />
           </div>
           <div>
             <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Notes</label>

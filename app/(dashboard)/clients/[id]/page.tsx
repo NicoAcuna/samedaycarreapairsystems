@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
+import { LOCATION_OPTIONS, formatClientLocation, getStateForCity, getSuburbsForCity } from '../../../lib/reference-data/locations'
 
 type Client = {
   id: string
@@ -11,6 +12,9 @@ type Client = {
   phone: string
   email: string
   address: string
+  suburb?: string | null
+  city?: string | null
+  state?: string | null
   notes: string
   created_at: string
 }
@@ -100,19 +104,34 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
     phone:      client.phone      || '',
     email:      client.email      || '',
     address:    client.address    || '',
+    suburb:     client.suburb     || '',
+    city:       client.city       || '',
+    state:      client.state      || '',
     notes:      client.notes      || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const suburbOptions = getSuburbsForCity(form.city)
 
   function set(field: string, val: string) { setForm(prev => ({ ...prev, [field]: val })) }
+  function setCity(city: string) { setForm(prev => ({ ...prev, city, state: getStateForCity(city), suburb: '' })) }
 
   async function handleSave() {
     if (!form.first_name.trim()) { setError('First name is required'); return }
     setSaving(true); setError('')
     const supabase = createClient()
     const { data, error: err } = await supabase.from('clients')
-      .update({ first_name: form.first_name.trim(), last_name: form.last_name.trim(), phone: form.phone.trim(), email: form.email.trim(), address: form.address.trim(), notes: form.notes.trim() })
+      .update({
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        address: form.address.trim(),
+        suburb: form.suburb || null,
+        city: form.city || null,
+        state: form.state || null,
+        notes: form.notes.trim(),
+      })
       .eq('id', client.id).select().single()
     setSaving(false)
     if (err) { setError(err.message); return }
@@ -155,6 +174,33 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
             <label className="text-xs font-medium text-neutral-500 mb-1 block">Address</label>
             <input value={form.address} onChange={e => set('address', e.target.value)}
               className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1 block">City</label>
+              <select value={form.city} onChange={e => setCity(e.target.value)}
+                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400 bg-white">
+                <option value="">Select city</option>
+                {LOCATION_OPTIONS.map(option => (
+                  <option key={option.city} value={option.city}>{option.city}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1 block">Suburb</label>
+              <select value={form.suburb} onChange={e => set('suburb', e.target.value)} disabled={!form.city}
+                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400 bg-white disabled:opacity-50">
+                <option value="">{form.city ? 'Select suburb' : 'Choose city first'}</option>
+                {suburbOptions.map(suburb => (
+                  <option key={suburb} value={suburb}>{suburb}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1 block">State</label>
+            <input value={form.state} readOnly
+              className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 bg-neutral-100 text-neutral-500 focus:outline-none" />
           </div>
           <div>
             <label className="text-xs font-medium text-neutral-500 mb-1 block">Notes</label>
@@ -451,7 +497,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	        </div>
         <div className="grid grid-cols-2 divide-x divide-neutral-100">
           <div className="p-5 space-y-3">
-            {[{ label: 'Phone', value: client.phone }, { label: 'Email', value: client.email }, { label: 'Address', value: client.address }].map(row => (
+            {[{ label: 'Phone', value: client.phone }, { label: 'Email', value: client.email }, { label: 'Address', value: client.address }, { label: 'Location', value: formatClientLocation(client.city, client.suburb, client.state) }].map(row => (
               <div key={row.label}>
                 <div className="text-xs text-neutral-400 mb-0.5">{row.label}</div>
                 <div className="text-sm font-medium text-neutral-900">{row.value || '—'}</div>
