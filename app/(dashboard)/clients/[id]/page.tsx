@@ -36,8 +36,48 @@ type Job = {
   odometer_km: number
 }
 
+type ClientInteraction = {
+  id: string
+  mood: 'happy' | 'neutral' | 'angry'
+  comment: string | null
+  created_at: string
+  nps_score: number | null
+}
+
 function fullName(c: Client) {
   return [c.first_name, c.last_name].filter(Boolean).join(' ')
+}
+
+function getClientStatus(npsScore: number | null) {
+  if (npsScore == null) {
+    return {
+      label: 'Unrated',
+      tone: 'bg-neutral-100 text-neutral-600',
+      summary: 'No promoter score recorded yet.',
+    }
+  }
+
+  if (npsScore >= 9) {
+    return {
+      label: 'Advocate',
+      tone: 'bg-emerald-50 text-emerald-700',
+      summary: 'Strong promoter. Good moment to ask for a review or referral.',
+    }
+  }
+
+  if (npsScore >= 7) {
+    return {
+      label: 'Neutral',
+      tone: 'bg-amber-50 text-amber-700',
+      summary: 'Satisfied, but not a strong promoter yet.',
+    }
+  }
+
+  return {
+    label: 'At Risk',
+    tone: 'bg-red-50 text-red-700',
+    summary: 'Needs follow-up. This client may have friction after the job.',
+  }
 }
 
 const JOB_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
@@ -345,6 +385,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [client, setClient]     = useState<Client | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [jobs, setJobs]         = useState<Job[]>([])
+  const [latestNps, setLatestNps] = useState<ClientInteraction | null>(null)
   const [loading, setLoading]   = useState(true)
   const [showEdit, setShowEdit]         = useState(false)
   const [showAddVehicle, setShowAddVehicle] = useState(false)
@@ -356,16 +397,27 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       supabase.from('clients').select('*').eq('id', id).single(),
       supabase.from('vehicles').select('*').eq('client_id', id).order('created_at', { ascending: false }),
       supabase.from('jobs').select('*').eq('client_id', id).order('created_at', { ascending: false }),
-    ]).then(([{ data: c }, { data: v }, { data: j }]) => {
+      supabase
+        .from('client_interactions')
+        .select('id, mood, comment, created_at, nps_score')
+        .eq('client_id', id)
+        .eq('interaction_type', 'nps')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]).then(([{ data: c }, { data: v }, { data: j }, { data: nps }]) => {
       setClient(c as Client)
       setVehicles((v as Vehicle[]) || [])
       setJobs((j as Job[]) || [])
+      setLatestNps((nps as ClientInteraction | null) || null)
       setLoading(false)
     })
   }, [id])
 
   if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
   if (!client) return <div className="p-6 text-sm text-neutral-400">Client not found.</div>
+
+  const clientStatus = getClientStatus(latestNps?.nps_score ?? null)
 
   return (
     <div className="p-6 max-w-3xl">
@@ -380,18 +432,23 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Client card */}
-      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
-        <div className="bg-neutral-900 px-6 py-5 flex items-center justify-between">
-          <div>
-            <div className="text-xl font-bold text-white">{fullName(client)}</div>
-            <div className="text-xs text-neutral-400 mt-1">
-              Client since {new Date(client.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-full bg-neutral-700 flex items-center justify-center text-white text-lg font-semibold">
-            {client.first_name?.[0]}{client.last_name?.[0]}
-          </div>
-        </div>
+	      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
+	        <div className="bg-neutral-900 px-6 py-5 flex items-center justify-between">
+	          <div>
+	            <div className="text-xl font-bold text-white">{fullName(client)}</div>
+	            <div className="text-xs text-neutral-400 mt-1">
+	              Client since {new Date(client.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}
+	            </div>
+              <div className="mt-3">
+                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${clientStatus.tone}`}>
+                  {clientStatus.label}
+                </span>
+              </div>
+	          </div>
+	          <div className="w-12 h-12 rounded-full bg-neutral-700 flex items-center justify-center text-white text-lg font-semibold">
+	            {client.first_name?.[0]}{client.last_name?.[0]}
+	          </div>
+	        </div>
         <div className="grid grid-cols-2 divide-x divide-neutral-100">
           <div className="p-5 space-y-3">
             {[{ label: 'Phone', value: client.phone }, { label: 'Email', value: client.email }, { label: 'Address', value: client.address }].map(row => (
@@ -406,10 +463,41 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             <div className="text-sm text-neutral-700 leading-relaxed">{client.notes || '—'}</div>
           </div>
         </div>
-      </div>
+	      </div>
 
-      {/* Vehicles */}
-      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
+        <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
+          <div className="px-5 py-3 border-b border-neutral-100">
+            <div className="text-sm font-semibold text-neutral-900">Customer sentiment</div>
+            <div className="text-xs text-neutral-400 mt-0.5">{clientStatus.summary}</div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100">
+            <div className="p-5">
+              <div className="text-xs text-neutral-400 mb-1">Latest NPS</div>
+              <div className="text-2xl font-semibold text-neutral-900">{latestNps?.nps_score ?? '—'}</div>
+            </div>
+            <div className="p-5">
+              <div className="text-xs text-neutral-400 mb-1">Status</div>
+              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${clientStatus.tone}`}>
+                {clientStatus.label}
+              </span>
+            </div>
+            <div className="p-5">
+              <div className="text-xs text-neutral-400 mb-1">Updated</div>
+              <div className="text-sm text-neutral-700">
+                {latestNps?.created_at
+                  ? new Date(latestNps.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : '—'}
+              </div>
+            </div>
+          </div>
+          <div className="px-5 py-4 border-t border-neutral-100">
+            <div className="text-xs text-neutral-400 mb-1">Latest feedback</div>
+            <div className="text-sm text-neutral-700 leading-relaxed">{latestNps?.comment || 'No feedback recorded yet.'}</div>
+          </div>
+        </div>
+
+	      {/* Vehicles */}
+	      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
         <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100">
           <span className="text-sm font-semibold text-neutral-900">Vehicles ({vehicles.length})</span>
           <button onClick={() => setShowAddVehicle(true)} className="text-xs px-3 py-1.5 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">+ Add vehicle</button>

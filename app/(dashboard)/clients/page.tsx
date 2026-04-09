@@ -15,12 +15,55 @@ type Client = {
   created_at: string
 }
 
+type ClientInteraction = {
+  client_id: string
+  nps_score: number | null
+  created_at: string
+}
+
 function fullName(c: Client) {
   return [c.first_name, c.last_name].filter(Boolean).join(' ')
 }
 
 function initials(c: Client) {
   return [c.first_name?.[0], c.last_name?.[0]].filter(Boolean).join('').toUpperCase() || '?'
+}
+
+function getClientStatus(npsScore: number | null) {
+  if (npsScore == null) {
+    return {
+      label: 'Unrated',
+      tone: 'bg-neutral-100 text-neutral-600',
+    }
+  }
+
+  if (npsScore >= 9) {
+    return {
+      label: 'Advocate',
+      tone: 'bg-emerald-50 text-emerald-700',
+    }
+  }
+
+  if (npsScore >= 7) {
+    return {
+      label: 'Neutral',
+      tone: 'bg-amber-50 text-amber-700',
+    }
+  }
+
+  return {
+    label: 'At Risk',
+    tone: 'bg-red-50 text-red-700',
+  }
+}
+
+function buildLatestNpsMap(interactions: ClientInteraction[]) {
+  return interactions.reduce<Record<string, ClientInteraction>>((acc, interaction) => {
+    if (!acc[interaction.client_id]) {
+      acc[interaction.client_id] = interaction
+    }
+    return acc
+  }, {})
 }
 
 function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c: Client) => void }) {
@@ -117,14 +160,25 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
 export default function ClientsPage() {
   const router = useRouter()
   const [clients, setClients] = useState<Client[]>([])
+  const [npsByClient, setNpsByClient] = useState<Record<string, ClientInteraction>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('clients').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { setClients((data as Client[]) || []); setLoading(false) })
+    Promise.all([
+      supabase.from('clients').select('*').order('created_at', { ascending: false }),
+      supabase
+        .from('client_interactions')
+        .select('client_id, nps_score, created_at')
+        .eq('interaction_type', 'nps')
+        .order('created_at', { ascending: false }),
+    ]).then(([{ data: clientData }, { data: interactionData }]) => {
+      setClients((clientData as Client[]) || [])
+      setNpsByClient(buildLatestNpsMap((interactionData as ClientInteraction[]) || []))
+      setLoading(false)
+    })
   }, [])
 
   const filtered = clients.filter(c =>
@@ -154,40 +208,53 @@ export default function ClientsPage() {
       </div>
 
       {/* Desktop table */}
-      <div className="hidden md:block bg-white border border-neutral-200 rounded-xl overflow-x-auto">
+	      <div className="hidden md:block bg-white border border-neutral-200 rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-neutral-50 border-b border-neutral-200">
-              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Name</th>
-              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Phone</th>
-              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Email</th>
-              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Added</th>
-              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-400">
-                {search ? 'No clients match your search' : 'No clients yet — add your first one'}
-              </td></tr>
-            ) : filtered.map(c => (
-              <tr key={c.id} onClick={() => router.push(`/clients/${c.id}`)}
-                className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50 cursor-pointer">
-                <td className="px-4 py-3 font-medium text-neutral-900">{fullName(c)}</td>
-                <td className="px-4 py-3 text-neutral-500">{c.phone || '—'}</td>
-                <td className="px-4 py-3 text-neutral-500">{c.email || '—'}</td>
-                <td className="px-4 py-3 text-neutral-400 text-xs">{new Date(c.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                <td className="px-4 py-3">
-                  <button onClick={e => { e.stopPropagation(); router.push(`/clients/${c.id}`) }}
-                    className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-50">View</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+	            <tr className="bg-neutral-50 border-b border-neutral-200">
+	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Name</th>
+	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Status</th>
+	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">NPS</th>
+	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Phone</th>
+	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Email</th>
+	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Added</th>
+	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3"></th>
+	            </tr>
+	          </thead>
+	          <tbody>
+	            {loading ? (
+	              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
+	            ) : filtered.length === 0 ? (
+	              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-400">
+	                {search ? 'No clients match your search' : 'No clients yet — add your first one'}
+	              </td></tr>
+	            ) : filtered.map(c => {
+                const latestNps = npsByClient[c.id]
+                const clientStatus = getClientStatus(latestNps?.nps_score ?? null)
+
+                return (
+	              <tr key={c.id} onClick={() => router.push(`/clients/${c.id}`)}
+	                className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50 cursor-pointer">
+	                <td className="px-4 py-3 font-medium text-neutral-900">{fullName(c)}</td>
+	                <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${clientStatus.tone}`}>
+                      {clientStatus.label}
+                    </span>
+                  </td>
+	                <td className="px-4 py-3 text-neutral-500">{latestNps?.nps_score ?? '—'}</td>
+	                <td className="px-4 py-3 text-neutral-500">{c.phone || '—'}</td>
+	                <td className="px-4 py-3 text-neutral-500">{c.email || '—'}</td>
+	                <td className="px-4 py-3 text-neutral-400 text-xs">{new Date(c.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+	                <td className="px-4 py-3">
+	                  <button onClick={e => { e.stopPropagation(); router.push(`/clients/${c.id}`) }}
+	                    className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-50">View</button>
+	                </td>
+	              </tr>
+                )
+              })}
+	          </tbody>
+	        </table>
+	      </div>
 
       {/* Mobile card list */}
       <div className="md:hidden bg-white border border-neutral-200 rounded-xl overflow-hidden">
@@ -197,24 +264,37 @@ export default function ClientsPage() {
           <div className="px-4 py-10 text-center text-sm text-neutral-400">
             {search ? 'No clients match your search' : 'No clients yet — add your first one'}
           </div>
-        ) : filtered.map(c => (
-          <div key={c.id} onClick={() => router.push(`/clients/${c.id}`)}
-            className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 last:border-0 cursor-pointer active:bg-neutral-50">
-            {/* Avatar */}
-            <div className="w-9 h-9 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
-              {initials(c)}
+	        ) : filtered.map(c => {
+            const latestNps = npsByClient[c.id]
+            const clientStatus = getClientStatus(latestNps?.nps_score ?? null)
+
+            return (
+	          <div key={c.id} onClick={() => router.push(`/clients/${c.id}`)}
+	            className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 last:border-0 cursor-pointer active:bg-neutral-50">
+	            {/* Avatar */}
+	            <div className="w-9 h-9 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
+	              {initials(c)}
             </div>
             {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-neutral-900 text-sm">{fullName(c)}</div>
-              <div className="text-xs text-neutral-500 truncate mt-0.5">
-                {[c.phone, c.email].filter(Boolean).join(' · ') || '—'}
-              </div>
-            </div>
-            <span className="text-neutral-300 text-sm flex-shrink-0">›</span>
-          </div>
-        ))}
-      </div>
-    </div>
+	            <div className="flex-1 min-w-0">
+	              <div className="font-medium text-neutral-900 text-sm">{fullName(c)}</div>
+	              <div className="text-xs text-neutral-500 truncate mt-0.5">
+	                {[c.phone, c.email].filter(Boolean).join(' · ') || '—'}
+	              </div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${clientStatus.tone}`}>
+                    {clientStatus.label}
+                  </span>
+                  <span className="text-[11px] text-neutral-400">
+                    NPS {latestNps?.nps_score ?? '—'}
+                  </span>
+                </div>
+	            </div>
+	            <span className="text-neutral-300 text-sm flex-shrink-0">›</span>
+	          </div>
+            )
+          })}
+	      </div>
+	    </div>
   )
 }
