@@ -39,6 +39,22 @@ function isToday(dateStr: string | null) {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
 }
 
+function isThisWeek(dateStr: string | null) {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  const now = new Date()
+  const day = now.getDay()
+  const diffToMonday = day === 0 ? -6 : 1 - day
+  const startOfWeek = new Date(now)
+  startOfWeek.setHours(0, 0, 0, 0)
+  startOfWeek.setDate(now.getDate() + diffToMonday)
+
+  const endOfWeek = new Date(startOfWeek)
+  endOfWeek.setDate(startOfWeek.getDate() + 7)
+
+  return d >= startOfWeek && d < endOfWeek
+}
+
 function isOverdue(job: Job) {
   if (job.status === 'completed') return false
   if (job.scheduled_at && new Date(job.scheduled_at) < new Date()) return true
@@ -72,6 +88,7 @@ export default function DashboardPage() {
 
   // Computed metrics
   const todayJobs     = jobs.filter(j => isToday(j.scheduled_at ?? j.created_at))
+  const weekJobs      = jobs.filter(j => isThisWeek(j.scheduled_at ?? j.created_at))
   const inProgressJobs = jobs.filter(j => j.status === 'in_progress' || j.status === 'pending')
   const overdueJobs   = jobs.filter(j => isOverdue(j))
   const pendingCount  = todayJobs.filter(j => j.status !== 'completed').length
@@ -80,7 +97,7 @@ export default function DashboardPage() {
   const metrics = [
     { key: 'today',       label: "Today's Jobs",   value: loading ? '…' : todayJobs.length,      sub: loading ? '' : `${pendingCount} pending · ${doneCount} done`, dark: true,  red: false },
     { key: 'in_progress', label: 'In Progress',    value: loading ? '…' : inProgressJobs.length, sub: 'Active right now',    dark: false, red: false },
-    { key: 'all',         label: 'Total Jobs',     value: loading ? '…' : jobs.length,           sub: 'All time',            dark: false, red: false },
+    { key: 'all',         label: 'Weekly Jobs',    value: loading ? '…' : weekJobs.length,       sub: 'This week',           dark: false, red: false },
     { key: 'overdue',     label: 'Overdue',        value: loading ? '…' : overdueJobs.length,    sub: 'Past scheduled date', dark: false, red: true  },
   ]
 
@@ -183,8 +200,6 @@ export default function DashboardPage() {
           const dateLabel = job.scheduled_at
             ? new Date(job.scheduled_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
             : new Date(job.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
-          const btnLabel = job.status === 'completed' ? 'View' : 'Continue'
-
           return (
             <div
               key={job.id}
