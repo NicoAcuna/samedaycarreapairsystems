@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
-import { NSW_STATE, NSW_SUBURB_SUGGESTIONS, normalizeNswState } from '../../../lib/reference-data/locations'
+import { NSW_STATE, NSW_SUBURB_SUGGESTIONS, getPostcodeForSuburb, normalizeNswState } from '../../../lib/reference-data/locations'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = { id: string; first_name: string; last_name: string; phone: string; email: string }
@@ -207,6 +207,14 @@ function NewJobPageInner() {
   function setNcf(field: string, val: string) { setNewClientForm(prev => ({ ...prev, [field]: val })) }
   function setNvf(field: string, val: string) { setNewVehicleForm(prev => ({ ...prev, [field]: val })) }
   function setVehicleMake(make: string) { setNewVehicleForm(prev => ({ ...prev, make, model: '' })) }
+  function setClientSuburb(suburb: string) {
+    const postcode = getPostcodeForSuburb(suburb)
+    setNewClientForm(prev => ({
+      ...prev,
+      suburb,
+      postcode: postcode || prev.postcode,
+    }))
+  }
 
   return (
     <div className="p-6 max-w-xl">
@@ -468,10 +476,10 @@ function NewJobPageInner() {
 	                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
 	              </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-neutral-500 mb-1 block">Suburb</label>
-                    <input list="nsw-suburbs-job-client" value={newClientForm.suburb} onChange={e => setNcf('suburb', e.target.value)} placeholder="e.g. Croydon Park"
-                      className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+	                  <div>
+	                    <label className="text-xs text-neutral-500 mb-1 block">Suburb</label>
+	                    <input list="nsw-suburbs-job-client" value={newClientForm.suburb} onChange={e => setClientSuburb(e.target.value)} placeholder="e.g. Croydon Park"
+	                      className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
                     <datalist id="nsw-suburbs-job-client">
                       {NSW_SUBURB_SUGGESTIONS.map(suburb => (
                         <option key={suburb} value={suburb} />

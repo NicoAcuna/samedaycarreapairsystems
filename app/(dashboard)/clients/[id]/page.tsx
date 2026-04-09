@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
-import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, formatClientLocation, normalizeNswState } from '../../../lib/reference-data/locations'
+import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, formatClientLocation, getPostcodeForSuburb, normalizeNswState } from '../../../lib/reference-data/locations'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = {
@@ -114,6 +114,14 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
   const [error, setError] = useState('')
 
   function set(field: string, val: string) { setForm(prev => ({ ...prev, [field]: val })) }
+  function setSuburb(suburb: string) {
+    const postcode = getPostcodeForSuburb(suburb)
+    setForm(prev => ({
+      ...prev,
+      suburb,
+      postcode: postcode || prev.postcode,
+    }))
+  }
 
   async function handleSave() {
     if (!form.first_name.trim()) { setError('First name is required'); return }
@@ -175,10 +183,10 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
               className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">Suburb</label>
-              <input list="nsw-suburbs-edit-client" value={form.suburb} onChange={e => set('suburb', e.target.value)} placeholder="e.g. Croydon Park"
-                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+	            <div>
+	              <label className="text-xs font-medium text-neutral-500 mb-1 block">Suburb</label>
+	              <input list="nsw-suburbs-edit-client" value={form.suburb} onChange={e => setSuburb(e.target.value)} placeholder="e.g. Croydon Park"
+	                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
               <datalist id="nsw-suburbs-edit-client">
                 {NSW_SUBURB_SUGGESTIONS.map(suburb => (
                   <option key={suburb} value={suburb} />

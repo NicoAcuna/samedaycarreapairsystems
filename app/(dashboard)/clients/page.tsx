@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
-import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, normalizeNswState } from '../../lib/reference-data/locations'
+import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, getPostcodeForSuburb, normalizeNswState } from '../../lib/reference-data/locations'
 
 type Client = {
   id: string
@@ -79,6 +79,15 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
     setForm(prev => ({ ...prev, [field]: val }))
   }
 
+  function setSuburb(suburb: string) {
+    const postcode = getPostcodeForSuburb(suburb)
+    setForm(prev => ({
+      ...prev,
+      suburb,
+      postcode: postcode || prev.postcode,
+    }))
+  }
+
   async function handleSave() {
     if (!form.first_name.trim()) { setError('First name is required'); return }
     setSaving(true); setError('')
@@ -145,10 +154,10 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
               className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Suburb</label>
-              <input list="nsw-suburbs-new-client" value={form.suburb} onChange={e => set('suburb', e.target.value)} placeholder="e.g. Croydon Park"
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
+	            <div>
+	              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Suburb</label>
+	              <input list="nsw-suburbs-new-client" value={form.suburb} onChange={e => setSuburb(e.target.value)} placeholder="e.g. Croydon Park"
+	                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
               <datalist id="nsw-suburbs-new-client">
                 {NSW_SUBURB_SUGGESTIONS.map(suburb => (
                   <option key={suburb} value={suburb} />
