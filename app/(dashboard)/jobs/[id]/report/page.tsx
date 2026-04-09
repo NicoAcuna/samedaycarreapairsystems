@@ -89,8 +89,12 @@ function SendModal({
   const titleStr = reportTitle || 'Inspection Report'
   const dateStr = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
   const subjectDefault = `Your ${titleStr}${vehicleStr ? ` — ${vehicleStr}` : ''} — ${dateStr}`
-  const reportUrl = reportToken ? `/report/${reportToken}` : `/jobs/${id}/report`
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const reportUrl = reportToken ? `/report/${reportToken}` : null
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '') ||
+    'http://localhost:3000'
   const fullReportUrl = `${baseUrl}${reportUrl}`
 
   const [tab, setTab] = useState<'email' | 'whatsapp'>('email')
@@ -129,6 +133,10 @@ function SendModal({
   }
 
   async function handleSendEmail() {
+    if (!reportUrl) {
+      setError('Public report link is still loading. Please try again in a moment.')
+      return
+    }
     const valid = emails.filter(e => e.trim() && e.includes('@'))
     if (!valid.length) { setError('Please enter at least one valid email address'); return }
     setSending(true); setError('')
@@ -149,16 +157,39 @@ function SendModal({
     }
   }
 
-  function handleSendWhatsApp() {
-    const normalised = phone.replace(/[\s\-()]/g, '')
+  async function handleSendWhatsApp() {
+    if (!reportUrl) {
+      setError('Public report link is still loading. Please try again in a moment.')
+      return
+    }
+
+    const normalised = phone.replace(/[^\d+]/g, '')
+    if (!normalised) {
+      setError('Please enter a valid phone number with country code.')
+      return
+    }
+
     const encoded = encodeURIComponent(waMessage)
     const url = normalised
-      ? `https://wa.me/${normalised.replace(/^\+/, '')}?text=${encoded}`
-      : `https://wa.me/?text=${encoded}`
-    window.open(url, '_blank')
-    logSend('whatsapp', [phone])
-    markCompleted()
-    setSent(true)
+      ? `https://api.whatsapp.com/send?phone=${normalised.replace(/^\+/, '')}&text=${encoded}`
+      : `https://api.whatsapp.com/send?text=${encoded}`
+
+    const popup = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!popup) {
+      setError('Could not open WhatsApp. Please allow pop-ups and try again.')
+      return
+    }
+
+    setSending(true)
+    setError('')
+    try {
+      await Promise.all([markCompleted(), logSend('whatsapp', [phone])])
+      setSent(true)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to prepare WhatsApp share.')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -249,11 +280,12 @@ function SendModal({
                   <textarea value={waMessage} onChange={e => setWaMessage(e.target.value)} rows={5}
                     className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-400 resize-none" />
                 </div>
+                {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>}
                 <div className="flex gap-2 pt-1">
                   <button onClick={onClose} className="flex-1 text-sm py-2.5 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Cancel</button>
-                  <button onClick={handleSendWhatsApp}
-                    className="flex-1 text-sm py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2">
-                    Open WhatsApp →
+                  <button onClick={handleSendWhatsApp} disabled={sending || !reportUrl}
+                    className="flex-1 text-sm py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {sending ? 'Opening…' : 'Open WhatsApp →'}
                   </button>
                 </div>
               </div>
