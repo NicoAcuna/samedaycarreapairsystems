@@ -44,6 +44,17 @@ const REC_STYLES: Record<string, string> = {
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 type Section = { label: string; items: { name: string; result: string; comment: string }[] }
 
+function getPhotosForItem(photoMap: Record<string, Photo[]>, itemName: string) {
+  const direct = photoMap[itemName]
+  if (direct?.length) return direct
+
+  const matched = Object.entries(photoMap).find(([key, photos]) => (
+    key.endsWith(`|${itemName}`) && photos.length > 0
+  ))
+
+  return matched?.[1] || []
+}
+
 function buildPrePurchaseSections(flowData: FlowData): Section[] {
   const DEFS = [
     { key: 'body',       label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
@@ -223,19 +234,20 @@ function PrePurchaseBody({ sections, flowData, photoMap }: { sections: Section[]
           <div className="bg-neutral-900 px-5 py-2.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-white">{section.label}</span>
           </div>
-          <div className="divide-y divide-neutral-100">
-            {section.items.map(item => (
-              <div key={item.name} className="flex items-start justify-between px-5 py-3">
-                <div className="flex-1 pr-4">
-                  <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
-                  {item.comment
-                    ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div>
-                    : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
-                </div>
-                <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result] || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
-              </div>
-            ))}
-          </div>
+	          <div className="divide-y divide-neutral-100">
+	            {section.items.map(item => (
+	              <div key={item.name} className="flex items-start justify-between px-5 py-3">
+	                <div className="flex-1 pr-4">
+	                  <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
+	                  {item.comment
+	                    ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div>
+	                    : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
+                    <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+	                </div>
+	                <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result] || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
+	              </div>
+	            ))}
+	          </div>
         </div>
       ))}
       {additionalNotes && (
@@ -257,8 +269,7 @@ function PrePurchaseBody({ sections, flowData, photoMap }: { sections: Section[]
           </div>
         </div>
       )}
-      <PhotosSection photoMap={photoMap} />
-    </>
+	    </>
   )
 }
 
@@ -285,17 +296,18 @@ function ServiceBody({ sections, nextService, flowData, photoMap }: { sections: 
           <div className="bg-neutral-900 px-5 py-2.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-white">{section.label}</span>
           </div>
-          <div className="divide-y divide-neutral-100">
-            {section.items.map(item => (
-              <div key={item.name} className="flex items-start justify-between px-5 py-3">
-                <div className="flex-1 pr-4">
-                  <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
-                  {item.comment && <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div>}
-                </div>
-                <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result] || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
-              </div>
-            ))}
-          </div>
+	          <div className="divide-y divide-neutral-100">
+	            {section.items.map(item => (
+	              <div key={item.name} className="flex items-start justify-between px-5 py-3">
+	                <div className="flex-1 pr-4">
+	                  <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
+	                  {item.comment && <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div>}
+                    <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+	                </div>
+	                <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result] || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
+	              </div>
+	            ))}
+	          </div>
         </div>
       ))}
       {nextService.length > 0 && (
@@ -317,8 +329,7 @@ function ServiceBody({ sections, nextService, flowData, photoMap }: { sections: 
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{additionalNotes}</p></div>
         </div>
       )}
-      <PhotosSection photoMap={photoMap} />
-    </>
+	    </>
   )
 }
 

@@ -7,6 +7,17 @@ import { createClient } from '../../../../../lib/supabase/client'
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Photo = { url: string; name: string }
 
+function getPhotosForItem(photoMap: Record<string, Photo[]>, itemName: string) {
+  const direct = photoMap[itemName]
+  if (direct?.length) return direct
+
+  const matched = Object.entries(photoMap).find(([key, photos]) => (
+    key.endsWith(`|${itemName}`) && photos.length > 0
+  ))
+
+  return matched?.[1] || []
+}
+
 // ── Photos Section ────────────────────────────────────────────────────────────
 function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
   const [preview, setPreview] = useState<string | null>(null)
@@ -617,7 +628,7 @@ function ReportShell({ id, title, subtitle, data, snapshot, company, children }:
         {children}
         <div className="border-t border-neutral-100 px-5 py-4">
           <p className="text-xs text-neutral-400 leading-relaxed">
-            DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle's condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection.
+            DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle&apos;s condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection.
           </p>
         </div>
       </div>
@@ -635,7 +646,12 @@ function SectionsBody({ sections, additionalNotes, recommendations, photoMap }: 
   const counts = countResults(sections)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   function toggle(label: string) {
-    setCollapsed(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
+    setCollapsed(prev => {
+      const n = new Set(prev)
+      if (n.has(label)) n.delete(label)
+      else n.add(label)
+      return n
+    })
   }
   return (
     <>
@@ -661,16 +677,17 @@ function SectionsBody({ sections, additionalNotes, recommendations, photoMap }: 
           </button>
           {!collapsed.has(section.label) && (
             <div className="divide-y divide-neutral-100">
-              {section.items.map(item => (
-                <div key={item.name} className="flex items-start justify-between px-5 py-3">
-                  <div className="flex-1 pr-4">
-                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
-                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
-                  </div>
-                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
-                </div>
-              ))}
-            </div>
+	              {section.items.map(item => (
+	                <div key={item.name} className="flex items-start justify-between px-5 py-3">
+	                  <div className="flex-1 pr-4">
+	                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
+	                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
+                      <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+	                  </div>
+	                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
+	                </div>
+	              ))}
+	            </div>
           )}
         </div>
       ))}
@@ -693,8 +710,7 @@ function SectionsBody({ sections, additionalNotes, recommendations, photoMap }: 
           </div>
         </div>
       )}
-      <PhotosSection photoMap={photoMap} />
-    </>
+	    </>
   )
 }
 
@@ -706,7 +722,12 @@ function ServiceBody({ sections, nextService, additionalNotes, photoMap }: {
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   function toggle(label: string) {
-    setCollapsed(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n })
+    setCollapsed(prev => {
+      const n = new Set(prev)
+      if (n.has(label)) n.delete(label)
+      else n.add(label)
+      return n
+    })
   }
 
   const allItems = sections.flatMap(s => s.items)
@@ -745,16 +766,17 @@ function ServiceBody({ sections, nextService, additionalNotes, photoMap }: {
           </button>
           {!collapsed.has(section.label) && (
             <div className="divide-y divide-neutral-100">
-              {section.items.map(item => (
-                <div key={item.name} className="flex items-start justify-between px-5 py-3">
-                  <div className="flex-1 pr-4">
-                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
-                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
-                  </div>
-                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
-                </div>
-              ))}
-            </div>
+	              {section.items.map(item => (
+	                <div key={item.name} className="flex items-start justify-between px-5 py-3">
+	                  <div className="flex-1 pr-4">
+	                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
+	                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
+                      <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+	                  </div>
+	                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
+	                </div>
+	              ))}
+	            </div>
           )}
         </div>
       ))}
@@ -780,8 +802,7 @@ function ServiceBody({ sections, nextService, additionalNotes, photoMap }: {
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{additionalNotes}</p></div>
         </div>
       )}
-      <PhotosSection photoMap={photoMap} />
-    </>
+	    </>
   )
 }
 
@@ -945,7 +966,7 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: Record<stri
       {/* Mechanic's Findings */}
       {findings && (
         <div className="border-t border-neutral-100">
-          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Mechanic's Findings</span></div>
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Mechanic&apos;s Findings</span></div>
           <div className="px-5 py-4">
             <p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{findings}</p>
             <InlinePhotos photos={photoMap['findings'] || []} />
