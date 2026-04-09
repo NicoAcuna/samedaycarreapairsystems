@@ -11,6 +11,13 @@ type Job = {
   scheduled_at: string | null
   odometer_km: number | null
   created_at: string
+  checklist_data?: {
+    serviceFee?: string
+    inspectionFee?: string
+    diagFee?: string
+    labour?: string
+    parts?: { qty?: number; price?: string }[]
+  } | null
   clients?: { first_name: string; last_name: string; phone: string; email: string } | null
   vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
 }
@@ -26,6 +33,42 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string; d
   in_progress: { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
   pending:     { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
   completed:   { label: 'Completed',  bg: 'bg-green-50',    text: 'text-green-700',  dot: 'bg-green-500'   },
+}
+
+function parseMoney(value: string | number | null | undefined) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value !== 'string') return 0
+  const normalized = value.replace(/[^0-9.-]/g, '')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function getJobValue(job: Job) {
+  const data = job.checklist_data
+  if (!data) return 0
+
+  if (job.type === 'repair') {
+    const labour = parseMoney(data.labour)
+    const parts = (data.parts || []).reduce((sum, part) => {
+      const qty = typeof part.qty === 'number' && Number.isFinite(part.qty) ? part.qty : 0
+      return sum + (qty * parseMoney(part.price))
+    }, 0)
+    return labour + parts
+  }
+
+  if (job.type === 'service') return parseMoney(data.serviceFee)
+  if (job.type === 'pre_purchase') return parseMoney(data.inspectionFee)
+  if (job.type === 'diagnosis') return parseMoney(data.diagFee)
+
+  return 0
+}
+
+function formatMoney(amount: number) {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    maximumFractionDigits: 0,
+  }).format(amount)
 }
 
 export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +122,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const clientName = job.clients ? `${job.clients.first_name} ${job.clients.last_name}` : '—'
   const vehicleLabel = job.vehicles ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}` : '—'
   const plate = job.vehicles?.plate || '—'
+  const amountLabel = formatMoney(getJobValue(job))
   const odometerLabel = job.odometer_km
     ? `${job.odometer_km.toLocaleString()} km`
     : job.vehicles?.odometer_km
@@ -129,6 +173,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             { label: 'Vehicle',  value: vehicleLabel },
             { label: 'Plate',    value: plate },
             { label: 'Date',     value: dateLabel },
+            { label: 'Amount',   value: amountLabel },
             { label: 'Odometer', value: odometerLabel },
           ].map((row) => (
             <div key={row.label}>
