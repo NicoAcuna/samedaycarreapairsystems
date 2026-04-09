@@ -216,15 +216,14 @@ export default function ClientsPage() {
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Status</th>
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Phone</th>
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Email</th>
-	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Added</th>
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3"></th>
 	            </tr>
 	          </thead>
 	          <tbody>
 	            {loading ? (
-	              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
+	              <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
 	            ) : filtered.length === 0 ? (
-	              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-400">
+	              <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-400">
 	                {search ? 'No clients match your search' : 'No clients yet — add your first one'}
 	              </td></tr>
 	            ) : filtered.map(c => {
@@ -242,7 +241,6 @@ export default function ClientsPage() {
                   </td>
 	                <td className="px-4 py-3 text-neutral-500">{c.phone || '—'}</td>
 	                <td className="px-4 py-3 text-neutral-500">{c.email || '—'}</td>
-	                <td className="px-4 py-3 text-neutral-400 text-xs">{new Date(c.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
 	                <td className="px-4 py-3">
 	                  <button onClick={e => { e.stopPropagation(); router.push(`/clients/${c.id}`) }}
 	                    className="text-xs px-3 py-1 border border-neutral-200 rounded-lg hover:bg-neutral-50">View</button>
