@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
+import { VEHICLE_CATALOG, getModelsForMake } from '../../lib/reference-data/vehicles'
 
 type Vehicle = {
   id: string
@@ -24,6 +25,7 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const [clients, setClients] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const modelOptions = getModelsForMake(form.make)
 
   useEffect(() => {
     const supabase = createClient()
@@ -32,6 +34,7 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
   }, [])
 
   function set(field: string, val: string) { setForm(prev => ({ ...prev, [field]: val })) }
+  function setMake(make: string) { setForm(prev => ({ ...prev, make, model: '' })) }
 
   async function handleSave() {
     if (!form.make.trim() || !form.model.trim()) { setError('Make and model are required'); return }
@@ -78,18 +81,28 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           {/* Make + Model */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Make <span className="text-red-400">*</span></label>
-              <input value={form.make} onChange={e => set('make', e.target.value)} placeholder="Toyota"
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Model <span className="text-red-400">*</span></label>
-              <input value={form.model} onChange={e => set('model', e.target.value)} placeholder="RAV4"
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-            </div>
-          </div>
+	          <div className="grid grid-cols-2 gap-3">
+	            <div>
+	              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Make <span className="text-red-400">*</span></label>
+	              <select value={form.make} onChange={e => setMake(e.target.value)}
+	                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50">
+                  <option value="">Select make</option>
+                  {VEHICLE_CATALOG.map(option => (
+                    <option key={option.make} value={option.make}>{option.make}</option>
+                  ))}
+                </select>
+	            </div>
+	            <div>
+	              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Model <span className="text-red-400">*</span></label>
+	              <select value={form.model} onChange={e => set('model', e.target.value)} disabled={!form.make}
+	                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50 disabled:opacity-50">
+                  <option value="">{form.make ? 'Select model' : 'Choose make first'}</option>
+                  {modelOptions.map(model => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
+	            </div>
+	          </div>
 
           {/* Year + Colour */}
           <div className="grid grid-cols-2 gap-3">

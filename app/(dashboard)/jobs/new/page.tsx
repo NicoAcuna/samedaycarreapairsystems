@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
+import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = { id: string; first_name: string; last_name: string; phone: string; email: string }
 type Vehicle = { id: string; make: string; model: string; year: string; plate: string; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
@@ -64,6 +65,7 @@ function NewJobPageInner() {
   const [newVehicleForm, setNewVehicleForm] = useState({ make: '', model: '', year: '', plate: '', odometer_km: '', colour: '', vin: '' })
   const [savingVehicle, setSavingVehicle] = useState(false)
   const [vehicleError, setVehicleError] = useState('')
+  const modelOptions = getModelsForMake(newVehicleForm.make)
 
   // Load all clients on mount
   useEffect(() => {
@@ -74,8 +76,7 @@ function NewJobPageInner() {
 
   // Load ALL vehicles when client is selected (not just their own)
   useEffect(() => {
-    if (!selectedClient) { setVehicles([]); return }
-    setLoadingVehicles(true)
+    if (!selectedClient) return
     const supabase = createClient()
     supabase.from('vehicles')
       .select('id, make, model, year, plate, odometer_km, client_id, clients(first_name, last_name)')
@@ -116,9 +117,11 @@ function NewJobPageInner() {
     : vehicles
 
   function selectClient(client: Client) {
+    setLoadingVehicles(true)
     setSelectedClient(client)
     setClientQuery(fullName(client))
     setShowClientDropdown(false)
+    setVehicles([])
     setSelectedVehicle(null)
     setVehicleQuery('')
     setStep(2)
@@ -199,6 +202,7 @@ function NewJobPageInner() {
 
   function setNcf(field: string, val: string) { setNewClientForm(prev => ({ ...prev, [field]: val })) }
   function setNvf(field: string, val: string) { setNewVehicleForm(prev => ({ ...prev, [field]: val })) }
+  function setVehicleMake(make: string) { setNewVehicleForm(prev => ({ ...prev, make, model: '' })) }
 
   return (
     <div className="p-6 max-w-xl">
@@ -238,10 +242,10 @@ function NewJobPageInner() {
               <div className="text-sm font-medium text-neutral-900">{fullName(selectedClient)}</div>
               <div className="text-xs text-neutral-500">{selectedClient.phone}</div>
             </div>
-            <button
-              onClick={() => { setSelectedClient(null); setClientQuery(''); setSelectedVehicle(null); setStep(1) }}
-              className="text-xs text-neutral-400 hover:text-neutral-600 underline"
-            >
+	            <button
+	              onClick={() => { setSelectedClient(null); setClientQuery(''); setVehicles([]); setLoadingVehicles(false); setSelectedVehicle(null); setStep(1) }}
+	              className="text-xs text-neutral-400 hover:text-neutral-600 underline"
+	            >
               Change
             </button>
           </div>
@@ -282,12 +286,12 @@ function NewJobPageInner() {
                       + Create new client
                     </button>
                   </>
-                ) : (
-                  <div className="px-4 py-4">
-                    <div className="text-sm text-neutral-500 mb-3">No clients found for "{clientQuery}"</div>
-                    <button
-                      onClick={() => { setShowClientDropdown(false); setShowNewClient(true) }}
-                      className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700"
+	                ) : (
+	                  <div className="px-4 py-4">
+	                    <div className="text-sm text-neutral-500 mb-3">No clients found for &ldquo;{clientQuery}&rdquo;</div>
+	                    <button
+	                      onClick={() => { setShowClientDropdown(false); setShowNewClient(true) }}
+	                      className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700"
                     >
                       + Create new client
                     </button>
@@ -319,16 +323,16 @@ function NewJobPageInner() {
             <div className="text-sm text-neutral-400 py-2">Loading vehicles…</div>
           ) : vehicles.length > 0 ? (
             <div className="space-y-2">
-              <input
-                type="text"
-                value={vehicleQuery}
+	              <input
+	                type="text"
+	                value={vehicleQuery}
                 onChange={(e) => setVehicleQuery(e.target.value)}
                 placeholder="Search by plate, make, model or year..."
                 className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400 focus:bg-white mb-2"
               />
-              {filteredVehicles.length === 0 && vehicleQuery.length > 0 ? (
-                <div className="text-sm text-neutral-500 text-center py-3">No vehicles found for "{vehicleQuery}"</div>
-              ) : null}
+	              {filteredVehicles.length === 0 && vehicleQuery.length > 0 ? (
+	                <div className="text-sm text-neutral-500 text-center py-3">No vehicles found for &ldquo;{vehicleQuery}&rdquo;</div>
+	              ) : null}
               {filteredVehicles.map((v) => {
                 const isOwn = v.client_id === selectedClient?.id
                 const ownerName = v.clients ? `${v.clients.first_name} ${v.clients.last_name}` : null
@@ -479,19 +483,29 @@ function NewJobPageInner() {
               <h2 className="text-base font-semibold text-neutral-900">New vehicle</h2>
               <button onClick={() => setShowNewVehicle(false)} className="text-neutral-400 hover:text-neutral-600 text-xl">×</button>
             </div>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-neutral-500 mb-1 block">Make <span className="text-red-400">*</span></label>
-                  <input value={newVehicleForm.make} onChange={e => setNvf('make', e.target.value)} autoFocus placeholder="Toyota"
-                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
-                </div>
-                <div>
-                  <label className="text-xs text-neutral-500 mb-1 block">Model <span className="text-red-400">*</span></label>
-                  <input value={newVehicleForm.model} onChange={e => setNvf('model', e.target.value)} placeholder="RAV4"
-                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
-                </div>
-              </div>
+	            <div className="space-y-3">
+	              <div className="grid grid-cols-2 gap-3">
+	                <div>
+	                  <label className="text-xs text-neutral-500 mb-1 block">Make <span className="text-red-400">*</span></label>
+	                  <select value={newVehicleForm.make} onChange={e => setVehicleMake(e.target.value)} autoFocus
+	                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400 bg-white">
+                      <option value="">Select make</option>
+                      {VEHICLE_CATALOG.map(option => (
+                        <option key={option.make} value={option.make}>{option.make}</option>
+                      ))}
+                    </select>
+	                </div>
+	                <div>
+	                  <label className="text-xs text-neutral-500 mb-1 block">Model <span className="text-red-400">*</span></label>
+	                  <select value={newVehicleForm.model} onChange={e => setNvf('model', e.target.value)} disabled={!newVehicleForm.make}
+	                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400 bg-white disabled:opacity-50">
+                      <option value="">{newVehicleForm.make ? 'Select model' : 'Choose make first'}</option>
+                      {modelOptions.map(model => (
+                        <option key={model} value={model}>{model}</option>
+                      ))}
+                    </select>
+	                </div>
+	              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs text-neutral-500 mb-1 block">Year</label>
