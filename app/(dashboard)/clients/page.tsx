@@ -214,7 +214,6 @@ export default function ClientsPage() {
 	            <tr className="bg-neutral-50 border-b border-neutral-200">
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Name</th>
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Status</th>
-	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">NPS</th>
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Phone</th>
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Email</th>
 	              <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Added</th>
@@ -223,9 +222,9 @@ export default function ClientsPage() {
 	          </thead>
 	          <tbody>
 	            {loading ? (
-	              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
+	              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
 	            ) : filtered.length === 0 ? (
-	              <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-400">
+	              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-400">
 	                {search ? 'No clients match your search' : 'No clients yet — add your first one'}
 	              </td></tr>
 	            ) : filtered.map(c => {
@@ -241,7 +240,6 @@ export default function ClientsPage() {
                       {clientStatus.label}
                     </span>
                   </td>
-	                <td className="px-4 py-3 text-neutral-500">{latestNps?.nps_score ?? '—'}</td>
 	                <td className="px-4 py-3 text-neutral-500">{c.phone || '—'}</td>
 	                <td className="px-4 py-3 text-neutral-500">{c.email || '—'}</td>
 	                <td className="px-4 py-3 text-neutral-400 text-xs">{new Date(c.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
@@ -281,12 +279,9 @@ export default function ClientsPage() {
 	              <div className="text-xs text-neutral-500 truncate mt-0.5">
 	                {[c.phone, c.email].filter(Boolean).join(' · ') || '—'}
 	              </div>
-                <div className="flex items-center gap-2 mt-1.5">
+                <div className="mt-1.5">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${clientStatus.tone}`}>
                     {clientStatus.label}
-                  </span>
-                  <span className="text-[11px] text-neutral-400">
-                    NPS {latestNps?.nps_score ?? '—'}
                   </span>
                 </div>
 	            </div>
