@@ -1,38 +1,81 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 // ── MEDIA TYPES ───────────────────────────────────────────────────────────────
-type Photo = { url: string; name: string }
-type Video = { url: string; name: string }
+type Photo = { url: string; name: string; path?: string; pending?: boolean }
+type Video = { url: string; name: string; path?: string; pending?: boolean }
 
 // ── BUNNY UPLOAD ──────────────────────────────────────────────────────────────
-async function uploadToBunny(file: File, folder: string): Promise<string> {
+async function uploadToBunny(file: File, folder: string): Promise<{ url: string; path?: string }> {
   const fd = new FormData()
   fd.append('file', file)
   fd.append('folder', folder)
   const res = await fetch('/api/upload-media', { method: 'POST', body: fd })
   const json = await res.json()
   if (!res.ok) throw new Error(json.error || 'Upload failed')
-  return json.url as string
+  return {
+    url: json.url as string,
+    path: json.path as string | undefined,
+  }
+}
+
+async function deleteFromBunny(media: { url?: string; path?: string }) {
+  const res = await fetch('/api/delete-media', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: media.path, url: media.url }),
+  })
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => null)
+    throw new Error(json?.error || 'Delete failed')
+  }
+}
+
+function revokeObjectUrl(url?: string) {
+  if (url?.startsWith('blob:')) {
+    URL.revokeObjectURL(url)
+  }
+}
+
+function isUploadedMedia(media?: { path?: string; url?: string; pending?: boolean }) {
+  return !!media && !media.pending && (!!media.path || !!media.url) && !media.url?.startsWith('blob:')
 }
 
 // ── PHOTO PICKER ──────────────────────────────────────────────────────────────
 function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[]; onChange: (photos: Photo[]) => void; folder?: string }) {
   const [preview, setPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function addFiles(files: FileList | null) {
     if (!files) return
+    const fileArray = Array.from(files)
+    const tempPhotos = fileArray.map(file => ({
+      url: URL.createObjectURL(file),
+      name: file.name,
+      pending: true,
+    }))
+
+    onChange([...photos, ...tempPhotos])
     setUploading(true)
+    setError(null)
     try {
-      const urls = await Promise.all(
-        Array.from(files).map(f => uploadToBunny(f, folder))
+      const uploaded = await Promise.all(
+        fileArray.map(f => uploadToBunny(f, folder))
       )
-      onChange([...photos, ...urls.map((url, i) => ({ url, name: files[i].name }))])
+      tempPhotos.forEach(photo => revokeObjectUrl(photo.url))
+      onChange([
+        ...photos,
+        ...uploaded.map((media, i) => ({ url: media.url, path: media.path, name: fileArray[i].name })),
+      ])
     } catch (e) {
+      tempPhotos.forEach(photo => revokeObjectUrl(photo.url))
+      onChange(photos)
       console.error('Photo upload failed:', e)
+      setError(e instanceof Error ? e.message : 'Photo upload failed')
     } finally {
       setUploading(false)
     }
@@ -40,20 +83,51 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
 
   async function replacePhoto(idx: number, files: FileList | null) {
     if (!files || !files[0]) return
+    const nextFile = files[0]
+    const current = photos[idx]
+    const tempUrl = URL.createObjectURL(nextFile)
+
+    onChange(photos.map((p, i) => i === idx ? { url: tempUrl, name: nextFile.name, pending: true } : p))
     setUploading(true)
+    setError(null)
     try {
-      const url = await uploadToBunny(files[0], folder)
-      onChange(photos.map((p, i) => i === idx ? { url, name: files[0].name } : p))
+      const uploaded = await uploadToBunny(nextFile, folder)
+      revokeObjectUrl(tempUrl)
+      onChange(photos.map((p, i) => i === idx ? { url: uploaded.url, path: uploaded.path, name: nextFile.name } : p))
+      if (isUploadedMedia(current)) {
+        try {
+          await deleteFromBunny(current)
+        } catch (deleteError) {
+          console.error('Photo cleanup failed:', deleteError)
+        }
+      }
     } catch (e) {
+      revokeObjectUrl(tempUrl)
+      onChange(photos)
       console.error('Photo replace failed:', e)
+      setError(e instanceof Error ? e.message : 'Photo replace failed')
     } finally {
       setUploading(false)
     }
   }
 
-  function removePhoto(idx: number) {
+  async function removePhoto(idx: number) {
+    const target = photos[idx]
     onChange(photos.filter((_, i) => i !== idx))
     setPreview(null)
+    setError(null)
+
+    if (!target) return
+    revokeObjectUrl(target.url)
+
+    if (isUploadedMedia(target)) {
+      try {
+        await deleteFromBunny(target)
+      } catch (e) {
+        console.error('Photo delete failed:', e)
+        setError(e instanceof Error ? e.message : 'Photo delete failed')
+      }
+    }
   }
 
   return (
@@ -64,6 +138,11 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
             <div key={idx} className="relative group w-16 h-16 flex-shrink-0">
               <img src={photo.url} alt={photo.name} onClick={() => setPreview(photo.url)}
                 className="w-full h-full object-cover rounded-lg border border-neutral-200 cursor-pointer" />
+              {photo.pending && (
+                <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
+                  Uploading...
+                </div>
+              )}
               <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                 <label className="cursor-pointer text-white bg-black/60 rounded px-1.5 py-1 text-xs hover:bg-black/80" title="Replace">
                   ↺ <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files; replacePhoto(idx, f).then(() => { (e.target as HTMLInputElement).value = '' }) }} />
@@ -83,6 +162,7 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
         </label>
         {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
       </div>
+      {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
       {preview && (
         <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="relative" onClick={e => e.stopPropagation()}>
@@ -99,25 +179,56 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
 function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[]; onChange: (videos: Video[]) => void; folder?: string }) {
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function addFiles(files: FileList | null) {
     if (!files) return
+    const fileArray = Array.from(files)
+    const tempVideos = fileArray.map(file => ({
+      url: URL.createObjectURL(file),
+      name: file.name,
+      pending: true,
+    }))
+
+    onChange([...videos, ...tempVideos])
     setUploading(true)
+    setError(null)
     try {
-      const urls = await Promise.all(
-        Array.from(files).map(f => uploadToBunny(f, folder))
+      const uploaded = await Promise.all(
+        fileArray.map(f => uploadToBunny(f, folder))
       )
-      onChange([...videos, ...urls.map((url, i) => ({ url, name: files[i].name }))])
+      tempVideos.forEach(video => revokeObjectUrl(video.url))
+      onChange([
+        ...videos,
+        ...uploaded.map((media, i) => ({ url: media.url, path: media.path, name: fileArray[i].name })),
+      ])
     } catch (e) {
+      tempVideos.forEach(video => revokeObjectUrl(video.url))
+      onChange(videos)
       console.error('Video upload failed:', e)
+      setError(e instanceof Error ? e.message : 'Video upload failed')
     } finally {
       setUploading(false)
     }
   }
 
-  function removeVideo(idx: number) {
+  async function removeVideo(idx: number) {
+    const target = videos[idx]
     onChange(videos.filter((_, i) => i !== idx))
     setPreview(null)
+    setError(null)
+
+    if (!target) return
+    revokeObjectUrl(target.url)
+
+    if (isUploadedMedia(target)) {
+      try {
+        await deleteFromBunny(target)
+      } catch (e) {
+        console.error('Video delete failed:', e)
+        setError(e instanceof Error ? e.message : 'Video delete failed')
+      }
+    }
   }
 
   return (
@@ -128,6 +239,11 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
             <div key={idx} className="relative group w-16 h-16 flex-shrink-0 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center cursor-pointer"
               onClick={() => setPreview(video.url)}>
               <span className="text-2xl">▶</span>
+              {video.pending && (
+                <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
+                  Uploading...
+                </div>
+              )}
               <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <button onClick={e => { e.stopPropagation(); removeVideo(idx) }} className="text-white bg-red-500/90 rounded px-1.5 py-1 text-xs hover:bg-red-600" title="Remove">✕</button>
               </div>
@@ -144,6 +260,7 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
         </label>
         {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
       </div>
+      {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
       {preview && (
         <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="relative" onClick={e => e.stopPropagation()}>
@@ -305,6 +422,8 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   const [labour, setLabour] = useState<string>('')
   const [repairResult, setRepairResult] = useState<string>('')
   const [finalNotes, setFinalNotes] = useState<string>('')
+  const hasHydratedRef = useRef(false)
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Restore saved state on client mount (after SSR hydration)
   useEffect(() => {
@@ -353,6 +472,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       }
       if (!jobId && s.doneSections) setDoneSections(new Set(s.doneSections))
     } catch {}
+    hasHydratedRef.current = true
   }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save on unmount (e.g. user navigates to another tab mid-flow)
@@ -376,11 +496,15 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   }
   useEffect(() => {
     return () => { saveOnUnmountRef.current() }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
 
   const activeSection = sections[activeIdx]
   const progress = Math.round((doneSections.size / sections.length) * 100)
+  const pendingUploads =
+    Object.values(photoMap).flat().filter(photo => photo.pending).length +
+    Object.values(videoMap).flat().filter(video => video.pending).length
+  const hasPendingUploads = pendingUploads > 0
 
   function select(sectionKey: string, itemName: string, option: string) {
     const current = selections[sectionKey]?.[itemName]
@@ -390,16 +514,88 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     setComments(prev => ({ ...prev, [sectionKey]: { ...prev[sectionKey], [itemName]: val } }))
   }
 
-  function buildFlowData() {
+  const buildFlowData = useCallback(() => {
     return {
       type, serviceType, serviceFee, inspectionFee, currentKm, observations,
       alertService, alertBrakes, customTasks, diagFee, complaint, findings, recommendation,
       estimates, repairSource, problem, diagNotes, parts, labour, repairResult,
       finalNotes, selections, comments, photoMap, videoMap,
     }
-  }
+  }, [
+    type,
+    serviceType,
+    serviceFee,
+    inspectionFee,
+    currentKm,
+    observations,
+    alertService,
+    alertBrakes,
+    customTasks,
+    diagFee,
+    complaint,
+    findings,
+    recommendation,
+    estimates,
+    repairSource,
+    problem,
+    diagNotes,
+    parts,
+    labour,
+    repairResult,
+    finalNotes,
+    selections,
+    comments,
+    photoMap,
+    videoMap,
+  ])
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) return
+    if (!onAutoSave) return
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+
+    const flowData = buildFlowData()
+    autosaveTimerRef.current = setTimeout(() => {
+      onAutoSave(flowData)
+    }, 500)
+
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    }
+  }, [
+    type,
+    serviceType,
+    serviceFee,
+    inspectionFee,
+    currentKm,
+    observations,
+    alertService,
+    alertBrakes,
+    customTasks,
+    diagFee,
+    complaint,
+    findings,
+    recommendation,
+    estimates,
+    repairSource,
+    problem,
+    diagNotes,
+    parts,
+    labour,
+    repairResult,
+    finalNotes,
+    selections,
+    comments,
+    photoMap,
+    videoMap,
+    onAutoSave,
+    buildFlowData,
+  ])
 
   function handleNext() {
+    if (hasPendingUploads) return
+
     const updatedDone = new Set([...doneSections, activeSection.key])
     setDoneSections(updatedDone)
     const flowData = buildFlowData()
@@ -518,6 +714,12 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     <div className="mb-5">
       <h2 className="text-lg font-semibold text-neutral-900">{activeSection.label}</h2>
       {vehicle && <p className="text-sm text-neutral-500 mt-1">{vehicle}{plate ? ` · ${plate}` : ''}</p>}
+      {hasPendingUploads && (
+        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Syncing {pendingUploads} file{pendingUploads === 1 ? '' : 's'}...
+        </div>
+      )}
     </div>
   )
 
@@ -528,8 +730,8 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
         className="flex-1 md:flex-none text-sm px-4 py-3 md:py-2 border border-neutral-200 rounded-xl md:rounded-lg hover:bg-neutral-50 text-neutral-600 disabled:opacity-30 disabled:cursor-not-allowed">
         ← Previous
       </button>
-      <button onClick={handleNext}
-        className="flex-1 md:flex-none text-sm px-5 py-3 md:py-2 bg-neutral-900 text-white rounded-xl md:rounded-lg hover:bg-neutral-700 transition-colors font-medium">
+      <button onClick={handleNext} disabled={hasPendingUploads}
+        className="flex-1 md:flex-none text-sm px-5 py-3 md:py-2 bg-neutral-900 text-white rounded-xl md:rounded-lg hover:bg-neutral-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed">
         {activeIdx === sections.length - 1 ? (jobId ? 'Generate report →' : 'Finish →') : 'Next →'}
       </button>
     </div>
@@ -779,7 +981,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       )
       if (key === 'findings') return (
         <div className="bg-white border border-neutral-200 rounded-xl p-4">
-          <label className="text-xs text-neutral-500 mb-2 block">Mechanic's findings</label>
+          <label className="text-xs text-neutral-500 mb-2 block">Mechanic&apos;s findings</label>
           <textarea value={findings} onChange={e => setFindings(e.target.value)}
             placeholder="Describe what you found..." rows={5}
             className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />

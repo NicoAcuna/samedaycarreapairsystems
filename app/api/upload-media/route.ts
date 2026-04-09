@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const url = `${BUNNY_CDN_URL}/${path}`
-    return NextResponse.json({ url })
+    return NextResponse.json({ url, path })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: message }, { status: 500 })
