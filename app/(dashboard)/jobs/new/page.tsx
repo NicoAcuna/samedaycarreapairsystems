@@ -157,7 +157,6 @@ function NewJobPageInner() {
       suburb: newClientForm.suburb.trim() || null,
       postcode: newClientForm.postcode.trim() || null,
       state: normalizeNswState(),
-      city: null,
     }]).select('id, first_name, last_name, phone, email').single()
     setSavingClient(false)
     if (err) { setClientError(err.message); return }

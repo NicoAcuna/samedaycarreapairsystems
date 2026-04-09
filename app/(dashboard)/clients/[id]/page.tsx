@@ -127,7 +127,6 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
         email: form.email.trim(),
         address: form.address.trim(),
         suburb: form.suburb || null,
-        city: null,
         state: normalizeNswState(),
         postcode: form.postcode.trim() || null,
         notes: form.notes.trim(),
