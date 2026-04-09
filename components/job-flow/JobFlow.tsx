@@ -44,6 +44,15 @@ function isUploadedMedia(media?: { path?: string; url?: string; pending?: boolea
   return !!media && !media.pending && (!!media.path || !!media.url) && !media.url?.startsWith('blob:')
 }
 
+function sanitizeMediaMap<T extends { url: string; pending?: boolean }>(mediaMap: Record<string, T[]>) {
+  return Object.fromEntries(
+    Object.entries(mediaMap).map(([key, items]) => [
+      key,
+      items.filter(item => !item.pending && !item.url.startsWith('blob:')),
+    ])
+  )
+}
+
 // ── PHOTO PICKER ──────────────────────────────────────────────────────────────
 function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[]; onChange: (photos: Photo[]) => void; folder?: string }) {
   const [preview, setPreview] = useState<string | null>(null)
@@ -66,7 +75,6 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
       const uploaded = await Promise.all(
         fileArray.map(f => uploadToBunny(f, folder))
       )
-      tempPhotos.forEach(photo => revokeObjectUrl(photo.url))
       onChange([
         ...photos,
         ...uploaded.map((media, i) => ({ url: media.url, path: media.path, name: fileArray[i].name })),
@@ -92,7 +100,6 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
     setError(null)
     try {
       const uploaded = await uploadToBunny(nextFile, folder)
-      revokeObjectUrl(tempUrl)
       onChange(photos.map((p, i) => i === idx ? { url: uploaded.url, path: uploaded.path, name: nextFile.name } : p))
       if (isUploadedMedia(current)) {
         try {
@@ -136,7 +143,7 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
         <div className="flex flex-wrap gap-2 mb-2">
           {photos.map((photo, idx) => (
             <div key={idx} className="relative group w-16 h-16 flex-shrink-0">
-              <img src={photo.url} alt={photo.name} onClick={() => setPreview(photo.url)}
+              <img src={photo.url} alt={photo.name} onClick={() => { if (!photo.pending) setPreview(photo.url) }}
                 className="w-full h-full object-cover rounded-lg border border-neutral-200 cursor-pointer" />
               {photo.pending && (
                 <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
@@ -197,7 +204,6 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
       const uploaded = await Promise.all(
         fileArray.map(f => uploadToBunny(f, folder))
       )
-      tempVideos.forEach(video => revokeObjectUrl(video.url))
       onChange([
         ...videos,
         ...uploaded.map((media, i) => ({ url: media.url, path: media.path, name: fileArray[i].name })),
@@ -237,7 +243,7 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
         <div className="flex flex-wrap gap-2 mb-2">
           {videos.map((video, idx) => (
             <div key={idx} className="relative group w-16 h-16 flex-shrink-0 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center cursor-pointer"
-              onClick={() => setPreview(video.url)}>
+              onClick={() => { if (!video.pending) setPreview(video.url) }}>
               <span className="text-2xl">▶</span>
               {video.pending && (
                 <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
@@ -475,6 +481,13 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     hasHydratedRef.current = true
   }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    return () => {
+      Object.values(photoMap).flat().forEach(photo => revokeObjectUrl(photo.url))
+      Object.values(videoMap).flat().forEach(video => revokeObjectUrl(video.url))
+    }
+  }, [photoMap, videoMap])
+
   // Save on unmount (e.g. user navigates to another tab mid-flow)
   const saveOnUnmountRef = useRef<() => void>(() => {})
   saveOnUnmountRef.current = () => {
@@ -519,7 +532,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       type, serviceType, serviceFee, inspectionFee, currentKm, observations,
       alertService, alertBrakes, customTasks, diagFee, complaint, findings, recommendation,
       estimates, repairSource, problem, diagNotes, parts, labour, repairResult,
-      finalNotes, selections, comments, photoMap, videoMap,
+      finalNotes, selections, comments,
+      photoMap: sanitizeMediaMap(photoMap),
+      videoMap: sanitizeMediaMap(videoMap),
     }
   }, [
     type,
