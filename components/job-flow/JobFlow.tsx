@@ -426,7 +426,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   const [diagNotes, setDiagNotes] = useState<string>('')
   const [parts, setParts] = useState<Part[]>([{ name: '', qty: 1, price: '' }])
   const [labour, setLabour] = useState<string>('')
-  const [repairFee, setRepairFee] = useState<string>('')
   const [repairResult, setRepairResult] = useState<string>('')
   const [finalNotes, setFinalNotes] = useState<string>('')
   const hasHydratedRef = useRef(false)
@@ -471,7 +470,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       if (s.diagNotes     !== undefined) setDiagNotes(s.diagNotes)
       if (s.parts         !== undefined) setParts(s.parts)
       if (s.labour        !== undefined) setLabour(s.labour)
-      if (s.repairFee     !== undefined) setRepairFee(s.repairFee)
       if (s.repairResult  !== undefined) setRepairResult(s.repairResult)
       if (s.finalNotes    !== undefined) setFinalNotes(s.finalNotes)
       if (!jobId && s.activeIdx !== undefined) {
@@ -533,7 +531,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     return {
       type, serviceType, serviceFee, inspectionFee, currentKm, observations,
       alertService, alertBrakes, customTasks, diagFee, complaint, findings, recommendation,
-      estimates, repairSource, problem, diagNotes, parts, labour, repairFee, repairResult,
+      estimates, repairSource, problem, diagNotes, parts, labour, repairResult,
       finalNotes, selections, comments,
       photoMap: sanitizeMediaMap(photoMap),
       videoMap: sanitizeMediaMap(videoMap),
@@ -558,7 +556,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     diagNotes,
     parts,
     labour,
-    repairFee,
     repairResult,
     finalNotes,
     selections,
@@ -601,7 +598,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     diagNotes,
     parts,
     labour,
-    repairFee,
     repairResult,
     finalNotes,
     selections,
@@ -1131,18 +1127,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
           </div>
 
           <div className="bg-white border border-neutral-200 rounded-xl p-4">
-            <label className="text-xs text-neutral-500 mb-2 block">Repair amount ($)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={repairFee}
-              onChange={e => setRepairFee(e.target.value)}
-              placeholder="0.00"
-              className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none bg-neutral-50"
-            />
-          </div>
-
-          <div className="bg-white border border-neutral-200 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs text-neutral-500">Tasks done</label>
               <button onClick={addRow} className="text-xs px-2.5 py-1 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">+ Add row</button>
@@ -1167,10 +1151,17 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                       </button>
                     ))}
                   </div>
-                  <div>
-                    <label className="text-xs text-neutral-400 mb-1 block">Est. time</label>
-                    <input type="text" value={est.estTime} onChange={e => updateEst(idx, 'estTime', e.target.value)}
-                      placeholder="e.g. 2 hrs" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-neutral-400 mb-1 block">Repair amount ($)</label>
+                      <input type="number" value={est.estCost} onChange={e => updateEst(idx, 'estCost', e.target.value)}
+                        placeholder="0.00" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-neutral-400 mb-1 block">Est. time</label>
+                      <input type="text" value={est.estTime} onChange={e => updateEst(idx, 'estTime', e.target.value)}
+                        placeholder="e.g. 2 hrs" className="w-full text-base border border-neutral-200 rounded-lg px-3 py-3 focus:outline-none" />
+                    </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
