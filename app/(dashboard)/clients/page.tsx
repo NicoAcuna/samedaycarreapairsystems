@@ -13,7 +13,6 @@ type Client = {
   email: string
   address: string
   suburb?: string | null
-  city?: string | null
   state?: string | null
   postcode?: string | null
   notes: string
