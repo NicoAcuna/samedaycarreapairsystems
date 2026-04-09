@@ -140,7 +140,7 @@ export default function DashboardPage() {
   const metrics = [
     { key: 'today',       label: "Today's Jobs",   value: loading ? '…' : formatMoney(todayValue),      sub: loading ? '' : `${todayJobs.length} jobs · ${pendingCount} pending · ${doneCount} done`, dark: true,  red: false },
     { key: 'in_progress', label: 'In Progress',    value: loading ? '…' : formatMoney(inProgressValue), sub: loading ? '' : `${inProgressJobs.length} active jobs`,          dark: false, red: false },
-    { key: 'all',         label: 'Weekly Jobs',    value: loading ? '…' : formatMoney(weekValue),       sub: loading ? '' : `${weekJobs.length} jobs this week`,            dark: false, red: false },
+    { key: 'all',         label: 'Weekly Jobs',    value: loading ? '…' : formatMoney(weekValue),       sub: loading ? '' : `${todayJobs.length} jobs today`,               dark: false, red: false },
     { key: 'overdue',     label: 'Overdue',        value: loading ? '…' : formatMoney(overdueValue),    sub: loading ? '' : `${overdueJobs.length} overdue jobs`,           dark: false, red: true  },
   ]
 
