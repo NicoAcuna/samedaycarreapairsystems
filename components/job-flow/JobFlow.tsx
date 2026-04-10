@@ -40,6 +40,14 @@ function revokeObjectUrl(url?: string) {
   }
 }
 
+function safeCreateObjectUrl(file: File) {
+  try {
+    return URL.createObjectURL(file)
+  } catch {
+    return ''
+  }
+}
+
 function isUploadedMedia(media?: { path?: string; url?: string; pending?: boolean }) {
   return !!media && !media.pending && (!!media.path || !!media.url) && !media.url?.startsWith('blob:')
 }
@@ -192,7 +200,7 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
     if (!files) return
     const fileArray = Array.from(files)
     const tempVideos = fileArray.map(file => ({
-      url: URL.createObjectURL(file),
+      url: safeCreateObjectUrl(file),
       name: file.name,
       pending: true,
     }))
@@ -259,7 +267,7 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
       )}
       <div className="flex gap-2 flex-wrap">
         <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          🎥 Record <input type="file" accept="video/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
+          🎥 Record <input type="file" accept="video/*" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
         </label>
         <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
           📂 Video <input type="file" accept="video/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
