@@ -21,8 +21,13 @@ async function uploadToBunny(file: File, folder: string): Promise<{ url: string;
     json = null
   }
   if (!res.ok) {
+    const fileLabel = file.type.startsWith('video/')
+      ? 'video'
+      : file.type.startsWith('image/')
+        ? 'image'
+        : 'file'
     const message = json?.error
-      || (text.includes('Request Entity Too Large') ? 'Image is too large to upload. Please try a smaller photo.' : text)
+      || (text.includes('Request Entity Too Large') ? `This ${fileLabel} is too large to upload. Please try a smaller ${fileLabel}.` : text)
       || 'Upload failed'
     throw new Error(message)
   }
