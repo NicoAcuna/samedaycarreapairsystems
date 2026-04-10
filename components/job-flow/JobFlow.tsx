@@ -40,14 +40,6 @@ function revokeObjectUrl(url?: string) {
   }
 }
 
-function safeCreateObjectUrl(file: File) {
-  try {
-    return URL.createObjectURL(file)
-  } catch {
-    return ''
-  }
-}
-
 function isUploadedMedia(media?: { path?: string; url?: string; pending?: boolean }) {
   return !!media && !media.pending && (!!media.path || !!media.url) && !media.url?.startsWith('blob:')
 }
@@ -200,7 +192,7 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
     if (!files) return
     const fileArray = Array.from(files)
     const tempVideos = fileArray.map(file => ({
-      url: safeCreateObjectUrl(file),
+      url: '',
       name: file.name,
       pending: true,
     }))
@@ -217,7 +209,6 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
         ...uploaded.map((media, i) => ({ url: media.url, path: media.path, name: fileArray[i].name })),
       ])
     } catch (e) {
-      tempVideos.forEach(video => revokeObjectUrl(video.url))
       onChange(videos)
       console.error('Video upload failed:', e)
       setError(e instanceof Error ? e.message : 'Video upload failed')
@@ -251,7 +242,7 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
         <div className="flex flex-wrap gap-2 mb-2">
           {videos.map((video, idx) => (
             <div key={idx} className="relative group w-16 h-16 flex-shrink-0 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center cursor-pointer"
-              onClick={() => { if (!video.pending) setPreview(video.url) }}>
+              onClick={() => { if (!video.pending && video.url) setPreview(video.url) }}>
               <span className="text-2xl">▶</span>
               {video.pending && (
                 <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
