@@ -954,6 +954,7 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: Record<stri
   const complaint = (flowData.complaint as string) || ''
   const findings = (flowData.findings as string) || ''
   const recommendation = (flowData.recommendation as string) || ''
+  const finalNotes = (flowData.finalNotes as string) || ''
   const estimates = (flowData.estimates as { task: string; urgency: string; estCost: string; estTime: string }[]) || []
   const filledEstimates = estimates.filter(e => e.task || e.estTime)
 
@@ -1020,6 +1021,13 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: Record<stri
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {finalNotes && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Final Notes</span></div>
+          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{finalNotes}</p></div>
         </div>
       )}
 

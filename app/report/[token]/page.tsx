@@ -385,6 +385,7 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: FlowData; p
   const complaint  = (flowData.complaint  as string) || ''
   const findings   = (flowData.findings   as string) || ''
   const recommendation = (flowData.recommendation as string) || ''
+  const finalNotes = (flowData.finalNotes as string) || ''
   const estimates  = (flowData.estimates as { task: string; urgency: string; estCost: string; estTime: string }[]) || []
   const filledEst  = estimates.filter(e => e.task || e.estTime)
 
@@ -431,6 +432,12 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: FlowData; p
         <div className="border-t border-neutral-100">
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Mechanic&apos;s Recommendation</span></div>
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{recommendation}</p></div>
+        </div>
+      )}
+      {finalNotes && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Final Notes</span></div>
+          <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{finalNotes}</p></div>
         </div>
       )}
       {Object.keys(photoMap).filter(k => !['complaint','findings'].includes(k) && photoMap[k]?.length > 0).length > 0 && (
