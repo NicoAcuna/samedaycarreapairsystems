@@ -1155,10 +1155,6 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                 ))}
               </div>
             </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-              A Repair job can be created from this diagnosis after completing the report.
-            </div>
           </div>
         )
       }

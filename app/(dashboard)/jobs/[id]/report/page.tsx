@@ -1023,10 +1023,6 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: Record<stri
         </div>
       )}
 
-      <div className="border-t border-neutral-100 mx-5 my-4 rounded-lg border px-4 py-3 bg-amber-50 text-xs text-amber-700">
-        A Repair job can be created from this diagnosis.
-      </div>
-
       {/* Any remaining photos not tied to a section */}
       {Object.keys(remainingPhotos).length > 0 && <PhotosSection photoMap={remainingPhotos} />}
     </>
