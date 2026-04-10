@@ -6,6 +6,7 @@ import { createClient } from '../../../../../lib/supabase/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Photo = { url: string; name: string }
+type Video = { url: string; name: string }
 
 function getPhotosForItem(photoMap: Record<string, Photo[]>, itemName: string) {
   const direct = photoMap[itemName]
@@ -13,6 +14,17 @@ function getPhotosForItem(photoMap: Record<string, Photo[]>, itemName: string) {
 
   const matched = Object.entries(photoMap).find(([key, photos]) => (
     key.endsWith(`|${itemName}`) && photos.length > 0
+  ))
+
+  return matched?.[1] || []
+}
+
+function getVideosForItem(videoMap: Record<string, Video[]>, itemName: string) {
+  const direct = videoMap[itemName]
+  if (direct?.length) return direct
+
+  const matched = Object.entries(videoMap).find(([key, videos]) => (
+    key.endsWith(`|${itemName}`) && videos.length > 0
   ))
 
   return matched?.[1] || []
@@ -636,11 +648,12 @@ function ReportShell({ id, title, subtitle, data, snapshot, company, children }:
   )
 }
 
-function SectionsBody({ sections, additionalNotes, recommendations, photoMap }: {
+function SectionsBody({ sections, additionalNotes, recommendations, photoMap, videoMap }: {
   sections: typeof REPORT.sections
   additionalNotes: string
   recommendations: { type: string; text: string }[]
   photoMap: Record<string, Photo[]>
+  videoMap: Record<string, Video[]>
 }) {
   const verdict = getVerdict(sections)
   const counts = countResults(sections)
@@ -683,6 +696,7 @@ function SectionsBody({ sections, additionalNotes, recommendations, photoMap }: 
 	                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
 	                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
                       <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+                      <InlineVideos videos={getVideosForItem(videoMap, item.name)} />
 	                  </div>
 	                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
 	                </div>
@@ -714,11 +728,12 @@ function SectionsBody({ sections, additionalNotes, recommendations, photoMap }: 
   )
 }
 
-function ServiceBody({ sections, nextService, additionalNotes, photoMap }: {
+function ServiceBody({ sections, nextService, additionalNotes, photoMap, videoMap }: {
   sections: typeof SERVICE_REPORT.sections
   nextService: { label: string; value: string }[]
   additionalNotes: string
   photoMap: Record<string, Photo[]>
+  videoMap: Record<string, Video[]>
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   function toggle(label: string) {
@@ -772,6 +787,7 @@ function ServiceBody({ sections, nextService, additionalNotes, photoMap }: {
 	                    <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
 	                    {item.comment ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div> : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
                       <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+                      <InlineVideos videos={getVideosForItem(videoMap, item.name)} />
 	                  </div>
 	                  <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result]?.badge || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
 	                </div>
@@ -1125,7 +1141,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     const typeLabel = (flowData.serviceType as string) || 'Service'
     return (
       <ReportShell id={id} title={typeLabel} subtitle="Service Report" data={reportData} snapshot={flowData} company={company}>
-        <ServiceBody sections={sections} nextService={nextService} additionalNotes={additionalNotes} photoMap={photoMap} />
+        <ServiceBody sections={sections} nextService={nextService} additionalNotes={additionalNotes} photoMap={photoMap} videoMap={videoMap} />
       </ReportShell>
     )
   }
@@ -1135,7 +1151,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const additionalNotes = (flowData.finalNotes as string) || ''
   return (
     <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData} snapshot={flowData} company={company}>
-      <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={[]} photoMap={photoMap} />
+      <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={[]} photoMap={photoMap} videoMap={videoMap} />
     </ReportShell>
   )
 }

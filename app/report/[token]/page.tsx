@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Photo = { url: string; name: string }
+type Video = { url: string; name: string }
 type FlowData = Record<string, unknown>
 
 type Company = { name: string; phone: string; address: string }
@@ -50,6 +51,17 @@ function getPhotosForItem(photoMap: Record<string, Photo[]>, itemName: string) {
 
   const matched = Object.entries(photoMap).find(([key, photos]) => (
     key.endsWith(`|${itemName}`) && photos.length > 0
+  ))
+
+  return matched?.[1] || []
+}
+
+function getVideosForItem(videoMap: Record<string, Video[]>, itemName: string) {
+  const direct = videoMap[itemName]
+  if (direct?.length) return direct
+
+  const matched = Object.entries(videoMap).find(([key, videos]) => (
+    key.endsWith(`|${itemName}`) && videos.length > 0
   ))
 
   return matched?.[1] || []
@@ -207,7 +219,7 @@ function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
 }
 
 // ── Pre-Purchase Body ──────────────────────────────────────────────────────────
-function PrePurchaseBody({ sections, flowData, photoMap }: { sections: Section[]; flowData: FlowData; photoMap: Record<string, Photo[]> }) {
+function PrePurchaseBody({ sections, flowData, photoMap, videoMap }: { sections: Section[]; flowData: FlowData; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]> }) {
   const verdict = getVerdict(sections)
   const counts  = countResults(sections)
   const additionalNotes = (flowData.finalNotes as string) || ''
@@ -243,6 +255,7 @@ function PrePurchaseBody({ sections, flowData, photoMap }: { sections: Section[]
 	                    ? <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div>
 	                    : <div className="text-xs text-neutral-300 mt-0.5">—</div>}
                     <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+                    <InlineVideos videos={getVideosForItem(videoMap, item.name)} />
 	                </div>
 	                <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result] || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
 	              </div>
@@ -274,7 +287,7 @@ function PrePurchaseBody({ sections, flowData, photoMap }: { sections: Section[]
 }
 
 // ── Service Body ───────────────────────────────────────────────────────────────
-function ServiceBody({ sections, nextService, flowData, photoMap }: { sections: Section[]; nextService: { label: string; value: string }[]; flowData: FlowData; photoMap: Record<string, Photo[]> }) {
+function ServiceBody({ sections, nextService, flowData, photoMap, videoMap }: { sections: Section[]; nextService: { label: string; value: string }[]; flowData: FlowData; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]> }) {
   const allItems = sections.flatMap(s => s.items)
   const done = allItems.filter(i => i.result === 'Done').length
   const attention = allItems.filter(i => ['Poor','Fair','Failed','Codes found'].includes(i.result)).length
@@ -303,6 +316,7 @@ function ServiceBody({ sections, nextService, flowData, photoMap }: { sections: 
 	                  <div className="text-sm font-semibold text-neutral-900">{item.name}</div>
 	                  {item.comment && <div className="text-xs italic text-neutral-500 mt-0.5">{item.comment}</div>}
                     <InlinePhotos photos={getPhotosForItem(photoMap, item.name)} />
+                    <InlineVideos videos={getVideosForItem(videoMap, item.name)} />
 	                </div>
 	                <span className={`text-xs font-semibold px-3 py-1 rounded flex-shrink-0 ${RESULT_STYLES[item.result] || 'bg-neutral-100 text-neutral-600 border border-neutral-200'}`}>{item.result}</span>
 	              </div>
@@ -562,6 +576,7 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
               sections={buildPrePurchaseSections(flowData)}
               flowData={flowData}
               photoMap={photoMap}
+              videoMap={videoMap}
             />
           )}
           {jobType === 'service' && (
@@ -570,6 +585,7 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
               nextService={buildNextService(flowData)}
               flowData={flowData}
               photoMap={photoMap}
+              videoMap={videoMap}
             />
           )}
           {jobType === 'diagnosis' && (

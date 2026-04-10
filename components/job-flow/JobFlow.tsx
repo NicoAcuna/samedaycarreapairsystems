@@ -330,10 +330,11 @@ const OPTION_STYLES: Record<string, string> = {
 }
 
 // ── CHECKLIST ITEM ────────────────────────────────────────────────────────────
-function ChecklistItem({ name, options, selected, comment, onSelect, onComment, photos, onPhotosChange }: {
+function ChecklistItem({ name, options, selected, comment, onSelect, onComment, photos, onPhotosChange, videos, onVideosChange }: {
   name: string; options: string[]; selected?: string; comment: string
   onSelect: (opt: string) => void; onComment: (val: string) => void
   photos: Photo[]; onPhotosChange: (p: Photo[]) => void
+  videos: Video[]; onVideosChange: (v: Video[]) => void
 }) {
   return (
     <div className="bg-white border border-neutral-200 rounded-xl p-4">
@@ -352,6 +353,7 @@ function ChecklistItem({ name, options, selected, comment, onSelect, onComment, 
         placeholder="Optional comment..."
         className="w-full text-base px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400" />
       <PhotoPicker photos={photos} onChange={onPhotosChange} />
+      <VideoPicker videos={videos} onChange={onVideosChange} />
     </div>
   )
 }
@@ -775,7 +777,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
               onSelect={opt => select(key, item.name, opt)}
               onComment={val => setComment(key, item.name, val)}
               photos={ph(`${key}|${item.name}`)}
-              onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)} />
+              onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
+              videos={vid(`${key}|${item.name}`)}
+              onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
           ))}
         </div>
       )
@@ -915,7 +919,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                 onSelect={opt => select(key, item.name, opt)}
                 onComment={val => setComment(key, item.name, val)}
                 photos={ph(`${key}|${item.name}`)}
-                onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)} />
+                onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
+                videos={vid(`${key}|${item.name}`)}
+                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
             ))}
           </div>
         )
@@ -930,7 +936,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                 onSelect={opt => select(key, item.name, opt)}
                 onComment={val => setComment(key, item.name, val)}
                 photos={ph(`${key}|${item.name}`)}
-                onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)} />
+                onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
+                videos={vid(`${key}|${item.name}`)}
+                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
             ))}
           </div>
         )
