@@ -914,8 +914,6 @@ function InlinePhotos({ photos }: { photos: Photo[] }) {
   )
 }
 
-type Video = { url: string; name: string }
-
 function InlineVideos({ videos }: { videos: Video[] }) {
   const [preview, setPreview] = useState<string | null>(null)
   if (!videos || videos.length === 0) return null

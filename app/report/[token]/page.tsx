@@ -348,8 +348,6 @@ function ServiceBody({ sections, nextService, flowData, photoMap, videoMap }: { 
 }
 
 // ── Diagnosis Body ─────────────────────────────────────────────────────────────
-type Video = { url: string; name: string }
-
 function InlineVideos({ videos }: { videos: Video[] }) {
   const [preview, setPreview] = useState<string | null>(null)
   if (!videos || videos.length === 0) return null
