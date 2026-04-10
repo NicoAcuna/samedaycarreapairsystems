@@ -13,11 +13,22 @@ async function uploadToBunny(file: File, folder: string): Promise<{ url: string;
   fd.append('file', file)
   fd.append('folder', folder)
   const res = await fetch('/api/upload-media', { method: 'POST', body: fd })
-  const json = await res.json()
-  if (!res.ok) throw new Error(json.error || 'Upload failed')
+  const text = await res.text()
+  let json: { error?: string; url?: string; path?: string } | null = null
+  try {
+    json = text ? JSON.parse(text) as { error?: string; url?: string; path?: string } : null
+  } catch {
+    json = null
+  }
+  if (!res.ok) {
+    const message = json?.error
+      || (text.includes('Request Entity Too Large') ? 'Image is too large to upload. Please try a smaller photo.' : text)
+      || 'Upload failed'
+    throw new Error(message)
+  }
   return {
-    url: json.url as string,
-    path: json.path as string | undefined,
+    url: json?.url as string,
+    path: json?.path as string | undefined,
   }
 }
 
@@ -37,6 +48,44 @@ async function deleteFromBunny(media: { url?: string; path?: string }) {
 function revokeObjectUrl(url?: string) {
   if (url?.startsWith('blob:')) {
     URL.revokeObjectURL(url)
+  }
+}
+
+async function optimizeImageForUpload(file: File) {
+  if (!file.type.startsWith('image/') || file.size <= 4 * 1024 * 1024) return file
+
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('Could not process image'))
+      img.src = objectUrl
+    })
+
+    const maxDimension = 1600
+    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height))
+    const width = Math.max(1, Math.round(image.width * scale))
+    const height = Math.max(1, Math.round(image.height * scale))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(image, 0, 0, width, height)
+
+    const blob = await new Promise<Blob | null>(resolve => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.82)
+    })
+
+    if (!blob) return file
+    const nextName = file.name.replace(/\.[^.]+$/, '') || 'image'
+    return new File([blob], `${nextName}.jpg`, { type: 'image/jpeg' })
+  } catch {
+    return file
+  } finally {
+    URL.revokeObjectURL(objectUrl)
   }
 }
 
@@ -72,8 +121,9 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
     setUploading(true)
     setError(null)
     try {
+      const uploadFiles = await Promise.all(fileArray.map(file => optimizeImageForUpload(file)))
       const uploaded = await Promise.all(
-        fileArray.map(f => uploadToBunny(f, folder))
+        uploadFiles.map(f => uploadToBunny(f, folder))
       )
       onChange([
         ...photos,
@@ -99,7 +149,8 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
     setUploading(true)
     setError(null)
     try {
-      const uploaded = await uploadToBunny(nextFile, folder)
+      const uploadFile = await optimizeImageForUpload(nextFile)
+      const uploaded = await uploadToBunny(uploadFile, folder)
       onChange(photos.map((p, i) => i === idx ? { url: uploaded.url, path: uploaded.path, name: nextFile.name } : p))
       if (isUploadedMedia(current)) {
         try {
