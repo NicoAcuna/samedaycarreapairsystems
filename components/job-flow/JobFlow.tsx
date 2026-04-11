@@ -353,6 +353,8 @@ function ChecklistMediaPicker({
   const [error, setError] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
 
   async function addFiles(files: FileList | null) {
     if (!files) return
@@ -491,12 +493,43 @@ function ChecklistMediaPicker({
         </div>
       )}
       <div className="flex gap-2 flex-wrap">
-        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          📷 Camera <input type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
-        </label>
-        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          📂 Gallery <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
-        </label>
+        <button
+          type="button"
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={uploading}
+          className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          📷 Camera
+        </button>
+        <button
+          type="button"
+          onClick={() => galleryInputRef.current?.click()}
+          disabled={uploading}
+          className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          📂 Gallery
+        </button>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files
+            addFiles(f).then(() => { e.target.value = '' })
+          }}
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files
+            addFiles(f).then(() => { e.target.value = '' })
+          }}
+        />
         {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
       </div>
       {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
