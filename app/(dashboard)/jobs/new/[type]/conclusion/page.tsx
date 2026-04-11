@@ -42,32 +42,45 @@ function ConclusionPageInner({ params }: { params: Promise<{ type: string }> }) 
         vehicleId ? supabase.from('vehicles').select('make, model, year, plate, odometer_km').eq('id', vehicleId).single() : Promise.resolve({ data: null }),
       ])
 
+      const companyId = userData?.active_company_id || userData?.company_id
       const checklist_data = { ...flowData, _client: clientSnap, _vehicle: vehicleSnap }
       const jobPayload = {
         type,
-        status: 'pending',
+        status: 'completed',
         client_id:    clientId  || null,
         vehicle_id:   vehicleId || null,
         odometer_km:  flowData.currentKm ? Number(flowData.currentKm) : null,
+        company_id:   companyId,
         checklist_data,
       }
 
       let jobId: string | null = null
 
       if (draftId) {
-        const { error: updateErr } = await supabase
+        const { data: updatedJob, error: updateErr } = await supabase
           .from('jobs')
           .update(jobPayload)
           .eq('id', draftId)
           .eq('user_id', user.id)
-        if (!updateErr) jobId = draftId
+          .select('id')
+          .maybeSingle()
+
+        if (updateErr) {
+          throw new Error(updateErr.message)
+        }
+
+        if (!updatedJob?.id) {
+          throw new Error('Could not finalize the existing draft job. Please try again from the job list.')
+        }
+
+        jobId = updatedJob.id
       }
 
       if (!jobId) {
         const { data, error: insertErr } = await supabase.from('jobs').insert([{
           ...jobPayload,
           user_id:    user.id,
-          company_id: userData?.active_company_id || userData?.company_id,
+          company_id: companyId,
         }]).select('id').single()
         if (insertErr) throw new Error(insertErr.message)
         jobId = data?.id || null
