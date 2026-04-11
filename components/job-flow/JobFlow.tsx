@@ -334,6 +334,188 @@ function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[];
   )
 }
 
+function ChecklistMediaPicker({
+  photos,
+  onPhotosChange,
+  videos,
+  onVideosChange,
+}: {
+  photos: Photo[]
+  onPhotosChange: (photos: Photo[]) => void
+  videos: Video[]
+  onVideosChange: (videos: Video[]) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [videoPreview, setVideoPreview] = useState<string | null>(null)
+
+  async function addFiles(files: FileList | null) {
+    if (!files) return
+    const fileArray = Array.from(files)
+    const imageFiles = fileArray.filter(file => file.type.startsWith('image/'))
+    const videoFiles = fileArray.filter(file => file.type.startsWith('video/'))
+
+    const tempPhotos = imageFiles.map(file => ({
+      url: URL.createObjectURL(file),
+      name: file.name,
+      pending: true,
+    }))
+    const tempVideos = videoFiles.map(file => ({
+      url: '',
+      name: file.name,
+      pending: true,
+    }))
+
+    if (tempPhotos.length > 0) onPhotosChange([...photos, ...tempPhotos])
+    if (tempVideos.length > 0) onVideosChange([...videos, ...tempVideos])
+
+    setUploading(true)
+    setError(null)
+    try {
+      const uploadedImages = await Promise.all(
+        imageFiles.map(async file => {
+          const uploadFile = await optimizeImageForUpload(file)
+          return uploadToBunny(uploadFile, 'photos')
+        })
+      )
+      const uploadedVideos = await Promise.all(
+        videoFiles.map(file => uploadToBunny(file, 'videos'))
+      )
+
+      if (imageFiles.length > 0) {
+        onPhotosChange([
+          ...photos,
+          ...uploadedImages.map((media, i) => ({ url: media.url, path: media.path, name: imageFiles[i].name })),
+        ])
+      }
+
+      if (videoFiles.length > 0) {
+        onVideosChange([
+          ...videos,
+          ...uploadedVideos.map((media, i) => ({ url: media.url, path: media.path, name: videoFiles[i].name })),
+        ])
+      }
+    } catch (e) {
+      tempPhotos.forEach(photo => revokeObjectUrl(photo.url))
+      onPhotosChange(photos)
+      onVideosChange(videos)
+      console.error('Checklist media upload failed:', e)
+      setError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function removePhoto(idx: number) {
+    const target = photos[idx]
+    onPhotosChange(photos.filter((_, i) => i !== idx))
+    setImagePreview(null)
+    setError(null)
+
+    if (!target) return
+    revokeObjectUrl(target.url)
+
+    if (isUploadedMedia(target)) {
+      try {
+        await deleteFromBunny(target)
+      } catch (e) {
+        console.error('Photo delete failed:', e)
+        setError(e instanceof Error ? e.message : 'Photo delete failed')
+      }
+    }
+  }
+
+  async function removeVideo(idx: number) {
+    const target = videos[idx]
+    onVideosChange(videos.filter((_, i) => i !== idx))
+    setVideoPreview(null)
+    setError(null)
+
+    if (!target) return
+    revokeObjectUrl(target.url)
+
+    if (isUploadedMedia(target)) {
+      try {
+        await deleteFromBunny(target)
+      } catch (e) {
+        console.error('Video delete failed:', e)
+        setError(e instanceof Error ? e.message : 'Video delete failed')
+      }
+    }
+  }
+
+  return (
+    <div className="mt-2">
+      {(photos.length > 0 || videos.length > 0) && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {photos.map((photo, idx) => (
+            <div key={`photo-${idx}`} className="relative group w-16 h-16 flex-shrink-0">
+              <img
+                src={photo.url}
+                alt={photo.name}
+                onClick={() => { if (!photo.pending) setImagePreview(photo.url) }}
+                className="w-full h-full object-cover rounded-lg border border-neutral-200 cursor-pointer"
+              />
+              {photo.pending && (
+                <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
+                  Uploading...
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <button onClick={() => removePhoto(idx)} className="text-white bg-red-500/90 rounded px-1.5 py-1 text-xs hover:bg-red-600" title="Remove">✕</button>
+              </div>
+            </div>
+          ))}
+          {videos.map((video, idx) => (
+            <div
+              key={`video-${idx}`}
+              className="relative group w-16 h-16 flex-shrink-0 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center cursor-pointer"
+              onClick={() => { if (!video.pending && video.url) setVideoPreview(video.url) }}
+            >
+              <span className="text-2xl">▶</span>
+              {video.pending && (
+                <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
+                  Uploading...
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <button onClick={e => { e.stopPropagation(); removeVideo(idx) }} className="text-white bg-red-500/90 rounded px-1.5 py-1 text-xs hover:bg-red-600" title="Remove">✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 flex-wrap">
+        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+          📷 Camera <input type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
+        </label>
+        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+          📂 Gallery <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
+        </label>
+        {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
+      </div>
+      {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
+      {imagePreview && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setImagePreview(null)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <img src={imagePreview} alt="Preview" className="max-w-[90vw] max-h-[80vh] rounded-xl object-contain shadow-2xl" />
+            <button onClick={() => setImagePreview(null)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
+          </div>
+        </div>
+      )}
+      {videoPreview && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setVideoPreview(null)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <video src={videoPreview} controls autoPlay className="max-w-[90vw] max-h-[80vh] rounded-xl shadow-2xl" />
+            <button onClick={() => setVideoPreview(null)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 export const FLOW_CONFIG = {
   pre_purchase: {
@@ -407,8 +589,12 @@ function ChecklistItem({ name, options, selected, comment, onSelect, onComment, 
       <input type="text" value={comment} onChange={e => onComment(e.target.value)}
         placeholder="Optional comment..."
         className="w-full text-base px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400" />
-      <PhotoPicker photos={photos} onChange={onPhotosChange} />
-      <VideoPicker videos={videos} onChange={onVideosChange} />
+      <ChecklistMediaPicker
+        photos={photos}
+        onPhotosChange={onPhotosChange}
+        videos={videos}
+        onVideosChange={onVideosChange}
+      />
     </div>
   )
 }
