@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import { useRouter } from 'next/navigation'
 
 // ── MEDIA TYPES ───────────────────────────────────────────────────────────────
@@ -349,12 +349,13 @@ function ChecklistMediaPicker({
   videos: Video[]
   onVideosChange: (videos: Video[]) => void
 }) {
+  const inputId = useId()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
-  const galleryInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputId = `${inputId}-camera`
+  const galleryInputId = `${inputId}-gallery`
 
   async function addFiles(files: FileList | null) {
     if (!files) return
@@ -493,38 +494,35 @@ function ChecklistMediaPicker({
         </div>
       )}
       <div className="flex gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => cameraInputRef.current?.click()}
-          disabled={uploading}
-          className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        <label
+          htmlFor={cameraInputId}
+          className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
         >
           📷 Camera
-        </button>
-        <button
-          type="button"
-          onClick={() => galleryInputRef.current?.click()}
-          disabled={uploading}
-          className="text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        </label>
+        <label
+          htmlFor={galleryInputId}
+          className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
         >
           📂 Gallery
-        </button>
+        </label>
         <input
-          ref={cameraInputRef}
+          id={cameraInputId}
           type="file"
           accept="image/*,video/*"
-          className="hidden"
+          capture="environment"
+          className="sr-only"
           onChange={e => {
             const f = e.target.files
             addFiles(f).then(() => { e.target.value = '' })
           }}
         />
         <input
-          ref={galleryInputRef}
+          id={galleryInputId}
           type="file"
           accept="image/*,video/*"
           multiple
-          className="hidden"
+          className="sr-only"
           onChange={e => {
             const f = e.target.files
             addFiles(f).then(() => { e.target.value = '' })
