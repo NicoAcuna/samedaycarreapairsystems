@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useId } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 // ── MEDIA TYPES ───────────────────────────────────────────────────────────────
@@ -349,13 +349,10 @@ function ChecklistMediaPicker({
   videos: Video[]
   onVideosChange: (videos: Video[]) => void
 }) {
-  const inputId = useId()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
-  const cameraInputId = `${inputId}-camera`
-  const galleryInputId = `${inputId}-gallery`
 
   async function addFiles(files: FileList | null) {
     if (!files) return
@@ -495,39 +492,35 @@ function ChecklistMediaPicker({
       )}
       <div className="flex gap-2 flex-wrap">
         <label
-          htmlFor={cameraInputId}
           className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
         >
           📷 Camera
+          <input
+            type="file"
+            accept="image/*,video/*"
+            capture="environment"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files
+              addFiles(f).then(() => { e.target.value = '' })
+            }}
+          />
         </label>
         <label
-          htmlFor={galleryInputId}
           className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
         >
           📂 Gallery
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files
+              addFiles(f).then(() => { e.target.value = '' })
+            }}
+          />
         </label>
-        <input
-          id={cameraInputId}
-          type="file"
-          accept="image/*,video/*"
-          capture="environment"
-          className="sr-only"
-          onChange={e => {
-            const f = e.target.files
-            addFiles(f).then(() => { e.target.value = '' })
-          }}
-        />
-        <input
-          id={galleryInputId}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          className="sr-only"
-          onChange={e => {
-            const f = e.target.files
-            addFiles(f).then(() => { e.target.value = '' })
-          }}
-        />
         {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
       </div>
       {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
