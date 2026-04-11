@@ -610,7 +610,7 @@ interface JobFlowProps {
   initialDone?: Set<string>
   initialServiceSubtype?: string
   onComplete: () => void
-  onAutoSave?: (data: object) => void
+  onAutoSave?: (data: object) => void | Promise<void>
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
@@ -673,6 +673,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   const [finalNotes, setFinalNotes] = useState<string>('')
   const hasHydratedRef = useRef(false)
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const skipUnmountSaveRef = useRef(false)
 
   // Restore saved state on client mount (after SSR hydration)
   useEffect(() => {
@@ -734,6 +735,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   // Save on unmount (e.g. user navigates to another tab mid-flow)
   const saveOnUnmountRef = useRef<() => void>(() => {})
   saveOnUnmountRef.current = () => {
+    if (skipUnmountSaveRef.current) return
     const flowData = buildFlowData()
     if (jobId) {
       // Persist existing job to Supabase on navigate away
@@ -851,7 +853,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     buildFlowData,
   ])
 
-  function handleNext() {
+  async function handleNext() {
     if (hasPendingUploads) return
 
     const updatedDone = new Set([...doneSections, activeSection.key])
@@ -861,7 +863,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       sessionStorage.setItem(`job_flow_${jobId}_done`,  JSON.stringify([...updatedDone]))
       sessionStorage.setItem(`job_flow_${jobId}_state`, JSON.stringify(flowData))
       // Also persist to Supabase so refresh doesn't lose data
-      onAutoSave?.(flowData)
+      await onAutoSave?.(flowData)
     } else {
       // Persist new-job draft to localStorage (survives tab close + refresh)
       try {
@@ -873,7 +875,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
           _vehicleId: vehicleId,
         }))
       } catch { /* quota exceeded — ignore */ }
-      onAutoSave?.(flowData)
+      await onAutoSave?.(flowData)
     }
     sessionStorage.setItem('job_flow_data', JSON.stringify(flowData))
     if (activeIdx < sections.length - 1) {
@@ -889,6 +891,8 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
         }
       }, 50)
     } else {
+      skipUnmountSaveRef.current = true
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
       onComplete()
     }
   }
