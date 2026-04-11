@@ -108,6 +108,8 @@ function sanitizeMediaMap<T extends { url: string; pending?: boolean }>(mediaMap
 }
 
 // ── PHOTO PICKER ──────────────────────────────────────────────────────────────
+// Legacy standalone picker kept temporarily for compatibility while unified media picker is rolled out.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[]; onChange: (photos: Photo[]) => void; folder?: string }) {
   const [preview, setPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -239,6 +241,8 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
 }
 
 // ── VIDEO PICKER ──────────────────────────────────────────────────────────────
+// Legacy standalone picker kept temporarily for compatibility while unified media picker is rolled out.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[]; onChange: (videos: Video[]) => void; folder?: string }) {
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
@@ -1242,8 +1246,12 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
             <textarea value={complaint} onChange={e => setComplaint(e.target.value)}
               placeholder="Describe what the customer reported..." rows={4}
               className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-            <PhotoPicker photos={ph('complaint')} onChange={ps => setPh('complaint', ps)} folder="photos" />
-            <VideoPicker videos={vid('complaint')} onChange={vs => setVid('complaint', vs)} folder="videos" />
+            <ChecklistMediaPicker
+              photos={ph('complaint')}
+              onPhotosChange={ps => setPh('complaint', ps)}
+              videos={vid('complaint')}
+              onVideosChange={vs => setVid('complaint', vs)}
+            />
           </div>
         </div>
       )
@@ -1253,8 +1261,12 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
           <textarea value={findings} onChange={e => setFindings(e.target.value)}
             placeholder="Describe what you found..." rows={5}
             className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-          <PhotoPicker photos={ph('findings')} onChange={ps => setPh('findings', ps)} folder="photos" />
-          <VideoPicker videos={vid('findings')} onChange={vs => setVid('findings', vs)} folder="videos" />
+          <ChecklistMediaPicker
+            photos={ph('findings')}
+            onPhotosChange={ps => setPh('findings', ps)}
+            videos={vid('findings')}
+            onVideosChange={vs => setVid('findings', vs)}
+          />
         </div>
       )
       if (key === 'outcome') {
@@ -1445,7 +1457,12 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
             <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)}
               placeholder="Any final notes about the repair..." rows={3}
               className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-            <PhotoPicker photos={ph('outcome')} onChange={ps => setPh('outcome', ps)} />
+            <ChecklistMediaPicker
+              photos={ph('outcome')}
+              onPhotosChange={ps => setPh('outcome', ps)}
+              videos={vid('outcome')}
+              onVideosChange={vs => setVid('outcome', vs)}
+            />
           </div>
         </div>
       )
