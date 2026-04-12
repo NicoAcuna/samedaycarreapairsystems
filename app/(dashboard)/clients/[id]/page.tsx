@@ -438,6 +438,108 @@ function NewJobModal({ clientId, vehicles, onClose, onSaved }: { clientId: strin
   )
 }
 
+// ── NPS Modal ─────────────────────────────────────────────────────────────────
+function NpsModal({ clientId, current, onClose, onSaved }: {
+  clientId: string
+  current: ClientInteraction | null
+  onClose: () => void
+  onSaved: (interaction: ClientInteraction) => void
+}) {
+  const [score, setScore] = useState<number | null>(current?.nps_score ?? null)
+  const [comment, setComment] = useState(current?.comment || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSave() {
+    if (score === null) { setError('Select a score'); return }
+    setSaving(true); setError('')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error: err } = await supabase
+      .from('client_interactions')
+      .insert([{
+        client_id: clientId,
+        user_id: user?.id,
+        interaction_type: 'nps',
+        nps_score: score,
+        comment: comment.trim() || null,
+        mood: score >= 9 ? 'happy' : score >= 7 ? 'neutral' : 'angry',
+      }])
+      .select('id, mood, comment, created_at, nps_score')
+      .single()
+    setSaving(false)
+    if (err) { setError(err.message); return }
+    onSaved(data as ClientInteraction)
+  }
+
+  const preview = getClientStatus(score)
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
+          <div>
+            <div className="font-semibold text-neutral-900">Update NPS</div>
+            <div className="text-xs text-neutral-400 mt-0.5">How likely is this client to recommend you?</div>
+          </div>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+        <div className="px-5 py-5 space-y-5">
+          <div>
+            <div className="flex justify-between text-xs text-neutral-400 mb-2">
+              <span>Not likely</span>
+              <span>Very likely</span>
+            </div>
+            <div className="grid grid-cols-11 gap-1">
+              {Array.from({ length: 11 }, (_, i) => {
+                const active = score === i
+                const color = i >= 9 ? 'bg-emerald-500 text-white border-emerald-500'
+                  : i >= 7 ? 'bg-amber-400 text-white border-amber-400'
+                  : 'bg-red-500 text-white border-red-500'
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setScore(i)}
+                    className={`h-9 rounded-lg text-sm font-semibold border transition-colors ${active ? color : 'border-neutral-200 text-neutral-600 hover:border-neutral-400'}`}
+                  >
+                    {i}
+                  </button>
+                )
+              })}
+            </div>
+            {score !== null && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${preview.tone}`}>
+                  {preview.label}
+                </span>
+                <span className="text-xs text-neutral-400">{preview.summary}</span>
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Feedback (optional)</label>
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Any comments from the client…"
+              rows={3}
+              className="w-full text-sm border border-neutral-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-neutral-400 resize-none"
+            />
+          </div>
+          {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</div>}
+        </div>
+        <div className="flex gap-3 px-5 pb-5 border-t border-neutral-100 pt-3">
+          <button onClick={onClose} className="flex-1 text-sm py-3 border border-neutral-200 rounded-xl hover:bg-neutral-50 text-neutral-600 font-medium">Cancel</button>
+          <button onClick={handleSave} disabled={saving || score === null}
+            className="flex-1 text-sm py-3 bg-neutral-900 text-white rounded-xl hover:bg-neutral-700 disabled:opacity-50 font-medium">
+            {saving ? 'Saving…' : 'Save NPS'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -451,6 +553,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [showAddVehicle, setShowAddVehicle] = useState(false)
   const [showNewJob, setShowNewJob]     = useState(false)
   const [showDelete, setShowDelete] = useState(false)
+  const [showNps, setShowNps] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
@@ -520,6 +623,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       {showEdit       && <EditModal client={client} onClose={() => setShowEdit(false)} onSaved={c => { setClient(c); setShowEdit(false) }} />}
       {showAddVehicle && <AddVehicleModal clientId={id} onClose={() => setShowAddVehicle(false)} onSaved={v => { setVehicles(prev => [v, ...prev]); setShowAddVehicle(false) }} />}
       {showNewJob     && <NewJobModal clientId={id} vehicles={vehicles} onClose={() => setShowNewJob(false)} onSaved={j => { setJobs(prev => [j, ...prev]); setShowNewJob(false) }} />}
+      {showNps        && <NpsModal clientId={id} current={latestNps} onClose={() => setShowNps(false)} onSaved={nps => { setLatestNps(nps); setShowNps(false) }} />}
 
 	      {/* Header */}
 	      <div className="flex items-center justify-between mb-6">
@@ -565,9 +669,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	      </div>
 
         <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
-          <div className="px-5 py-3 border-b border-neutral-100">
-            <div className="text-sm font-semibold text-neutral-900">Customer sentiment</div>
-            <div className="text-xs text-neutral-400 mt-0.5">{clientStatus.summary}</div>
+          <div className="px-5 py-3 border-b border-neutral-100 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-neutral-900">Customer sentiment</div>
+              <div className="text-xs text-neutral-400 mt-0.5">{clientStatus.summary}</div>
+            </div>
+            <button onClick={() => setShowNps(true)} className="text-xs px-3 py-1.5 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">
+              Update NPS
+            </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100">
             <div className="p-5">
