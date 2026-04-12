@@ -455,11 +455,13 @@ function NpsModal({ clientId, current, onClose, onSaved }: {
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    const { data: userData } = await supabase.from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const { data, error: err } = await supabase
       .from('client_interactions')
       .insert([{
         client_id: clientId,
         user_id: user?.id,
+        company_id: userData?.active_company_id || userData?.company_id,
         interaction_type: 'nps',
         nps_score: score,
         comment: comment.trim() || null,
