@@ -113,11 +113,7 @@ function SendModal({
   const dateStr = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
   const subjectDefault = `Your ${titleStr}${vehicleStr ? ` — ${vehicleStr}` : ''} — ${dateStr}`
   const reportUrl = reportToken ? `/report/${reportToken}` : null
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : '') ||
-    'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
   const fullReportUrl = `${baseUrl}${reportUrl}`
 
   const [tab, setTab] = useState<'email' | 'whatsapp'>('email')

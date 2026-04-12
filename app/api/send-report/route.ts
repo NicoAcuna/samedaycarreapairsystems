@@ -8,10 +8,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 })
   }
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL!
 
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
