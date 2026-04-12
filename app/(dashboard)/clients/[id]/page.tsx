@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, formatClientLocation, getPostcodeForSuburb, normalizeNswState } from '../../../lib/reference-data/locations'
@@ -49,6 +49,8 @@ type ClientInteraction = {
   nps_score: number | null
 }
 
+const GOOGLE_REVIEW_LINK = 'https://g.page/r/CcCsiVCVHtVCEBM/review'
+
 function fullName(c: Client) {
   return [c.first_name, c.last_name].filter(Boolean).join(' ')
 }
@@ -82,6 +84,22 @@ function getClientStatus(npsScore: number | null) {
     label: 'At Risk',
     tone: 'bg-red-50 text-red-700',
     summary: 'Needs follow-up. This client may have friction after the job.',
+  }
+}
+
+function normaliseWhatsAppPhone(phone?: string | null) {
+  return (phone || '').replace(/[^\d+]/g, '').replace(/^\+/, '')
+}
+
+function openWhatsApp(phone: string, message?: string) {
+  const normalizedPhone = normaliseWhatsAppPhone(phone)
+  if (!normalizedPhone) throw new Error('This client does not have a valid phone number yet.')
+
+  const query = message ? `?text=${encodeURIComponent(message)}` : ''
+  const popup = window.open(`https://api.whatsapp.com/send?phone=${normalizedPhone}${query}`, '_blank', 'noopener,noreferrer')
+
+  if (!popup) {
+    throw new Error('Could not open WhatsApp. Please allow pop-ups and try again.')
   }
 }
 
@@ -558,6 +576,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [showNps, setShowNps] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [showWhatsAppMenu, setShowWhatsAppMenu] = useState(false)
+  const [whatsAppError, setWhatsAppError] = useState('')
+  const whatsAppMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -581,6 +602,17 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       setLoading(false)
     })
   }, [id])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (whatsAppMenuRef.current && !whatsAppMenuRef.current.contains(event.target as Node)) {
+        setShowWhatsAppMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
   if (!client) return <div className="p-6 text-sm text-neutral-400">Client not found.</div>
@@ -620,6 +652,27 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     router.push('/clients')
   }
 
+  function handleRequestGoogleReview() {
+    try {
+      const message = `Hi ${client.first_name}, if you have a minute, we’d really appreciate a quick Google review: ${GOOGLE_REVIEW_LINK}`
+      openWhatsApp(client.phone, message)
+      setWhatsAppError('')
+      setShowWhatsAppMenu(false)
+    } catch (error) {
+      setWhatsAppError(error instanceof Error ? error.message : 'Could not open WhatsApp.')
+    }
+  }
+
+  function handleOpenFreeWhatsApp() {
+    try {
+      openWhatsApp(client.phone)
+      setWhatsAppError('')
+      setShowWhatsAppMenu(false)
+    } catch (error) {
+      setWhatsAppError(error instanceof Error ? error.message : 'Could not open WhatsApp.')
+    }
+  }
+
   return (
     <div className="p-6 max-w-3xl">
       {showEdit       && <EditModal client={client} onClose={() => setShowEdit(false)} onSaved={c => { setClient(c); setShowEdit(false) }} />}
@@ -631,10 +684,42 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	      <div className="flex items-center justify-between mb-6">
 	        <button onClick={() => router.push('/clients')} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to clients</button>
           <div className="flex items-center gap-2">
+            <div className="relative" ref={whatsAppMenuRef}>
+              <button
+                onClick={() => {
+                  setWhatsAppError('')
+                  setShowWhatsAppMenu(prev => !prev)
+                }}
+                className="text-sm px-4 py-2 border border-green-200 rounded-lg hover:bg-green-50 text-green-700"
+              >
+                WhatsApp
+              </button>
+              {showWhatsAppMenu && (
+                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-neutral-200 bg-white shadow-lg z-20 overflow-hidden">
+                  <button
+                    onClick={handleRequestGoogleReview}
+                    className="w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Request Google review
+                  </button>
+                  <button
+                    onClick={handleOpenFreeWhatsApp}
+                    className="w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-50 border-t border-neutral-100"
+                  >
+                    Open free WhatsApp chat
+                  </button>
+                </div>
+              )}
+            </div>
 	        <button onClick={() => setShowEdit(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Edit</button>
             <button onClick={() => { setDeleteError(''); setShowDelete(true) }} className="text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600">Delete</button>
           </div>
 	      </div>
+        {whatsAppError && (
+          <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 max-w-md ml-auto">
+            {whatsAppError}
+          </div>
+        )}
 
       {/* Client card */}
 	      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
