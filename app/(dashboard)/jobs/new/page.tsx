@@ -107,7 +107,7 @@ function NewJobPageInner() {
       )
     : []
 
-  const filteredVehicles = vehicleQuery.length >= 1
+  const matchedVehicles = vehicleQuery.length >= 1
     ? vehicles.filter(v =>
         v.plate?.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
         v.make?.toLowerCase().includes(vehicleQuery.toLowerCase()) ||
@@ -116,6 +116,13 @@ function NewJobPageInner() {
         `${v.make} ${v.model}`.toLowerCase().includes(vehicleQuery.toLowerCase())
       )
     : vehicles
+
+  const filteredVehicles = [...matchedVehicles].sort((a, b) => {
+    const aOwn = a.client_id === selectedClient?.id ? 1 : 0
+    const bOwn = b.client_id === selectedClient?.id ? 1 : 0
+    if (aOwn !== bOwn) return bOwn - aOwn
+    return 0
+  })
 
   function selectClient(client: Client) {
     setLoadingVehicles(true)
