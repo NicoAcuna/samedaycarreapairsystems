@@ -127,236 +127,8 @@ function validateUploadableImage(file: File) {
   }
 }
 
-// ── PHOTO PICKER ──────────────────────────────────────────────────────────────
-function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[]; onChange: (photos: Photo[]) => void; folder?: string }) {
-  const [preview, setPreview] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  async function addFiles(files: FileList | null) {
-    if (!files) return
-    const fileArray = Array.from(files)
-    const tempPhotos = fileArray.map(file => ({
-      url: URL.createObjectURL(file),
-      name: file.name,
-      pending: true,
-    }))
-
-    onChange([...photos, ...tempPhotos])
-    setUploading(true)
-    setError(null)
-    try {
-      const uploadFiles = await Promise.all(fileArray.map(file => optimizeImageForUpload(file)))
-      uploadFiles.forEach(validateUploadableImage)
-      const uploaded = await Promise.all(
-        uploadFiles.map(f => uploadToBunny(f, folder))
-      )
-      onChange([
-        ...photos,
-        ...uploaded.map((media, i) => ({ url: media.url, path: media.path, name: fileArray[i].name })),
-      ])
-    } catch (e) {
-      tempPhotos.forEach(photo => revokeObjectUrl(photo.url))
-      onChange(photos)
-      console.error('Photo upload failed:', e)
-      setError(e instanceof Error ? e.message : 'Photo upload failed')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  async function replacePhoto(idx: number, files: FileList | null) {
-    if (!files || !files[0]) return
-    const nextFile = files[0]
-    const current = photos[idx]
-    const tempUrl = URL.createObjectURL(nextFile)
-
-    onChange(photos.map((p, i) => i === idx ? { url: tempUrl, name: nextFile.name, pending: true } : p))
-    setUploading(true)
-    setError(null)
-    try {
-      const uploadFile = await optimizeImageForUpload(nextFile)
-      validateUploadableImage(uploadFile)
-      const uploaded = await uploadToBunny(uploadFile, folder)
-      onChange(photos.map((p, i) => i === idx ? { url: uploaded.url, path: uploaded.path, name: nextFile.name } : p))
-      if (isUploadedMedia(current)) {
-        try {
-          await deleteFromBunny(current)
-        } catch (deleteError) {
-          console.error('Photo cleanup failed:', deleteError)
-        }
-      }
-    } catch (e) {
-      revokeObjectUrl(tempUrl)
-      onChange(photos)
-      console.error('Photo replace failed:', e)
-      setError(e instanceof Error ? e.message : 'Photo replace failed')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  async function removePhoto(idx: number) {
-    const target = photos[idx]
-    onChange(photos.filter((_, i) => i !== idx))
-    setPreview(null)
-    setError(null)
-
-    if (!target) return
-    revokeObjectUrl(target.url)
-
-    if (isUploadedMedia(target)) {
-      try {
-        await deleteFromBunny(target)
-      } catch (e) {
-        console.error('Photo delete failed:', e)
-        setError(e instanceof Error ? e.message : 'Photo delete failed')
-      }
-    }
-  }
-
-  return (
-    <div className="mt-2">
-      {photos.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
-          {photos.map((photo, idx) => (
-            <div key={idx} className="relative group w-16 h-16 flex-shrink-0">
-              <img src={photo.url} alt={photo.name} onClick={() => { if (!photo.pending) setPreview(photo.url) }}
-                className="w-full h-full object-cover rounded-lg border border-neutral-200 cursor-pointer" />
-              {photo.pending && (
-                <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
-                  Uploading...
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                <label className="cursor-pointer text-white bg-black/60 rounded px-1.5 py-1 text-xs hover:bg-black/80" title="Replace">
-                  ↺ <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files; replacePhoto(idx, f).then(() => { (e.target as HTMLInputElement).value = '' }) }} />
-                </label>
-                <button onClick={() => removePhoto(idx)} className="text-white bg-red-500/90 rounded px-1.5 py-1 text-xs hover:bg-red-600" title="Remove">✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="flex gap-2 flex-wrap">
-        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          📷 Camera <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
-        </label>
-        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          🖼️ Gallery <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
-        </label>
-        {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
-      </div>
-      {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
-      {preview && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
-          <div className="relative" onClick={e => e.stopPropagation()}>
-            <img src={preview} alt="Preview" className="max-w-[90vw] max-h-[80vh] rounded-xl object-contain shadow-2xl" />
-            <button onClick={() => setPreview(null)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── VIDEO PICKER ──────────────────────────────────────────────────────────────
-function VideoPicker({ videos, onChange, folder = 'videos' }: { videos: Video[]; onChange: (videos: Video[]) => void; folder?: string }) {
-  const [uploading, setUploading] = useState(false)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  async function addFiles(files: FileList | null) {
-    if (!files) return
-    const fileArray = Array.from(files)
-    const tempVideos = fileArray.map(file => ({
-      url: '',
-      name: file.name,
-      pending: true,
-    }))
-
-    onChange([...videos, ...tempVideos])
-    setUploading(true)
-    setError(null)
-    try {
-      const uploaded = await Promise.all(
-        fileArray.map(f => uploadToBunny(f, folder))
-      )
-      onChange([
-        ...videos,
-        ...uploaded.map((media, i) => ({ url: media.url, path: media.path, name: fileArray[i].name })),
-      ])
-    } catch (e) {
-      onChange(videos)
-      console.error('Video upload failed:', e)
-      setError(e instanceof Error ? e.message : 'Video upload failed')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  async function removeVideo(idx: number) {
-    const target = videos[idx]
-    onChange(videos.filter((_, i) => i !== idx))
-    setPreview(null)
-    setError(null)
-
-    if (!target) return
-    revokeObjectUrl(target.url)
-
-    if (isUploadedMedia(target)) {
-      try {
-        await deleteFromBunny(target)
-      } catch (e) {
-        console.error('Video delete failed:', e)
-        setError(e instanceof Error ? e.message : 'Video delete failed')
-      }
-    }
-  }
-
-  return (
-    <div className="mt-2">
-      {videos.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
-          {videos.map((video, idx) => (
-            <div key={idx} className="relative group w-16 h-16 flex-shrink-0 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center cursor-pointer"
-              onClick={() => { if (!video.pending && video.url) setPreview(video.url) }}>
-              <span className="text-2xl">▶</span>
-              {video.pending && (
-                <div className="absolute inset-0 rounded-lg bg-black/35 flex items-center justify-center text-[10px] font-medium text-white">
-                  Uploading...
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <button onClick={e => { e.stopPropagation(); removeVideo(idx) }} className="text-white bg-red-500/90 rounded px-1.5 py-1 text-xs hover:bg-red-600" title="Remove">✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="flex gap-2 flex-wrap">
-        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          🎥 Record <input type="file" accept="video/*" className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
-        </label>
-        <label className={`text-xs px-3 py-1.5 border border-dashed border-neutral-300 rounded-lg text-neutral-400 hover:border-neutral-500 hover:text-neutral-500 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          📂 Video <input type="file" accept="video/*" multiple className="hidden" onChange={e => { const f = e.target.files; addFiles(f).then(() => { e.target.value = '' }) }} />
-        </label>
-        {uploading && <span className="text-xs text-neutral-400 py-1.5">Uploading…</span>}
-      </div>
-      {error && <div className="mt-2 text-xs text-red-500">{error}</div>}
-      {preview && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
-          <div className="relative" onClick={e => e.stopPropagation()}>
-            <video src={preview} controls autoPlay className="max-w-[90vw] max-h-[80vh] rounded-xl shadow-2xl" />
-            <button onClick={() => setPreview(null)} className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-black/60 text-white rounded-full hover:bg-black/80 text-sm">✕</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ChecklistMediaPicker({
+function MediaPicker({
   photos,
   onPhotosChange,
   videos,
@@ -612,7 +384,7 @@ function ChecklistItem({ name, options, selected, comment, onSelect, onComment, 
       <input type="text" value={comment} onChange={e => onComment(e.target.value)}
         placeholder="Optional comment..."
         className="w-full text-base px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400" />
-      <ChecklistMediaPicker
+      <MediaPicker
         photos={photos}
         onPhotosChange={onPhotosChange}
         videos={videos}
@@ -1265,8 +1037,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
             <textarea value={complaint} onChange={e => setComplaint(e.target.value)}
               placeholder="Describe what the customer reported..." rows={4}
               className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-            <PhotoPicker photos={ph('complaint')} onChange={ps => setPh('complaint', ps)} folder="photos" />
-            <VideoPicker videos={vid('complaint')} onChange={vs => setVid('complaint', vs)} folder="videos" />
+            <MediaPicker photos={ph('complaint')} onPhotosChange={ps => setPh('complaint', ps)} videos={vid('complaint')} onVideosChange={vs => setVid('complaint', vs)} />
           </div>
         </div>
       )
@@ -1276,8 +1047,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
           <textarea value={findings} onChange={e => setFindings(e.target.value)}
             placeholder="Describe what you found..." rows={5}
             className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-          <PhotoPicker photos={ph('findings')} onChange={ps => setPh('findings', ps)} folder="photos" />
-          <VideoPicker videos={vid('findings')} onChange={vs => setVid('findings', vs)} folder="videos" />
+          <MediaPicker photos={ph('findings')} onPhotosChange={ps => setPh('findings', ps)} videos={vid('findings')} onVideosChange={vs => setVid('findings', vs)} />
         </div>
       )
       if (key === 'outcome') {
@@ -1468,7 +1238,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
             <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)}
               placeholder="Any final notes about the repair..." rows={3}
               className="w-full text-base px-3 py-3 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none resize-none" />
-            <PhotoPicker photos={ph('outcome')} onChange={ps => setPh('outcome', ps)} />
+            <MediaPicker photos={ph('outcome')} onPhotosChange={ps => setPh('outcome', ps)} videos={vid('outcome')} onVideosChange={vs => setVid('outcome', vs)} />
           </div>
         </div>
       )
