@@ -685,42 +685,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	      <div className="flex items-center justify-between mb-6">
 	        <button onClick={() => router.push('/clients')} className="text-sm text-neutral-500 hover:text-neutral-700">← Back to clients</button>
           <div className="flex items-center gap-2">
-            <div className="relative" ref={whatsAppMenuRef}>
-              <button
-                onClick={() => {
-                  setWhatsAppError('')
-                  setShowWhatsAppMenu(prev => !prev)
-                }}
-                className="text-sm px-4 py-2 border border-green-200 rounded-lg hover:bg-green-50 text-green-700"
-              >
-                WhatsApp
-              </button>
-              {showWhatsAppMenu && (
-                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-neutral-200 bg-white shadow-lg z-20 overflow-hidden">
-                  <button
-                    onClick={handleRequestGoogleReview}
-                    className="w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-50"
-                  >
-                    Request Google review
-                  </button>
-                  <button
-                    onClick={handleOpenFreeWhatsApp}
-                    className="w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-50 border-t border-neutral-100"
-                  >
-                    Open free WhatsApp chat
-                  </button>
-                </div>
-              )}
-            </div>
 	        <button onClick={() => setShowEdit(true)} className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">Edit</button>
             <button onClick={() => { setDeleteError(''); setShowDelete(true) }} className="text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600">Delete</button>
           </div>
 	      </div>
-        {whatsAppError && (
-          <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 max-w-md ml-auto">
-            {whatsAppError}
-          </div>
-        )}
 
       {/* Client card */}
 	      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
@@ -742,7 +710,47 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	        </div>
         <div className="grid grid-cols-2 divide-x divide-neutral-100">
           <div className="p-5 space-y-3">
-            {[{ label: 'Phone', value: client.phone }, { label: 'Email', value: client.email }, { label: 'Address', value: client.address }, { label: 'Location', value: formatClientLocation(client.suburb, client.state, client.postcode) }].map(row => (
+            <div>
+              <div className="text-xs text-neutral-400 mb-0.5">Phone</div>
+              <div className="relative inline-flex items-center gap-2" ref={whatsAppMenuRef}>
+                <div className="text-sm font-medium text-neutral-900">{client.phone || '—'}</div>
+                <button
+                  onClick={() => {
+                    setWhatsAppError('')
+                    setShowWhatsAppMenu(prev => !prev)
+                  }}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
+                  aria-label="Open WhatsApp options"
+                  title="WhatsApp"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                    <path d="M12.04 2C6.55 2 2.1 6.45 2.1 11.94c0 1.76.46 3.48 1.33 4.99L2 22l5.22-1.37a9.9 9.9 0 0 0 4.82 1.23h.01c5.49 0 9.95-4.45 9.95-9.94A9.95 9.95 0 0 0 12.04 2Zm5.79 14.08c-.24.68-1.42 1.3-1.95 1.39-.5.08-1.12.11-1.81-.12-.42-.14-.96-.31-1.66-.61-2.91-1.26-4.8-4.2-4.94-4.4-.14-.2-1.18-1.57-1.18-2.99 0-1.42.74-2.12 1-2.41.26-.29.57-.36.76-.36s.38 0 .55.01c.18.01.42-.07.65.49.24.59.81 2.04.88 2.18.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.35-.42.47-.14.14-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.21 1.37.28.14.44.12.61-.07.17-.19.71-.83.9-1.11.19-.28.38-.23.64-.14.26.09 1.66.78 1.94.92.28.14.47.21.54.33.07.12.07.69-.17 1.37Z" />
+                  </svg>
+                </button>
+                {showWhatsAppMenu && (
+                  <div className="absolute left-full top-1/2 z-20 ml-2 w-64 -translate-y-1/2 rounded-xl border border-neutral-200 bg-white shadow-lg overflow-hidden">
+                    <button
+                      onClick={handleRequestGoogleReview}
+                      className="w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Request Google review
+                    </button>
+                    <button
+                      onClick={handleOpenFreeWhatsApp}
+                      className="w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-50 border-t border-neutral-100"
+                    >
+                      Open free WhatsApp chat
+                    </button>
+                  </div>
+                )}
+              </div>
+              {whatsAppError && (
+                <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 max-w-md">
+                  {whatsAppError}
+                </div>
+              )}
+            </div>
+            {[{ label: 'Email', value: client.email }, { label: 'Address', value: client.address }, { label: 'Location', value: formatClientLocation(client.suburb, client.state, client.postcode) }].map(row => (
               <div key={row.label}>
                 <div className="text-xs text-neutral-400 mb-0.5">{row.label}</div>
                 <div className="text-sm font-medium text-neutral-900">{row.value || '—'}</div>
