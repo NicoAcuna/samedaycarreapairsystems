@@ -99,7 +99,7 @@ function openWhatsApp(phone: string, message?: string) {
   const normalizedPhone = normaliseWhatsAppPhone(phone)
   if (!normalizedPhone) throw new Error('This client does not have a valid phone number yet.')
 
-  const query = message ? `?text=${encodeURIComponent(message)}` : ''
+  const query = message ? `&text=${encodeURIComponent(message)}` : ''
   const popup = window.open(`https://api.whatsapp.com/send?phone=${normalizedPhone}${query}`, '_blank', 'noopener,noreferrer')
 
   if (!popup) {
