@@ -88,7 +88,11 @@ function getClientStatus(npsScore: number | null) {
 }
 
 function normaliseWhatsAppPhone(phone?: string | null) {
-  return (phone || '').replace(/[^\d+]/g, '').replace(/^\+/, '')
+  const digits = (phone || '').replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('61')) return digits
+  if (digits.startsWith('0')) return `61${digits.slice(1)}`
+  return digits
 }
 
 function openWhatsApp(phone: string, message?: string) {
