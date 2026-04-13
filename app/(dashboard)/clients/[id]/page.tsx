@@ -659,7 +659,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 
   function handleRequestGoogleReview() {
     try {
-      const message = `Hi ${currentClient.first_name}, if you have a minute, we’d really appreciate a quick Google review: ${GOOGLE_REVIEW_LINK}`
+      const message = `Hi ${currentClient.first_name}, how are you?\nif you have a minute, we’d really appreciate a quick Google review:\n${GOOGLE_REVIEW_LINK}`
       openWhatsApp(currentClient.phone, message)
       setWhatsAppError('')
       setShowWhatsAppMenu(false)
