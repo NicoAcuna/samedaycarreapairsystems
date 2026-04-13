@@ -35,6 +35,14 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const text = await res.text()
+      console.error('Bunny upload failed response', {
+        path,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        status: res.status,
+        body: text,
+      })
       return NextResponse.json({ error: `Bunny upload failed: ${text}` }, { status: 500 })
     }
 
@@ -42,6 +50,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url, path })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e)
+    console.error('Upload media route failed', {
+      message,
+    })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
