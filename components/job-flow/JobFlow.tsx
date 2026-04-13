@@ -57,6 +57,7 @@ function revokeObjectUrl(url?: string) {
 }
 
 const IMAGE_UPLOAD_TARGET_BYTES = 3 * 1024 * 1024
+const IMAGE_UPLOAD_MAX_BYTES = 4 * 1024 * 1024
 
 function isProbablyImageFile(file: File) {
   return file.type.startsWith('image/')
@@ -65,13 +66,7 @@ function isProbablyImageFile(file: File) {
 
 async function optimizeImageForUpload(file: File) {
   const isImage = isProbablyImageFile(file)
-  const shouldNormalize =
-    isImage && (
-      file.size > IMAGE_UPLOAD_TARGET_BYTES
-      || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
-    )
-
-  if (!shouldNormalize) return file
+  if (!isImage) return file
 
   const objectUrl = URL.createObjectURL(file)
   try {
@@ -94,7 +89,7 @@ async function optimizeImageForUpload(file: File) {
     if (!ctx) return file
     ctx.drawImage(image, 0, 0, width, height)
 
-    const qualities = [0.82, 0.72, 0.62, 0.52]
+    const qualities = [0.82, 0.72, 0.62, 0.52, 0.42, 0.32]
     let blob: Blob | null = null
     for (const quality of qualities) {
       blob = await new Promise<Blob | null>(resolve => {
@@ -126,6 +121,12 @@ function sanitizeMediaMap<T extends { url: string; pending?: boolean }>(mediaMap
   )
 }
 
+function validateUploadableImage(file: File) {
+  if (file.size > IMAGE_UPLOAD_MAX_BYTES) {
+    throw new Error('This image is still too large after compression. Please try a smaller photo.')
+  }
+}
+
 // ── PHOTO PICKER ──────────────────────────────────────────────────────────────
 function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[]; onChange: (photos: Photo[]) => void; folder?: string }) {
   const [preview, setPreview] = useState<string | null>(null)
@@ -146,6 +147,7 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
     setError(null)
     try {
       const uploadFiles = await Promise.all(fileArray.map(file => optimizeImageForUpload(file)))
+      uploadFiles.forEach(validateUploadableImage)
       const uploaded = await Promise.all(
         uploadFiles.map(f => uploadToBunny(f, folder))
       )
@@ -174,6 +176,7 @@ function PhotoPicker({ photos, onChange, folder = 'photos' }: { photos: Photo[];
     setError(null)
     try {
       const uploadFile = await optimizeImageForUpload(nextFile)
+      validateUploadableImage(uploadFile)
       const uploaded = await uploadToBunny(uploadFile, folder)
       onChange(photos.map((p, i) => i === idx ? { url: uploaded.url, path: uploaded.path, name: nextFile.name } : p))
       if (isUploadedMedia(current)) {
@@ -395,6 +398,7 @@ function ChecklistMediaPicker({
       const uploadedImages = await Promise.all(
         imageFiles.map(async file => {
           const uploadFile = await optimizeImageForUpload(file)
+          validateUploadableImage(uploadFile)
           return uploadToBunny(uploadFile, 'photos')
         })
       )

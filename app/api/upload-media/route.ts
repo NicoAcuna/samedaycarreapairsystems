@@ -28,21 +28,14 @@ export async function POST(req: NextRequest) {
       method: 'PUT',
       headers: {
         AccessKey: BUNNY_API_KEY,
-        'Content-Type': file.type || 'application/octet-stream',
+        'Content-Type': 'application/octet-stream',
       },
       body: buffer,
     })
 
     if (!res.ok) {
       const text = await res.text()
-      console.error('Bunny upload failed response', {
-        path,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        status: res.status,
-        body: text,
-      })
+      console.error(`Bunny upload failed response: status=${res.status} path=${path} fileName=${file.name} fileType=${file.type || 'unknown'} fileSize=${file.size} body=${text}`)
       return NextResponse.json({ error: `Bunny upload failed: ${text}` }, { status: 500 })
     }
 
@@ -50,9 +43,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url, path })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e)
-    console.error('Upload media route failed', {
-      message,
-    })
+    const stack = e instanceof Error ? e.stack : ''
+    console.error(`Upload media route failed: ${message}${stack ? `\n${stack}` : ''}`)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
