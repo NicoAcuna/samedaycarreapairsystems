@@ -58,8 +58,13 @@ function revokeObjectUrl(url?: string) {
 
 const IMAGE_UPLOAD_TARGET_BYTES = 3 * 1024 * 1024
 
+function isProbablyImageFile(file: File) {
+  return file.type.startsWith('image/')
+    || /\.(heic|heif|jpg|jpeg|png|webp)$/i.test(file.name)
+}
+
 async function optimizeImageForUpload(file: File) {
-  const isImage = file.type.startsWith('image/')
+  const isImage = isProbablyImageFile(file)
   const shouldNormalize =
     isImage && (
       file.size > IMAGE_UPLOAD_TARGET_BYTES
