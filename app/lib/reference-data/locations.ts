@@ -20,6 +20,7 @@ export const NSW_SUBURB_POSTCODES = [
   { suburb: 'Cremorne Point', postcode: '2090' },
   { suburb: 'Drummoyne', postcode: '2047' },
   { suburb: 'Dulwich Hill', postcode: '2203' },
+  { suburb: 'Edgecliff', postcode: '2027' },
   { suburb: 'Five Dock', postcode: '2046' },
   { suburb: 'Granville', postcode: '2142' },
   { suburb: 'Harris Park', postcode: '2150' },
