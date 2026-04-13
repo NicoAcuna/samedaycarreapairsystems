@@ -617,6 +617,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
   if (!client) return <div className="p-6 text-sm text-neutral-400">Client not found.</div>
 
+  const currentClient = client
   const clientStatus = getClientStatus(latestNps?.nps_score ?? null)
   const cannotDeleteClient = vehicles.length > 0 || jobs.length > 0
 
@@ -654,8 +655,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 
   function handleRequestGoogleReview() {
     try {
-      const message = `Hi ${client.first_name}, if you have a minute, we’d really appreciate a quick Google review: ${GOOGLE_REVIEW_LINK}`
-      openWhatsApp(client.phone, message)
+      const message = `Hi ${currentClient.first_name}, if you have a minute, we’d really appreciate a quick Google review: ${GOOGLE_REVIEW_LINK}`
+      openWhatsApp(currentClient.phone, message)
       setWhatsAppError('')
       setShowWhatsAppMenu(false)
     } catch (error) {
@@ -665,7 +666,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 
   function handleOpenFreeWhatsApp() {
     try {
-      openWhatsApp(client.phone)
+      openWhatsApp(currentClient.phone)
       setWhatsAppError('')
       setShowWhatsAppMenu(false)
     } catch (error) {
