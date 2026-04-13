@@ -185,7 +185,7 @@ export default function VehiclesPage() {
 
   const filtered = vehicles.filter(v =>
     [v.make, v.model, v.year, v.plate, v.clients?.first_name, v.clients?.last_name]
-      .some(f => f?.toLowerCase().includes(search.toLowerCase()))
+      .some(f => String(f ?? '').toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
