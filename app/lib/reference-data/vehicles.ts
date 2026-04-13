@@ -14,7 +14,7 @@ export const VEHICLE_CATALOG: VehicleCatalogOption[] = [
   { make: 'Kia', models: ['Carnival', 'Cerato', 'Picanto', 'Rio', 'Sorento', 'Sportage'] },
   { make: 'Lexus', models: ['ES', 'IS', 'NX', 'RX', 'UX'] },
   { make: 'Mazda', models: ['BT-50', 'CX-3', 'CX-5', 'CX-9', 'Mazda2', 'Mazda3', 'Mazda6'] },
-  { make: 'Mercedes-Benz', models: ['A-Class', 'C-Class', 'E-Class', 'GLA', 'GLC', 'GLE'] },
+  { make: 'Mercedes-Benz', models: ['A-Class', 'B200', 'C-Class', 'E-Class', 'GLA', 'GLC', 'GLE'] },
   { make: 'Mitsubishi', models: ['ASX', 'Eclipse Cross', 'Lancer', 'Outlander', 'Pajero', 'Triton'] },
   { make: 'Nissan', models: ['Navara', 'Pathfinder', 'Patrol', 'Pulsar', 'Qashqai', 'X-TRAIL'] },
   { make: 'Subaru', models: ['BRZ', 'Forester', 'Impreza', 'Liberty', 'Outback', 'XV'] },
