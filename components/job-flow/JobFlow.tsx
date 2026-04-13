@@ -56,8 +56,10 @@ function revokeObjectUrl(url?: string) {
   }
 }
 
+const IMAGE_UPLOAD_TARGET_BYTES = 3 * 1024 * 1024
+
 async function optimizeImageForUpload(file: File) {
-  if (!file.type.startsWith('image/') || file.size <= 4 * 1024 * 1024) return file
+  if (!file.type.startsWith('image/') || file.size <= IMAGE_UPLOAD_TARGET_BYTES) return file
 
   const objectUrl = URL.createObjectURL(file)
   try {
@@ -80,9 +82,14 @@ async function optimizeImageForUpload(file: File) {
     if (!ctx) return file
     ctx.drawImage(image, 0, 0, width, height)
 
-    const blob = await new Promise<Blob | null>(resolve => {
-      canvas.toBlob(resolve, 'image/jpeg', 0.82)
-    })
+    const qualities = [0.82, 0.72, 0.62, 0.52]
+    let blob: Blob | null = null
+    for (const quality of qualities) {
+      blob = await new Promise<Blob | null>(resolve => {
+        canvas.toBlob(resolve, 'image/jpeg', quality)
+      })
+      if (blob && blob.size <= IMAGE_UPLOAD_TARGET_BYTES) break
+    }
 
     if (!blob) return file
     const nextName = file.name.replace(/\.[^.]+$/, '') || 'image'
