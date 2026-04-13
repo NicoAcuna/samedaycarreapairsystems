@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
-import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, formatClientLocation, getPostcodeForSuburb, normalizeNswState } from '../../../lib/reference-data/locations'
+import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, formatClientLocation, getPostcodeForSuburb, normalizeNswState, normalizeOptionalInteger, normalizeOptionalPostcode } from '../../../lib/reference-data/locations'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = {
@@ -15,7 +15,7 @@ type Client = {
   address: string
   suburb?: string | null
   state?: string | null
-  postcode?: string | null
+  postcode?: string | number | null
   notes: string
   created_at: string
 }
@@ -24,7 +24,7 @@ type Vehicle = {
   id: string
   make: string
   model: string
-  year: string
+  year: string | number | null
   colour: string
   plate: string
   odometer_km: number
@@ -128,7 +128,7 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
     email:      client.email      || '',
     address:    client.address    || '',
     suburb:     client.suburb     || '',
-    postcode:   client.postcode   || '',
+    postcode:   client.postcode == null ? '' : String(client.postcode),
     state:      client.state      || NSW_STATE,
     notes:      client.notes      || '',
   })
@@ -158,7 +158,7 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
         address: form.address.trim(),
         suburb: form.suburb || null,
         state: normalizeNswState(),
-        postcode: form.postcode.trim() || null,
+        postcode: normalizeOptionalPostcode(form.postcode),
         notes: form.notes.trim(),
       })
       .eq('id', client.id).select().single()
@@ -268,7 +268,7 @@ function AddVehicleModal({ clientId, onClose, onSaved }: { clientId: string; onC
         company_id: userData?.active_company_id || userData?.company_id,
         make: form.make.trim(),
         model: form.model.trim(),
-        year: form.year.trim(),
+        year: normalizeOptionalInteger(form.year),
         colour: form.colour.trim(),
         plate: form.plate.trim().toUpperCase(),
         odometer_km: form.odometer_km ? Number(form.odometer_km) : null,

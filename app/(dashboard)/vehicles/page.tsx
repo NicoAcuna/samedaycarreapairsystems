@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../lib/reference-data/vehicles'
+import { normalizeOptionalInteger } from '../../lib/reference-data/locations'
 
 type Vehicle = {
   id: string
   make: string
   model: string
-  year: string
+  year: string | number | null
   colour: string
   plate: string
   odometer_km: number
@@ -49,7 +50,7 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         client_id: form.client_id || null,
         make: form.make.trim(),
         model: form.model.trim(),
-        year: form.year.trim(),
+        year: normalizeOptionalInteger(form.year),
         colour: form.colour.trim(),
         plate: form.plate.trim().toUpperCase(),
         odometer_km: form.odometer_km ? Number(form.odometer_km) : null,

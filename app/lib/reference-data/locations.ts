@@ -65,6 +65,16 @@ export function getPostcodeForSuburb(suburb: string) {
   return NSW_SUBURB_POSTCODES.find(option => option.suburb.toLowerCase() === normalized)?.postcode ?? ''
 }
 
-export function formatClientLocation(suburb?: string | null, state?: string | null, postcode?: string | null) {
-  return [suburb, state, postcode].filter(Boolean).join(' ') || '—'
+export function normalizeOptionalPostcode(postcode: string) {
+  const digits = postcode.replace(/\D/g, '')
+  return digits ? Number(digits) : null
+}
+
+export function normalizeOptionalInteger(value: string) {
+  const digits = value.trim()
+  return digits ? Number(digits) : null
+}
+
+export function formatClientLocation(suburb?: string | null, state?: string | null, postcode?: string | number | null) {
+  return [suburb, state, postcode == null ? null : String(postcode)].filter(Boolean).join(' ') || '—'
 }

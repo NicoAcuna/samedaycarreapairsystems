@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
-import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, getPostcodeForSuburb, normalizeNswState } from '../../lib/reference-data/locations'
+import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, getPostcodeForSuburb, normalizeNswState, normalizeOptionalPostcode } from '../../lib/reference-data/locations'
 
 type Client = {
   id: string
@@ -14,7 +14,7 @@ type Client = {
   address: string
   suburb?: string | null
   state?: string | null
-  postcode?: string | null
+  postcode?: string | number | null
   notes: string
   created_at: string
 }
@@ -104,7 +104,7 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
         address: form.address.trim(),
         suburb: form.suburb || null,
         state: normalizeNswState(),
-        postcode: form.postcode.trim() || null,
+        postcode: normalizeOptionalPostcode(form.postcode),
         notes: form.notes.trim(),
       }])
       .select()

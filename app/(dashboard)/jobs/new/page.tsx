@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
-import { NSW_STATE, NSW_SUBURB_SUGGESTIONS, getPostcodeForSuburb, normalizeNswState } from '../../../lib/reference-data/locations'
+import { NSW_STATE, NSW_SUBURB_SUGGESTIONS, getPostcodeForSuburb, normalizeNswState, normalizeOptionalInteger, normalizeOptionalPostcode } from '../../../lib/reference-data/locations'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = { id: string; first_name: string; last_name: string; phone: string; email: string }
-type Vehicle = { id: string; make: string; model: string; year: string; plate: string; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
+type Vehicle = { id: string; make: string; model: string; year: string | number | null; plate: string; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
 
 const JOB_TYPES = [
   { key: 'pre_purchase', label: 'Pre-Purchase', desc: 'Full vehicle inspection' },
@@ -162,7 +162,7 @@ function NewJobPageInner() {
       email: newClientForm.email.trim(),
       address: newClientForm.address.trim(),
       suburb: newClientForm.suburb.trim() || null,
-      postcode: newClientForm.postcode.trim() || null,
+      postcode: normalizeOptionalPostcode(newClientForm.postcode),
       state: normalizeNswState(),
     }]).select('id, first_name, last_name, phone, email').single()
     setSavingClient(false)
@@ -187,7 +187,7 @@ function NewJobPageInner() {
       client_id: selectedClient.id,
       make: newVehicleForm.make.trim(),
       model: newVehicleForm.model.trim(),
-      year: newVehicleForm.year.trim(),
+      year: normalizeOptionalInteger(newVehicleForm.year),
       plate: newVehicleForm.plate.trim().toUpperCase(),
       odometer_km: newVehicleForm.odometer_km ? Number(newVehicleForm.odometer_km) : null,
       colour: newVehicleForm.colour.trim(),
