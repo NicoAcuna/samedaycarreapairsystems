@@ -716,18 +716,18 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           <div className="p-5 space-y-3">
             <div>
               <div className="text-xs text-neutral-400 mb-0.5">Phone</div>
-              <div className="relative inline-flex items-center gap-2" ref={whatsAppMenuRef}>
+              <div className="relative inline-flex items-center gap-3" ref={whatsAppMenuRef}>
                 <div className="text-sm font-medium text-neutral-900">{client.phone || '—'}</div>
                 <button
                   onClick={() => {
                     setWhatsAppError('')
                     setShowWhatsAppMenu(prev => !prev)
                   }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors"
                   aria-label="Open WhatsApp options"
                   title="WhatsApp"
                 >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
                     <path d="M12.04 2C6.55 2 2.1 6.45 2.1 11.94c0 1.76.46 3.48 1.33 4.99L2 22l5.22-1.37a9.9 9.9 0 0 0 4.82 1.23h.01c5.49 0 9.95-4.45 9.95-9.94A9.95 9.95 0 0 0 12.04 2Zm5.79 14.08c-.24.68-1.42 1.3-1.95 1.39-.5.08-1.12.11-1.81-.12-.42-.14-.96-.31-1.66-.61-2.91-1.26-4.8-4.2-4.94-4.4-.14-.2-1.18-1.57-1.18-2.99 0-1.42.74-2.12 1-2.41.26-.29.57-.36.76-.36s.38 0 .55.01c.18.01.42-.07.65.49.24.59.81 2.04.88 2.18.07.14.12.3.02.49-.09.19-.14.3-.28.46-.14.16-.29.35-.42.47-.14.14-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.21 1.37.28.14.44.12.61-.07.17-.19.71-.83.9-1.11.19-.28.38-.23.64-.14.26.09 1.66.78 1.94.92.28.14.47.21.54.33.07.12.07.69-.17 1.37Z" />
                   </svg>
                 </button>
