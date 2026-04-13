@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, formatClientLocation, getPostcodeForSuburb, normalizeNswState, normalizeOptionalInteger, normalizeOptionalPostcode } from '../../../lib/reference-data/locations'
+import { CLIENT_LEAD_SOURCES, formatClientLeadSource } from '../../../lib/reference-data/client-sources'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = {
@@ -16,6 +17,8 @@ type Client = {
   suburb?: string | null
   state?: string | null
   postcode?: string | number | null
+  lead_source?: string | null
+  lead_source_other?: string | null
   notes: string
   created_at: string
 }
@@ -130,6 +133,8 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
     suburb:     client.suburb     || '',
     postcode:   client.postcode == null ? '' : String(client.postcode),
     state:      client.state      || NSW_STATE,
+    lead_source: client.lead_source || '',
+    lead_source_other: client.lead_source_other || '',
     notes:      client.notes      || '',
   })
   const [saving, setSaving] = useState(false)
@@ -147,6 +152,8 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
 
   async function handleSave() {
     if (!form.first_name.trim()) { setError('First name is required'); return }
+    if (!form.lead_source) { setError('Lead source is required'); return }
+    if (form.lead_source === 'other' && !form.lead_source_other.trim()) { setError('Please add the other source'); return }
     setSaving(true); setError('')
     const supabase = createClient()
     const { data, error: err } = await supabase.from('clients')
@@ -159,6 +166,8 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
         suburb: form.suburb || null,
         state: normalizeNswState(),
         postcode: normalizeOptionalPostcode(form.postcode),
+        lead_source: form.lead_source,
+        lead_source_other: form.lead_source === 'other' ? form.lead_source_other.trim() : null,
         notes: form.notes.trim(),
       })
       .eq('id', client.id).select().single()
@@ -226,6 +235,23 @@ function EditModal({ client, onClose, onSaved }: { client: Client; onClose: () =
             <input value={form.state} readOnly
               className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 bg-neutral-100 text-neutral-500 focus:outline-none" />
           </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1 block">Lead source <span className="text-red-400">*</span></label>
+            <select value={form.lead_source} onChange={e => set('lead_source', e.target.value)}
+              className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400 bg-white">
+              <option value="">Select source</option>
+              {CLIENT_LEAD_SOURCES.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          {form.lead_source === 'other' && (
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1 block">Other source <span className="text-red-400">*</span></label>
+              <input value={form.lead_source_other} onChange={e => set('lead_source_other', e.target.value)} placeholder="e.g. Facebook group"
+                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-neutral-500 mb-1 block">Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
@@ -754,7 +780,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                 </div>
               )}
             </div>
-            {[{ label: 'Email', value: client.email }, { label: 'Address', value: client.address }, { label: 'Location', value: formatClientLocation(client.suburb, client.state, client.postcode) }].map(row => (
+            {[{ label: 'Email', value: client.email }, { label: 'Address', value: client.address }, { label: 'Location', value: formatClientLocation(client.suburb, client.state, client.postcode) }, { label: 'Lead source', value: formatClientLeadSource(client.lead_source, client.lead_source_other) }].map(row => (
               <div key={row.label}>
                 <div className="text-xs text-neutral-400 mb-0.5">{row.label}</div>
                 <div className="text-sm font-medium text-neutral-900">{row.value || '—'}</div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
 import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, getPostcodeForSuburb, normalizeNswState, normalizeOptionalPostcode } from '../../lib/reference-data/locations'
+import { CLIENT_LEAD_SOURCES } from '../../lib/reference-data/client-sources'
 
 type Client = {
   id: string
@@ -15,6 +16,8 @@ type Client = {
   suburb?: string | null
   state?: string | null
   postcode?: string | number | null
+  lead_source?: string | null
+  lead_source_other?: string | null
   notes: string
   created_at: string
 }
@@ -71,7 +74,7 @@ function buildLatestNpsMap(interactions: ClientInteraction[]) {
 }
 
 function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c: Client) => void }) {
-  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, notes: '' })
+  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, lead_source: '', lead_source_other: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -90,6 +93,8 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
 
   async function handleSave() {
     if (!form.first_name.trim()) { setError('First name is required'); return }
+    if (!form.lead_source) { setError('Lead source is required'); return }
+    if (form.lead_source === 'other' && !form.lead_source_other.trim()) { setError('Please add the other source'); return }
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -105,6 +110,8 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
         suburb: form.suburb || null,
         state: normalizeNswState(),
         postcode: normalizeOptionalPostcode(form.postcode),
+        lead_source: form.lead_source,
+        lead_source_other: form.lead_source === 'other' ? form.lead_source_other.trim() : null,
         notes: form.notes.trim(),
       }])
       .select()
@@ -175,6 +182,23 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
             <input value={form.state} readOnly
               className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 bg-neutral-100 text-neutral-500 focus:outline-none" />
           </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Lead source <span className="text-red-400">*</span></label>
+            <select value={form.lead_source} onChange={e => set('lead_source', e.target.value)}
+              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50">
+              <option value="">Select source</option>
+              {CLIENT_LEAD_SOURCES.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          {form.lead_source === 'other' && (
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Other source <span className="text-red-400">*</span></label>
+              <input value={form.lead_source_other} onChange={e => set('lead_source_other', e.target.value)} placeholder="e.g. Facebook group"
+                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Notes</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any notes about this client..." rows={2}

@@ -4,9 +4,10 @@ import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 import { NSW_STATE, NSW_SUBURB_SUGGESTIONS, getPostcodeForSuburb, normalizeNswState, normalizeOptionalInteger, normalizeOptionalPostcode } from '../../../lib/reference-data/locations'
+import { CLIENT_LEAD_SOURCES } from '../../../lib/reference-data/client-sources'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
-type Client = { id: string; first_name: string; last_name: string; phone: string; email: string }
+type Client = { id: string; first_name: string; last_name: string; phone: string; email: string; lead_source?: string | null; lead_source_other?: string | null }
 type Vehicle = { id: string; make: string; model: string; year: string | number | null; plate: string; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
 
 const JOB_TYPES = [
@@ -58,7 +59,7 @@ function NewJobPageInner() {
   const [showNewVehicle, setShowNewVehicle] = useState(false)
 
   // New client form
-  const [newClientForm, setNewClientForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE })
+  const [newClientForm, setNewClientForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, lead_source: '', lead_source_other: '' })
   const [savingClient, setSavingClient] = useState(false)
   const [clientError, setClientError] = useState('')
 
@@ -149,6 +150,8 @@ function NewJobPageInner() {
 
   async function handleSaveNewClient() {
     if (!newClientForm.first_name.trim()) { setClientError('First name is required'); return }
+    if (!newClientForm.lead_source) { setClientError('Lead source is required'); return }
+    if (newClientForm.lead_source === 'other' && !newClientForm.lead_source_other.trim()) { setClientError('Please add the other source'); return }
     setSavingClient(true); setClientError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -164,6 +167,8 @@ function NewJobPageInner() {
       suburb: newClientForm.suburb.trim() || null,
       postcode: normalizeOptionalPostcode(newClientForm.postcode),
       state: normalizeNswState(),
+      lead_source: newClientForm.lead_source,
+      lead_source_other: newClientForm.lead_source === 'other' ? newClientForm.lead_source_other.trim() : null,
     }]).select('id, first_name, last_name, phone, email').single()
     setSavingClient(false)
     if (err) { setClientError(err.message); return }
@@ -171,7 +176,7 @@ function NewJobPageInner() {
     setAllClients(prev => [newClient, ...prev])
     selectClient(newClient)
     setShowNewClient(false)
-    setNewClientForm({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE })
+    setNewClientForm({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, lead_source: '', lead_source_other: '' })
   }
 
   async function handleSaveNewVehicle() {
@@ -504,6 +509,23 @@ function NewJobPageInner() {
                   <input value={newClientForm.state} readOnly
                     className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg bg-neutral-100 text-neutral-500 focus:outline-none" />
                 </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Lead source <span className="text-red-400">*</span></label>
+                  <select value={newClientForm.lead_source} onChange={e => setNcf('lead_source', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400 bg-white">
+                    <option value="">Select source</option>
+                    {CLIENT_LEAD_SOURCES.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                {newClientForm.lead_source === 'other' && (
+                  <div>
+                    <label className="text-xs text-neutral-500 mb-1 block">Other source <span className="text-red-400">*</span></label>
+                    <input value={newClientForm.lead_source_other} onChange={e => setNcf('lead_source_other', e.target.value)} placeholder="e.g. Facebook group"
+                      className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                  </div>
+                )}
 	              {clientError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{clientError}</div>}
 	            </div>
             <div className="flex gap-3 mt-4">
