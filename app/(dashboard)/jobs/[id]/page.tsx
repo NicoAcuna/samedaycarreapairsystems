@@ -19,8 +19,10 @@ type Job = {
     labour?: string
     parts?: { qty?: number; price?: string }[]
   } | null
-  clients?: { first_name: string; last_name: string; phone: string; email: string } | null
-  vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
+  client_id?: string | null
+  vehicle_id?: string | null
+  clients?: { id: string; first_name: string; last_name: string; phone: string; email: string } | null
+  vehicles?: { id: string; make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
 }
 
 const TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -82,7 +84,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const supabase = createClient()
     supabase
       .from('jobs')
-      .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, odometer_km)')
+      .select('*, clients(id, first_name, last_name, phone, email), vehicles(id, make, model, year, plate, odometer_km)')
       .eq('id', id)
       .single()
       .then(({ data }) => {
@@ -164,9 +166,29 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+          {job.clients?.id ? (
+            <button onClick={() => router.push(`/clients/${job.clients!.id}`)} className="text-left hover:opacity-70 transition-opacity">
+              <div className="text-xs text-neutral-400 mb-1">Client</div>
+              <div className="text-sm font-medium text-neutral-900 underline underline-offset-2">{clientName}</div>
+            </button>
+          ) : (
+            <div>
+              <div className="text-xs text-neutral-400 mb-1">Client</div>
+              <div className="text-sm font-medium text-neutral-900">{clientName}</div>
+            </div>
+          )}
+          {job.vehicles?.id ? (
+            <button onClick={() => router.push(`/vehicles/${job.vehicles!.id}`)} className="text-left hover:opacity-70 transition-opacity">
+              <div className="text-xs text-neutral-400 mb-1">Vehicle</div>
+              <div className="text-sm font-medium text-neutral-900 underline underline-offset-2">{vehicleLabel}</div>
+            </button>
+          ) : (
+            <div>
+              <div className="text-xs text-neutral-400 mb-1">Vehicle</div>
+              <div className="text-sm font-medium text-neutral-900">{vehicleLabel}</div>
+            </div>
+          )}
           {[
-            { label: 'Client',   value: clientName },
-            { label: 'Vehicle',  value: vehicleLabel },
             { label: 'Plate',    value: plate },
             { label: 'Date',     value: dateLabel },
             { label: 'Amount',   value: amountLabel },
