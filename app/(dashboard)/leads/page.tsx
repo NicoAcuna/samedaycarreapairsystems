@@ -599,7 +599,7 @@ export default function LeadsPage() {
             ) : filtered.map(lead => {
               const src = getSource(lead.source)
               return (
-                <tr key={lead.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
+                <tr key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50 cursor-pointer">
                   <td className="px-4 py-3">
                     <div className="font-medium text-neutral-900">{fullName(lead)}</div>
                     {lead.phone && <div className="text-xs text-neutral-400 mt-0.5">{lead.phone}</div>}
@@ -624,7 +624,7 @@ export default function LeadsPage() {
                   <td className="px-4 py-3">
                     {lead.status !== 'converted' && lead.status !== 'lost' && (
                       <button
-                        onClick={() => setConvertLead(lead)}
+                        onClick={e => { e.stopPropagation(); setConvertLead(lead) }}
                         className="text-xs px-3 py-1.5 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 whitespace-nowrap"
                       >
                         Convert →
@@ -650,7 +650,7 @@ export default function LeadsPage() {
           const src = getSource(lead.source)
           const s = getStatus(lead.status)
           return (
-            <div key={lead.id} className="px-4 py-3.5 border-b border-neutral-100 last:border-0">
+            <div key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} className="px-4 py-3.5 border-b border-neutral-100 last:border-0 cursor-pointer active:bg-neutral-50">
               <div className="flex items-start justify-between gap-2 mb-1.5">
                 <div className="font-medium text-neutral-900 text-sm">{fullName(lead)}</div>
                 <StatusBadge lead={lead} onChange={status => updateStatus(lead, status)} />
@@ -671,7 +671,7 @@ export default function LeadsPage() {
                 <div className="text-[11px] text-neutral-300">{formatDate(lead.created_at)}</div>
                 {lead.status !== 'converted' && lead.status !== 'lost' && (
                   <button
-                    onClick={() => setConvertLead(lead)}
+                    onClick={e => { e.stopPropagation(); setConvertLead(lead) }}
                     className="text-xs px-3 py-1.5 border border-green-200 text-green-700 rounded-lg hover:bg-green-50"
                   >
                     Convert →
