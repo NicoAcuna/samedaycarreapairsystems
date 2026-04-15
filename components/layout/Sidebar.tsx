@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from 'react'
 const navItems = [
   { label: 'Dashboard', href: '/' },
   { label: 'Jobs',      href: '/jobs' },
+  { label: 'Leads',     href: '/leads' },
   { label: 'Clients',   href: '/clients' },
   { label: 'Vehicles',  href: '/vehicles' },
 ]
@@ -15,6 +16,7 @@ const navItems = [
 const icons: Record<string, string> = {
   '/':         '⊞',
   '/jobs':     '🔧',
+  '/leads':    '📋',
   '/clients':  '👤',
   '/vehicles': '🚗',
 }
