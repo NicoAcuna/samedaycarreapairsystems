@@ -11,7 +11,8 @@ type LeadSource = 'whatsapp_group' | 'facebook_group' | 'airtasker' | 'google' |
 
 type Lead = {
   id: string
-  name: string
+  first_name: string
+  last_name: string | null
   phone: string | null
   email: string | null
   source: LeadSource
@@ -21,6 +22,10 @@ type Lead = {
   status: LeadStatus
   notes: string | null
   created_at: string
+}
+
+function fullName(l: Lead) {
+  return [l.first_name, l.last_name].filter(Boolean).join(' ')
 }
 
 const LEAD_SOURCES: { value: LeadSource; label: string; icon: string }[] = [
@@ -68,7 +73,7 @@ function formatDate(iso: string) {
 // ── NEW LEAD MODAL ────────────────────────────────────────────────────────────
 function NewLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (lead: Lead) => void }) {
   const [form, setForm] = useState({
-    name: '', phone: '', email: '', source: '' as LeadSource | '',
+    first_name: '', last_name: '', phone: '', email: '', source: '' as LeadSource | '',
     source_detail: '', message: '', suburb: '', notes: '',
   })
   const [saving, setSaving] = useState(false)
@@ -79,7 +84,7 @@ function NewLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (lea
   }
 
   async function handleSave() {
-    if (!form.name.trim()) { setError('Name is required'); return }
+    if (!form.first_name.trim()) { setError('First name is required'); return }
     if (!form.source) { setError('Source is required'); return }
     setSaving(true); setError('')
     const supabase = createClient()
@@ -93,7 +98,8 @@ function NewLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (lea
       .insert([{
         user_id: user?.id,
         company_id: companyId,
-        name: form.name.trim(),
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim() || null,
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
         source: form.source,
@@ -123,14 +129,24 @@ function NewLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (lea
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
           {/* Name */}
-          <div>
-            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Name <span className="text-red-400">*</span></label>
-            <input
-              value={form.name} onChange={e => set('name', e.target.value)}
-              placeholder="e.g. John Smith"
-              autoFocus
-              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">First name <span className="text-red-400">*</span></label>
+              <input
+                value={form.first_name} onChange={e => set('first_name', e.target.value)}
+                placeholder="John"
+                autoFocus
+                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Last name</label>
+              <input
+                value={form.last_name} onChange={e => set('last_name', e.target.value)}
+                placeholder="Smith"
+                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50"
+              />
+            </div>
           </div>
 
           {/* Phone */}
@@ -236,10 +252,9 @@ function ConvertToClientModal({ lead, onClose, onConverted }: {
   onClose: () => void
   onConverted: () => void
 }) {
-  const nameParts = lead.name.trim().split(' ')
   const [form, setForm] = useState({
-    first_name: nameParts[0] || '',
-    last_name: nameParts.slice(1).join(' ') || '',
+    first_name: lead.first_name,
+    last_name: lead.last_name || '',
     phone: lead.phone || '',
     email: lead.email || '',
     address: '',
@@ -467,7 +482,7 @@ export default function LeadsPage() {
   const filtered = leads.filter(l => {
     const matchesStatus = !statusFilter || l.status === statusFilter
     const q = search.toLowerCase()
-    const matchesSearch = !q || [l.name, l.phone, l.suburb, l.message].some(f => f?.toLowerCase().includes(q))
+    const matchesSearch = !q || [l.first_name, l.last_name, l.phone, l.suburb, l.message].some(f => f?.toLowerCase().includes(q))
     return matchesStatus && matchesSearch
   })
 
@@ -586,7 +601,7 @@ export default function LeadsPage() {
               return (
                 <tr key={lead.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-neutral-900">{lead.name}</div>
+                    <div className="font-medium text-neutral-900">{fullName(lead)}</div>
                     {lead.phone && <div className="text-xs text-neutral-400 mt-0.5">{lead.phone}</div>}
                   </td>
                   <td className="px-4 py-3">
@@ -637,7 +652,7 @@ export default function LeadsPage() {
           return (
             <div key={lead.id} className="px-4 py-3.5 border-b border-neutral-100 last:border-0">
               <div className="flex items-start justify-between gap-2 mb-1.5">
-                <div className="font-medium text-neutral-900 text-sm">{lead.name}</div>
+                <div className="font-medium text-neutral-900 text-sm">{fullName(lead)}</div>
                 <StatusBadge lead={lead} onChange={status => updateStatus(lead, status)} />
               </div>
               {lead.phone && (
