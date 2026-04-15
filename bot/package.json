@@ -1,0 +1,17 @@
+{
+  "name": "sdcr-whatsapp-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp group monitor — auto-creates leads in SDCR CRM",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "pino": "^9.6.0"
+  }
+}
