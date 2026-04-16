@@ -1,6 +1,8 @@
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys')
 const { createClient } = require('@supabase/supabase-js')
 const pino = require('pino')
+const http = require('http')
+const qrcode = require('qrcode')
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const SUPABASE_URL          = process.env.SUPABASE_URL
@@ -146,6 +148,29 @@ async function sendWhatsAppNotification(sock, { senderName, message, groupName, 
   }
 }
 
+// ── QR SERVER ─────────────────────────────────────────────────────────────────
+let currentQR = null
+const PORT = process.env.PORT || 3000
+
+http.createServer(async (req, res) => {
+  if (currentQR) {
+    const img = await qrcode.toDataURL(currentQR)
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end(`<html><body style="background:#000;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+      <div style="text-align:center">
+        <p style="color:#fff;font-family:sans-serif;margin-bottom:16px">Scan with WhatsApp Business</p>
+        <img src="${img}" style="width:300px;height:300px"/>
+        <p style="color:#888;font-family:sans-serif;font-size:12px;margin-top:12px">Refresh if code expired</p>
+      </div>
+    </body></html>`)
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end(`<html><body style="background:#000;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+      <p style="color:#fff;font-family:sans-serif">✅ Bot connected — no QR needed</p>
+    </body></html>`)
+  }
+}).listen(PORT, () => console.log(`🌐 QR server running on port ${PORT}`))
+
 // ── BOT ───────────────────────────────────────────────────────────────────────
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
@@ -155,32 +180,26 @@ async function startBot() {
     version,
     auth:               state,
     logger:             pino({ level: 'silent' }),
-    printQRInTerminal:  false,  // we use pairing code instead
+    printQRInTerminal:  true,
     browser:            ['Ubuntu', 'Chrome', '20.0.04'],
   })
 
   sock.ev.on('creds.update', saveCreds)
 
-  // Pairing code on first connect
-  if (!state.creds.registered && BOT_WA_NUMBER) {
-    await new Promise(r => setTimeout(r, 2000))
-    const code = await sock.requestPairingCode(BOT_WA_NUMBER.replace(/\D/g, ''))
-    console.log(`\n🔑 ─────────────────────────────────`)
-    console.log(`   PAIRING CODE: ${code}`)
-    console.log(`   Go to WhatsApp > Linked Devices`)
-    console.log(`   > Link with phone number`)
-    console.log(`   and enter the code above`)
-    console.log(`─────────────────────────────────\n`)
-  }
-
-  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    if (qr) {
+      currentQR = qr
+      console.log('📱 QR code updated — open the Railway public URL to scan')
+    }
+    if (connection === 'open') {
+      currentQR = null
+      console.log('✅ WhatsApp Bot connected and listening...')
+    }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode
       const shouldReconnect = code !== DisconnectReason.loggedOut
       console.log(`⚠️  Connection closed (code ${code}). Reconnecting: ${shouldReconnect}`)
       if (shouldReconnect) startBot()
-    } else if (connection === 'open') {
-      console.log('✅ WhatsApp Bot connected and listening...')
     }
   })
 

@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
     "@whiskeysockets/baileys": "^6.7.9",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4"
   }
 }
