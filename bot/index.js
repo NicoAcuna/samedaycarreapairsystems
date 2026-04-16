@@ -230,14 +230,20 @@ async function startBot() {
       try {
         const meta = await sock.groupMetadata(msg.key.remoteJid)
         groupName = meta.subject
-        // Resolve LID to real phone number via group participants
-        if (senderJid.endsWith('@lid')) {
-          const match = meta.participants.find(p => p.lid === senderJid || p.id === senderJid)
+        if (senderJid.endsWith('@s.whatsapp.net')) {
+          senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+        } else if (senderJid.endsWith('@lid')) {
+          // Try to resolve LID via participants
+          const match = meta.participants.find(p =>
+            p.lid === senderJid || p.id === senderJid ||
+            (p.lid && p.lid.split('@')[0] === senderJid.split('@')[0])
+          )
           if (match?.id?.endsWith('@s.whatsapp.net')) {
             senderPhone = match.id.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+          } else {
+            // Log participants so we can debug
+            console.log('🔍 LID participants:', JSON.stringify(meta.participants.slice(0, 3)))
           }
-        } else if (senderJid.endsWith('@s.whatsapp.net')) {
-          senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
         }
       } catch {}
 
