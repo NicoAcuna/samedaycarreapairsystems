@@ -154,7 +154,7 @@ async function startBot() {
     auth:               state,
     logger:             pino({ level: 'silent' }),
     printQRInTerminal:  false,  // we use pairing code instead
-    browser:            ['SDCR Bot', 'Chrome', '1.0.0'],
+    browser:            ['Ubuntu', 'Chrome', '20.0.04'],
   })
 
   sock.ev.on('creds.update', saveCreds)
