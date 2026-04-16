@@ -203,7 +203,7 @@ async function startBot() {
 
       // Sender info
       const senderJid   = msg.key.participant || ''
-      const senderPhone = senderJid.replace('@s.whatsapp.net', '')
+      const senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
       const senderName  = msg.pushName || senderPhone
 
       // Group name
