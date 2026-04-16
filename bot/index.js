@@ -235,14 +235,11 @@ async function startBot() {
         } else if (senderJid.endsWith('@lid')) {
           // Try to resolve LID via participants
           const match = meta.participants.find(p =>
-            p.lid === senderJid || p.id === senderJid ||
-            (p.lid && p.lid.split('@')[0] === senderJid.split('@')[0])
+            p.lid === senderJid || p.id === senderJid
           )
-          if (match?.id?.endsWith('@s.whatsapp.net')) {
-            senderPhone = match.id.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
-          } else {
-            // Log participants so we can debug
-            console.log('🔍 LID participants:', JSON.stringify(meta.participants.slice(0, 3)))
+          const realJid = match?.jid || match?.id
+          if (realJid?.endsWith('@s.whatsapp.net')) {
+            senderPhone = realJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
           }
         }
       } catch {}
