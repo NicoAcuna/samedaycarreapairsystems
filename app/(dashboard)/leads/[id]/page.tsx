@@ -461,7 +461,19 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             {lead.phone && (
               <div className="flex items-center justify-between px-4 py-3">
                 <span className="text-xs text-neutral-500">Phone</span>
-                <a href={`tel:${lead.phone}`} className="text-sm font-medium text-blue-600">{lead.phone}</a>
+                <div className="flex items-center gap-3">
+                  <a href={`tel:+${lead.phone.replace(/\D/g, '')}`} className="text-sm font-medium text-blue-600">
+                    +{lead.phone.replace(/\D/g, '').replace(/^61(\d{3})(\d{3})(\d{3})$/, '61 $1 $2 $3')}
+                  </a>
+                  <a
+                    href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs bg-green-500 hover:bg-green-600 text-white px-2.5 py-1 rounded-lg font-medium"
+                  >
+                    WhatsApp
+                  </a>
+                </div>
               </div>
             )}
             {lead.email && (
