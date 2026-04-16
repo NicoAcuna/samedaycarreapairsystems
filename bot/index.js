@@ -17,30 +17,32 @@ const AUTH_DIR              = process.env.AUTH_DIR || './auth_info'
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 // ── KEYWORD DETECTION ─────────────────────────────────────────────────────────
-// Patterns that indicate someone is LOOKING FOR a mechanic
 const TRIGGERS = [
-  /busco\s+(un\s+)?mec[aá]nico/i,
-  /alg[uú]n\s+mec[aá]nico/i,
-  /necesito\s+(un\s+)?mec[aá]nico/i,
-  /hay\s+(alg[uú]n\s+)?mec[aá]nico/i,
-  /conocen?\s+(alg[uú]n\s+)?mec[aá]nico/i,
-  /recomiendan?\s+(alg[uú]n\s+)?mec[aá]nico/i,
-  /mec[aá]nico\s+(para|que\s+|urgente|en\s+zona|cerca|disponible|barato|bueno)/i,
+  // Any mention of mecanico/mecánico
+  /mec[aá]nico/i,
+  // English
   /\bmechanic\b/i,
-  /pink\s*slip/i,
-  /pre.?purchase\s+inspection/i,
+  /\bcar\s+repair\b/i,
+  /\bauto\s+repair\b/i,
+  /\bcar\s+service\b/i,
+  /\bpink\s*slip\b/i,
+  /\bpre.?purchase\s+inspection\b/i,
   /inspecci[oó]n\s+(pre|antes|de\s+compra)/i,
+  // Spanish variations
+  /taller\s+mec[aá]nico/i,
+  /arreglar\s+(el\s+)?auto/i,
+  /reparar\s+(el\s+)?auto/i,
+  /falla\s+(el\s+)?auto/i,
+  /problem[a]?\s+(con\s+(el\s+|mi\s+)?auto|con\s+(el\s+|mi\s+)?carro)/i,
 ]
 
 // Patterns that indicate "mecanico" is used as adjective (not a person)
 const FALSE_POSITIVES = [
-  /\bsin\s+problema[s]?\s+mec[aá]nico/i,
-  /\bningun[oa]?\s+problema\s+mec[aá]nico/i,
-  /\bproblema[s]?\s+mec[aá]nico/i,
   /\bcaja\s+mec[aá]nica\b/i,
   /\btransmisi[oó]n\s+mec[aá]nica\b/i,
-  /\bauto\s+mec[aá]nico\b/i,       // "auto mecanico" = manual car
   /\bmarcha\s+mec[aá]nica\b/i,
+  /\bfreno\s+mec[aá]nico\b/i,
+  /\breloj\s+mec[aá]nico\b/i,
 ]
 
 // Car listing: has a price + (odometer reading OR rego mention)
