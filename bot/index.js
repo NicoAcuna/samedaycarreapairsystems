@@ -202,15 +202,24 @@ async function startBot() {
       if (!shouldTrigger(text)) continue
 
       // Sender info
-      const senderJid   = msg.key.participant || ''
-      const senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
-      const senderName  = msg.pushName || senderPhone
+      const senderJid = msg.key.participant || ''
+      const senderName = msg.pushName || senderJid
 
-      // Group name
+      // Group metadata (used for name + LID resolution)
       let groupName = null
+      let senderPhone = null
       try {
         const meta = await sock.groupMetadata(msg.key.remoteJid)
         groupName = meta.subject
+        // Resolve LID to real phone number via group participants
+        if (senderJid.endsWith('@lid')) {
+          const match = meta.participants.find(p => p.lid === senderJid || p.id === senderJid)
+          if (match?.id?.endsWith('@s.whatsapp.net')) {
+            senderPhone = match.id.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+          }
+        } else if (senderJid.endsWith('@s.whatsapp.net')) {
+          senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+        }
       } catch {}
 
       console.log(`🎯 Trigger in "${groupName}": ${senderName} — "${text.slice(0, 80)}..."`)
