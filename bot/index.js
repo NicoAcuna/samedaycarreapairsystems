@@ -54,7 +54,7 @@ function isCarListing(text) {
 }
 
 function shouldTrigger(text) {
-  if (!text || text.length < 10) return false
+  if (!text || text.length < 3) return false
   if (!TRIGGERS.some(r => r.test(text))) return false
   if (isCarListing(text)) return false
   if (FALSE_POSITIVES.some(r => r.test(text))) return false
