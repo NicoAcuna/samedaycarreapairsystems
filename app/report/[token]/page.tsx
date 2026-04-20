@@ -416,12 +416,11 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: FlowData; p
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Estimates</span></div>
           <div>
             <div className="grid grid-cols-3 px-5 py-2 border-b border-neutral-100 bg-neutral-50">
-              {['Task','Urgency','Est. Time'].map(h => <span key={h} className="text-xs font-medium text-neutral-500">{h}</span>)}
+              {['Task','Est. Time'].map(h => <span key={h} className="text-xs font-medium text-neutral-500">{h}</span>)}
             </div>
             {filledEst.map((est, i) => (
-              <div key={i} className="grid grid-cols-3 px-5 py-3 border-b border-neutral-100 last:border-0 items-center">
+              <div key={i} className="grid grid-cols-2 px-5 py-3 border-b border-neutral-100 last:border-0 items-center">
                 <span className="text-sm text-neutral-900">{est.task || '—'}</span>
-                <span>{est.urgency ? <span className={`text-xs font-semibold px-2 py-1 rounded ${urgencyStyles[est.urgency] || 'bg-neutral-100 text-neutral-500 border border-neutral-200'}`}>{urgencyLabels[est.urgency] || est.urgency}</span> : <span className="text-sm text-neutral-300">—</span>}</span>
                 <span className="text-sm text-neutral-700">{est.estTime || '—'}</span>
               </div>
             ))}
@@ -430,7 +429,7 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: FlowData; p
       )}
       {recommendation && (
         <div className="border-t border-neutral-100">
-          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Mechanic&apos;s Recommendation</span></div>
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Done</span></div>
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{recommendation}</p></div>
         </div>
       )}
