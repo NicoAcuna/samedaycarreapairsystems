@@ -8,7 +8,9 @@ import { CLIENT_LEAD_SOURCES } from '../../../lib/reference-data/client-sources'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
 type Client = { id: string; first_name: string; last_name: string; phone: string; email: string; lead_source?: string | null; lead_source_other?: string | null }
-type Vehicle = { id: string; make: string; model: string; year: string | number | null; plate: string; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
+const AU_STATES = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'ACT', 'NT']
+
+type Vehicle = { id: string; make: string; model: string; year: string | number | null; plate: string; rego_state: string | null; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
 
 const JOB_TYPES = [
   { key: 'pre_purchase', label: 'Pre-Purchase', desc: 'Full vehicle inspection' },
@@ -64,7 +66,7 @@ function NewJobPageInner() {
   const [clientError, setClientError] = useState('')
 
   // New vehicle form
-  const [newVehicleForm, setNewVehicleForm] = useState({ make: '', model: '', year: '', plate: '', odometer_km: '', colour: '', vin: '' })
+  const [newVehicleForm, setNewVehicleForm] = useState({ make: '', model: '', year: '', plate: '', rego_state: 'NSW', odometer_km: '', colour: '', vin: '' })
   const [savingVehicle, setSavingVehicle] = useState(false)
   const [vehicleError, setVehicleError] = useState('')
   const modelOptions = getModelsForMake(newVehicleForm.make)
@@ -194,17 +196,18 @@ function NewJobPageInner() {
       model: newVehicleForm.model.trim(),
       year: normalizeOptionalInteger(newVehicleForm.year),
       plate: newVehicleForm.plate.trim().toUpperCase(),
+      rego_state: newVehicleForm.rego_state || null,
       odometer_km: newVehicleForm.odometer_km ? Number(newVehicleForm.odometer_km) : null,
       colour: newVehicleForm.colour.trim(),
       vin: newVehicleForm.vin.trim(),
-    }]).select('id, make, model, year, plate, odometer_km').single()
+    }]).select('id, make, model, year, plate, rego_state, odometer_km').single()
     setSavingVehicle(false)
     if (err) { setVehicleError(err.message); return }
     const newVehicle = data as Vehicle
     setVehicles(prev => [newVehicle, ...prev])
     setSelectedVehicle(newVehicle)
     setShowNewVehicle(false)
-    setNewVehicleForm({ make: '', model: '', year: '', plate: '', odometer_km: '', colour: '', vin: '' })
+    setNewVehicleForm({ make: '', model: '', year: '', plate: '', rego_state: 'NSW', odometer_km: '', colour: '', vin: '' })
     setStep(3)
   }
 
@@ -581,10 +584,17 @@ function NewJobPageInner() {
                     className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
                 </div>
                 <div>
-                  <label className="text-xs text-neutral-500 mb-1 block">Odometer</label>
-                  <input type="number" value={newVehicleForm.odometer_km} onChange={e => setNvf('odometer_km', e.target.value)} placeholder="0"
-                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
+                  <label className="text-xs text-neutral-500 mb-1 block">State</label>
+                  <select value={newVehicleForm.rego_state} onChange={e => setNvf('rego_state', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400">
+                    {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
+              </div>
+              <div>
+                <label className="text-xs text-neutral-500 mb-1 block">Odometer</label>
+                <input type="number" value={newVehicleForm.odometer_km} onChange={e => setNvf('odometer_km', e.target.value)} placeholder="0"
+                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -1046,7 +1046,7 @@ type JobRecord = {
   created_at: string
   checklist_data: Record<string, unknown> | null
   clients?: { first_name: string; last_name: string; phone: string; email: string } | null
-  vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
+  vehicles?: { make: string; model: string; year: string; plate: string; rego_state: string | null; odometer_km: number | null } | null
 }
 
 type Company = { name: string; phone: string; address: string }
@@ -1061,7 +1061,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     const supabase = createClient()
     supabase
       .from('jobs')
-      .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, odometer_km)')
+      .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, rego_state, odometer_km)')
       .eq('id', id)
       .single()
       .then(({ data }) => {
@@ -1107,7 +1107,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const c = job.clients
   const clientName  = c ? `${c.first_name} ${c.last_name}` : '—'
   const vehicleName = v ? `${v.make} ${v.model} ${v.year}` : '—'
-  const plate       = v?.plate ? `${v.plate} · NSW` : '—'
+  const plate       = v?.plate ? `${v.plate}${v.rego_state ? ` · ${v.rego_state}` : ''}` : '—'
   const odo         = job.odometer_km
     ? `${job.odometer_km.toLocaleString()} km`
     : v?.odometer_km ? `${v.odometer_km.toLocaleString()} km` : '—'

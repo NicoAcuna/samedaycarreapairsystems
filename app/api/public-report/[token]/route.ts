@@ -37,7 +37,7 @@ export async function GET(
   // Fallback: legacy jobs.public_token
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, odometer_km)')
+    .select('*, clients(first_name, last_name, phone, email), vehicles(make, model, year, plate, rego_state, odometer_km)')
     .eq('public_token', token)
     .single()
 

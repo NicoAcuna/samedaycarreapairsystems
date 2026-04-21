@@ -6,6 +6,8 @@ import { createClient } from '../../../lib/supabase/client'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../lib/reference-data/vehicles'
 import { normalizeOptionalInteger } from '../../lib/reference-data/locations'
 
+const AU_STATES = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'ACT', 'NT']
+
 type Vehicle = {
   id: string
   make: string
@@ -13,6 +15,7 @@ type Vehicle = {
   year: string | number | null
   colour: string
   plate: string
+  rego_state: string | null
   odometer_km: number
   vin: string
   engine: string
@@ -22,7 +25,7 @@ type Vehicle = {
 }
 
 function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (v: Vehicle) => void }) {
-  const [form, setForm] = useState({ make: '', model: '', year: '', colour: '', plate: '', odometer_km: '', vin: '', engine: '', client_id: '' })
+  const [form, setForm] = useState({ make: '', model: '', year: '', colour: '', plate: '', rego_state: 'NSW', odometer_km: '', vin: '', engine: '', client_id: '' })
   const [clients, setClients] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,6 +56,7 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         year: normalizeOptionalInteger(form.year),
         colour: form.colour.trim(),
         plate: form.plate.trim().toUpperCase(),
+        rego_state: form.rego_state || null,
         odometer_km: form.odometer_km ? Number(form.odometer_km) : null,
         vin: form.vin.trim(),
         engine: form.engine.trim(),
@@ -120,19 +124,26 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             </div>
           </div>
 
-          {/* Plate + Odometer */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          {/* Plate + State + Odometer */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
               <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Plate</label>
               <input value={form.plate} onChange={e => set('plate', e.target.value)} placeholder="ABC123"
                 autoCapitalize="characters"
                 className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50 uppercase" />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Odometer (km)</label>
-              <input type="number" inputMode="numeric" value={form.odometer_km} onChange={e => set('odometer_km', e.target.value)} placeholder="85000"
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
+              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">State</label>
+              <select value={form.rego_state} onChange={e => set('rego_state', e.target.value)}
+                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50">
+                {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Odometer (km)</label>
+            <input type="number" inputMode="numeric" value={form.odometer_km} onChange={e => set('odometer_km', e.target.value)} placeholder="85000"
+              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
           </div>
 
           {/* Owner */}

@@ -17,7 +17,7 @@ type JobRecord = {
   created_at: string
   checklist_data: FlowData | null
   clients?: { first_name: string; last_name: string; phone: string; email: string } | null
-  vehicles?: { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
+  vehicles?: { make: string; model: string; year: string; plate: string; rego_state: string | null; odometer_km: number | null } | null
   company?: Company | null
 }
 
@@ -487,13 +487,13 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
 
   // Use RLS-joined data if available, otherwise fall back to embedded snapshot in checklist_data
   const snapC = flowData._client as { first_name: string; last_name: string; phone: string; email: string } | null
-  const snapV = flowData._vehicle as { make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
+  const snapV = flowData._vehicle as { make: string; model: string; year: string; plate: string; rego_state: string | null; odometer_km: number | null } | null
   const c = job.clients ?? snapC
   const v = job.vehicles ?? snapV
 
   const clientName  = c ? `${c.first_name} ${c.last_name}` : '—'
   const vehicleName = v ? `${v.make} ${v.model} ${v.year}` : '—'
-  const plate       = v?.plate || '—'
+  const plate       = v?.plate ? `${v.plate}${v.rego_state ? ` (${v.rego_state})` : ''}` : '—'
   const odo         = job.odometer_km
     ? `${job.odometer_km.toLocaleString()} km`
     : v?.odometer_km ? `${v.odometer_km.toLocaleString()} km` : '—'
