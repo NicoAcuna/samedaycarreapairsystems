@@ -442,8 +442,11 @@ const RESULT_STYLES: Record<string, { badge: string }> = {
   'Codes found': { badge: 'bg-red-50 text-red-600 border border-red-200' },
   Minor:       { badge: 'bg-amber-50 text-amber-700 border border-amber-200' },
   Notable:     { badge: 'bg-red-50 text-red-600 border border-red-200' },
-  Done:        { badge: 'bg-green-50 text-green-700 border border-green-200' },
-  'N/A':       { badge: 'bg-neutral-100 text-neutral-500 border border-neutral-200' },
+  Done:          { badge: 'bg-green-50 text-green-700 border border-green-200' },
+  'N/A':         { badge: 'bg-neutral-100 text-neutral-500 border border-neutral-200' },
+  'Up to date':  { badge: 'bg-green-50 text-green-700 border border-green-200' },
+  'Overdue':     { badge: 'bg-red-50 text-red-600 border border-red-200' },
+  'Unknown':     { badge: 'bg-neutral-100 text-neutral-500 border border-neutral-200' },
 }
 
 const REC_STYLES: Record<string, string> = {
@@ -829,6 +832,7 @@ function buildPrePurchaseSections(flowData: Record<string, unknown>) {
     { key: 'tyres',      label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
     { key: 'obd',        label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
     { key: 'test_drive', label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
+    { key: 'services',   label: 'Services Up to Date',   items: ['Logbook service','Oil & filter change','Timing belt / chain','Coolant flush','Brake fluid','Spark plugs','Air filter'] },
   ]
   const selections = (flowData.selections as Record<string, Record<string, string>>) || {}
   const comments = (flowData.comments as Record<string, Record<string, string>>) || {}
