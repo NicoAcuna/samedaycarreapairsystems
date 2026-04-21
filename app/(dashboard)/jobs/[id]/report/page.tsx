@@ -457,7 +457,7 @@ function getVerdict(sections: typeof REPORT.sections) {
   const poor = allItems.filter(i => i.result === 'Poor' || i.result === 'Failed' || i.result === 'Codes found').length
 
   if (poor >= 3) return { label: 'Not recommended', sub: `${poor} items require immediate attention before purchase.`, color: 'text-red-700', border: 'border-red-200 bg-red-50' }
-  if (poor >= 1) return { label: 'Purchase with caution', sub: `${poor} item${poor > 1 ? 's' : ''} require${poor === 1 ? 's' : ''} immediate attention before or after purchase.`, color: 'text-amber-700', border: 'border-amber-200 bg-amber-50' }
+  if (poor >= 1) return { label: 'Purchase with caution', risk: 'There are risks associated with this vehicle.', sub: `${poor} item${poor > 1 ? 's' : ''} require${poor === 1 ? 's' : ''} immediate attention before or after purchase.`, color: 'text-amber-700', border: 'border-amber-200 bg-amber-50' }
   return { label: 'Recommended for purchase', sub: 'No critical issues found. Vehicle is in good overall condition.', color: 'text-green-700', border: 'border-green-200 bg-green-50' }
 }
 
@@ -669,6 +669,7 @@ function SectionsBody({ sections, additionalNotes, recommendations, photoMap, vi
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">Overall Verdict</div>
             <div className={`text-lg font-bold ${verdict.color}`}>{verdict.label}</div>
+            {'risk' in verdict && verdict.risk && <div className={`text-xs font-medium mt-0.5 ${verdict.color}`}>{verdict.risk}</div>}
             <div className="text-xs text-neutral-500 mt-1">{verdict.sub}</div>
           </div>
           <div className="flex gap-5 text-right flex-shrink-0">
