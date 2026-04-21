@@ -323,7 +323,7 @@ export const FLOW_CONFIG = {
       { key: 'tyres',      label: 'Tyres',                 items: [{ name: 'Front tyres', options: ['Good','Fair','Poor'] }, { name: 'Rear tyres', options: ['Good','Fair','Poor'] }] },
       { key: 'obd',        label: 'OBD Diagnostic',        items: [{ name: 'Fault codes', options: ['None','Codes found'] }, { name: 'CO2 test', options: ['Passed','Failed'] }] },
       { key: 'test_drive', label: 'Test Drive',            items: [{ name: 'Overall behaviour', options: ['Good','Fair','Poor'] }, { name: 'Noises / vibrations', options: ['None','Minor','Notable'] }] },
-      { key: 'services',   label: 'Services Up to Date',   items: [{ name: 'Logbook service', options: ['Up to date','Overdue','Unknown'] }, { name: 'Oil & filter change', options: ['Up to date','Overdue','Unknown'] }, { name: 'Timing belt / chain', options: ['Up to date','Overdue','Unknown'] }, { name: 'Coolant flush', options: ['Up to date','Overdue','Unknown'] }, { name: 'Brake fluid', options: ['Up to date','Overdue','Unknown'] }, { name: 'Spark plugs', options: ['Up to date','Overdue','Unknown'] }, { name: 'Air filter', options: ['Up to date','Overdue','Unknown'] }] },
+      { key: 'services',   label: 'Services Up to Date',   items: [{ name: 'Engine oil', options: ['Up to date','Overdue','Unknown'] }, { name: 'Gearbox oil', options: ['Up to date','Overdue','Unknown'] }] },
     ],
   },
   service: {

@@ -832,7 +832,7 @@ function buildPrePurchaseSections(flowData: Record<string, unknown>) {
     { key: 'tyres',      label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
     { key: 'obd',        label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
     { key: 'test_drive', label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
-    { key: 'services',   label: 'Services Up to Date',   items: ['Logbook service','Oil & filter change','Timing belt / chain','Coolant flush','Brake fluid','Spark plugs','Air filter'] },
+    { key: 'services',   label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
   ]
   const selections = (flowData.selections as Record<string, Record<string, string>>) || {}
   const comments = (flowData.comments as Record<string, Record<string, string>>) || {}
