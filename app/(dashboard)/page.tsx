@@ -86,9 +86,7 @@ function getJobValue(job: Job) {
   if (!data) return 0
 
   if (job.type === 'repair') {
-    const labour = parseMoney(data.labour)
-    const parts  = (data.parts || []).reduce((sum, p) => sum + parseMoney(p.price) * (p.qty || 1), 0)
-    return labour + parts
+    return (data.estimates || []).reduce((sum, e) => sum + parseMoney(e.estCost), 0)
   }
 
   if (job.type === 'service') return parseMoney(data.serviceFee)
