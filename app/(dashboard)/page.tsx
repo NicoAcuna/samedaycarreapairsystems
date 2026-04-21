@@ -16,7 +16,7 @@ type Job = {
     diagFee?: string
     estimates?: { estCost?: string }[]
     labour?: string
-    parts?: { qty?: number; price?: string }[]
+    parts?: { qty?: number; price?: string; name?: string }[]
   } | null
   clients?: { first_name: string; last_name: string } | null
   vehicles?: { make: string; model: string; year: string } | null
@@ -86,7 +86,9 @@ function getJobValue(job: Job) {
   if (!data) return 0
 
   if (job.type === 'repair') {
-    return (data.estimates || []).reduce((sum, estimate) => sum + parseMoney(estimate.estCost), 0)
+    const labour = parseMoney(data.labour)
+    const parts  = (data.parts || []).reduce((sum, p) => sum + parseMoney(p.price) * (p.qty || 1), 0)
+    return labour + parts
   }
 
   if (job.type === 'service') return parseMoney(data.serviceFee)
