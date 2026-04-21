@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 import { VEHICLE_CATALOG, getModelsForMake } from '../../../lib/reference-data/vehicles'
 
+const AU_STATES = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'ACT', 'NT']
+
 type Vehicle = {
   id: string
   make: string
@@ -12,6 +14,7 @@ type Vehicle = {
   year: string
   colour: string
   plate: string
+  rego_state: string | null
   odometer_km: number
   vin: string
   engine: string
@@ -47,6 +50,7 @@ function EditModal({ vehicle, onClose, onSaved }: { vehicle: Vehicle; onClose: (
     year:        vehicle.year        ? String(vehicle.year)        : '',
     colour:      vehicle.colour      ? String(vehicle.colour)      : '',
     plate:       vehicle.plate       ? String(vehicle.plate)       : '',
+    rego_state:  vehicle.rego_state  ? String(vehicle.rego_state)  : 'NSW',
     odometer_km: vehicle.odometer_km ? String(vehicle.odometer_km) : '',
     engine:      vehicle.engine      ? String(vehicle.engine)      : '',
     vin:         vehicle.vin         ? String(vehicle.vin)         : '',
@@ -77,6 +81,7 @@ function EditModal({ vehicle, onClose, onSaved }: { vehicle: Vehicle; onClose: (
         year:        form.year.trim(),
         colour:      form.colour.trim(),
         plate:       form.plate.trim().toUpperCase(),
+        rego_state:  form.rego_state || null,
         odometer_km: form.odometer_km ? Number(form.odometer_km) : null,
         engine:      form.engine.trim(),
         vin:         form.vin.trim(),
@@ -132,10 +137,17 @@ function EditModal({ vehicle, onClose, onSaved }: { vehicle: Vehicle; onClose: (
                 className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1 block">Plate</label>
-              <input value={form.plate} onChange={e => set('plate', e.target.value)}
-                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+              <label className="text-xs font-medium text-neutral-500 mb-1 block">State</label>
+              <select value={form.rego_state} onChange={e => set('rego_state', e.target.value)}
+                className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400 bg-white">
+                {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1 block">Plate</label>
+            <input value={form.plate} onChange={e => set('plate', e.target.value)}
+              className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
