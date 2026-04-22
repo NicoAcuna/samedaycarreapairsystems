@@ -4,6 +4,9 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 
+type QuoteItem = { description: string; cost: string }
+type QuoteData = { items: QuoteItem[]; labour: string; notes: string }
+
 type Job = {
   id: string
   type: string
@@ -11,6 +14,8 @@ type Job = {
   scheduled_at: string | null
   odometer_km: number | null
   created_at: string
+  quote_token?: string | null
+  quote_data?: QuoteData | null
   checklist_data?: {
     serviceFee?: string
     inspectionFee?: string
@@ -79,6 +84,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [showDelete, setShowDelete] = useState(false)
   const [showStatusConfirm, setShowStatusConfirm] = useState(false)
   const [togglingStatus, setTogglingStatus] = useState(false)
+  const [showQuote, setShowQuote] = useState(false)
+  const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([{ description: '', cost: '' }])
+  const [quoteLabour, setQuoteLabour] = useState('')
+  const [quoteNotes, setQuoteNotes] = useState('')
+  const [savingQuote, setSavingQuote] = useState(false)
+  const [quoteCopied, setQuoteCopied] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -110,6 +121,46 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const supabase = createClient()
     await supabase.from('jobs').delete().eq('id', id)
     router.push('/jobs')
+  }
+
+  function openQuoteModal() {
+    if (job?.quote_data) {
+      setQuoteItems(job.quote_data.items?.length ? job.quote_data.items : [{ description: '', cost: '' }])
+      setQuoteLabour(job.quote_data.labour || '')
+      setQuoteNotes(job.quote_data.notes || '')
+    } else {
+      setQuoteItems([{ description: '', cost: '' }])
+      setQuoteLabour('')
+      setQuoteNotes('')
+    }
+    setShowQuote(true)
+  }
+
+  async function handleSaveQuote() {
+    setSavingQuote(true)
+    const supabase = createClient()
+    const quoteData: QuoteData = { items: quoteItems, labour: quoteLabour, notes: quoteNotes }
+    let token = job?.quote_token
+    if (!token) {
+      token = crypto.randomUUID().replace(/-/g, '').slice(0, 24)
+    }
+    const { data } = await supabase.from('jobs')
+      .update({ quote_token: token, quote_data: quoteData })
+      .eq('id', id)
+      .select('quote_token, quote_data')
+      .single()
+    setSavingQuote(false)
+    if (data) {
+      setJob(prev => prev ? { ...prev, quote_token: data.quote_token, quote_data: data.quote_data } : prev)
+    }
+    setShowQuote(false)
+  }
+
+  function copyQuoteLink() {
+    if (!job?.quote_token) return
+    navigator.clipboard.writeText(`${window.location.origin}/quote/${job.quote_token}`)
+    setQuoteCopied(true)
+    setTimeout(() => setQuoteCopied(false), 2000)
   }
 
   if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
@@ -240,6 +291,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             View report
           </button>
         )}
+        {job?.type === 'repair' && (
+          <button
+            onClick={openQuoteModal}
+            className="text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            {job.quote_token ? 'Edit quote' : 'Create quote'}
+          </button>
+        )}
+        {job?.quote_token && (
+          <button
+            onClick={copyQuoteLink}
+            className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600"
+          >
+            {quoteCopied ? 'Copied!' : 'Copy quote link'}
+          </button>
+        )}
         <button
           onClick={() => setShowDelete(true)}
           className="text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600"
@@ -268,6 +335,87 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <button onClick={handleToggleStatus} disabled={togglingStatus}
                 className={`flex-1 py-2 text-sm text-white rounded-lg disabled:opacity-50 ${isCompleted ? 'bg-neutral-700 hover:bg-neutral-800' : 'bg-green-600 hover:bg-green-700'}`}>
                 {togglingStatus ? 'Saving…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quote modal */}
+      {showQuote && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowQuote(false)}>
+          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 flex-shrink-0">
+              <div>
+                <div className="font-semibold text-neutral-900">Repair Quote</div>
+                <div className="text-xs text-neutral-400 mt-0.5">Add parts and labour to generate a quote link</div>
+              </div>
+              <button onClick={() => setShowQuote(false)} className="text-neutral-400 hover:text-neutral-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              {/* Items */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-neutral-500">Items / Parts</label>
+                  <button onClick={() => setQuoteItems(p => [...p, { description: '', cost: '' }])}
+                    className="text-xs px-2.5 py-1 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700">+ Add row</button>
+                </div>
+                <div className="space-y-2">
+                  {quoteItems.map((item, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        value={item.description}
+                        onChange={e => setQuoteItems(p => p.map((r, i) => i === idx ? { ...r, description: e.target.value } : r))}
+                        placeholder="Description (e.g. Brake pads)"
+                        className="flex-1 text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+                      <input
+                        type="number"
+                        value={item.cost}
+                        onChange={e => setQuoteItems(p => p.map((r, i) => i === idx ? { ...r, cost: e.target.value } : r))}
+                        placeholder="$0"
+                        className="w-24 text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+                      {quoteItems.length > 1 && (
+                        <button onClick={() => setQuoteItems(p => p.filter((_, i) => i !== idx))}
+                          className="text-neutral-300 hover:text-red-400 text-lg px-1">×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Labour */}
+              <div>
+                <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Labour ($)</label>
+                <input type="number" value={quoteLabour} onChange={e => setQuoteLabour(e.target.value)}
+                  placeholder="e.g. 150"
+                  className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400" />
+              </div>
+              {/* Notes */}
+              <div>
+                <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Notes <span className="text-neutral-300">(optional)</span></label>
+                <textarea value={quoteNotes} onChange={e => setQuoteNotes(e.target.value)}
+                  placeholder="e.g. Quote valid for 7 days" rows={2}
+                  className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-neutral-400 resize-none" />
+              </div>
+              {/* Total preview */}
+              {(() => {
+                const itemsTotal = quoteItems.reduce((s, i) => s + (Number(i.cost) || 0), 0)
+                const labourTotal = Number(quoteLabour) || 0
+                const total = itemsTotal + labourTotal
+                if (total === 0) return null
+                return (
+                  <div className="bg-neutral-900 rounded-xl px-4 py-3 flex items-center justify-between">
+                    <span className="text-sm text-neutral-400">Total</span>
+                    <span className="text-lg font-bold text-white">
+                      {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 }).format(total)}
+                    </span>
+                  </div>
+                )
+              })()}
+            </div>
+            <div className="px-5 py-4 border-t border-neutral-100 flex-shrink-0">
+              <button onClick={handleSaveQuote} disabled={savingQuote}
+                className="w-full bg-neutral-900 text-white text-sm font-medium py-3 rounded-xl hover:bg-neutral-700 disabled:opacity-50">
+                {savingQuote ? 'Saving…' : 'Save & generate link'}
               </button>
             </div>
           </div>
