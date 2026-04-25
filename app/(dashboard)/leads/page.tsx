@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
-import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, getPostcodeForSuburb, normalizeNswState, normalizeOptionalPostcode } from '../../lib/reference-data/locations'
-import { CLIENT_LEAD_SOURCES } from '../../lib/reference-data/client-sources'
+import { NSW_SUBURB_SUGGESTIONS, getPostcodeForSuburb, normalizeNswState, normalizeOptionalPostcode } from '../../lib/reference-data/locations'
 
 type LeadStatus = 'new' | 'contacted' | 'quoted' | 'converted' | 'lost'
 type LeadSource = 'whatsapp_group' | 'facebook_group' | 'airtasker' | 'google' | 'reddit' | 'recommendation' | 'other'
@@ -246,40 +245,16 @@ function NewLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (lea
   )
 }
 
-// ── CONVERT TO CLIENT MODAL ───────────────────────────────────────────────────
+// ── CONVERT CONFIRM MODAL ─────────────────────────────────────────────────────
 function ConvertToClientModal({ lead, onClose, onConverted }: {
   lead: Lead
   onClose: () => void
-  onConverted: () => void
+  onConverted: (clientId: string) => void
 }) {
-  const [form, setForm] = useState({
-    first_name: lead.first_name,
-    last_name: lead.last_name || '',
-    phone: lead.phone || '',
-    email: lead.email || '',
-    address: '',
-    suburb: lead.suburb || '',
-    postcode: lead.suburb ? (getPostcodeForSuburb(lead.suburb) || '') : '',
-    state: NSW_STATE,
-    lead_source: mapLeadSource(lead.source),
-    lead_source_other: lead.source === 'other' ? (lead.source_detail || '') : '',
-    notes: [lead.message, lead.notes].filter(Boolean).join('\n') || '',
-  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  function set(field: string, val: string) {
-    setForm(prev => ({ ...prev, [field]: val }))
-  }
-
-  function setSuburb(suburb: string) {
-    const postcode = getPostcodeForSuburb(suburb)
-    setForm(prev => ({ ...prev, suburb, postcode: postcode || prev.postcode }))
-  }
-
   async function handleConvert() {
-    if (!form.first_name.trim()) { setError('First name is required'); return }
-    if (!form.lead_source) { setError('Lead source is required'); return }
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -287,114 +262,71 @@ function ConvertToClientModal({ lead, onClose, onConverted }: {
       .from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const companyId = userData?.active_company_id || userData?.company_id
 
-    const { error: clientErr } = await supabase.from('clients').insert([{
+    const postcode = lead.suburb ? getPostcodeForSuburb(lead.suburb) : ''
+    const { data: clientData, error: clientErr } = await supabase.from('clients').insert([{
       user_id: user?.id,
       company_id: companyId,
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
-      phone: form.phone.trim(),
-      email: form.email.trim(),
-      address: form.address.trim(),
-      suburb: form.suburb || null,
+      first_name: lead.first_name.trim(),
+      last_name: (lead.last_name || '').trim(),
+      phone: (lead.phone || '').trim(),
+      email: (lead.email || '').trim(),
+      suburb: lead.suburb || null,
       state: normalizeNswState(),
-      postcode: normalizeOptionalPostcode(form.postcode),
-      lead_source: form.lead_source,
-      lead_source_other: form.lead_source === 'other' ? form.lead_source_other.trim() : null,
-      notes: form.notes.trim(),
-    }])
+      postcode: normalizeOptionalPostcode(postcode || ''),
+      lead_source: mapLeadSource(lead.source),
+      lead_source_other: lead.source === 'other' ? (lead.source_detail || '') : null,
+      notes: [lead.message, lead.notes].filter(Boolean).join('\n') || null,
+    }]).select('id').single()
 
     if (clientErr) { setSaving(false); setError(clientErr.message); return }
 
-    // Mark lead as converted
     await supabase.from('leads').update({ status: 'converted' }).eq('id', lead.id)
     setSaving(false)
-    onConverted()
+    onConverted(clientData.id)
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 flex-shrink-0">
-          <div>
-            <div className="font-semibold text-neutral-900">Convert to client</div>
-            <div className="text-xs text-neutral-400 mt-0.5">Review and confirm — data pre-filled from lead</div>
-          </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">✕</button>
+    <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+        <div className="text-base font-semibold text-neutral-900 mb-1">Convert to client?</div>
+        <div className="text-sm text-neutral-500 mb-4">
+          A new client will be created with the following info and you&apos;ll be taken to create a job.
         </div>
 
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">First name <span className="text-red-400">*</span></label>
-              <input value={form.first_name} onChange={e => set('first_name', e.target.value)}
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Last name</label>
-              <input value={form.last_name} onChange={e => set('last_name', e.target.value)}
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-            </div>
+        <div className="bg-neutral-50 border border-neutral-100 rounded-xl divide-y divide-neutral-100 mb-4 text-sm">
+          <div className="flex justify-between px-4 py-2.5">
+            <span className="text-neutral-500">Name</span>
+            <span className="font-medium text-neutral-900">{[lead.first_name, lead.last_name].filter(Boolean).join(' ')}</span>
           </div>
-          <div>
-            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Phone</label>
-            <input type="tel" inputMode="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
-              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Email</label>
-            <input type="email" inputMode="email" value={form.email} onChange={e => set('email', e.target.value)}
-              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Address</label>
-            <input value={form.address} onChange={e => set('address', e.target.value)} placeholder="e.g. 12 Main St"
-              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Suburb</label>
-              <input list="nsw-suburbs-convert" value={form.suburb} onChange={e => setSuburb(e.target.value)}
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-              <datalist id="nsw-suburbs-convert">
-                {NSW_SUBURB_SUGGESTIONS.map(s => <option key={s} value={s} />)}
-              </datalist>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Postcode</label>
-              <input value={form.postcode} onChange={e => set('postcode', e.target.value)} inputMode="numeric"
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Lead source <span className="text-red-400">*</span></label>
-            <select value={form.lead_source} onChange={e => set('lead_source', e.target.value)}
-              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50">
-              <option value="">Select source</option>
-              {CLIENT_LEAD_SOURCES.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-          {form.lead_source === 'other' && (
-            <div>
-              <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Other source <span className="text-red-400">*</span></label>
-              <input value={form.lead_source_other} onChange={e => set('lead_source_other', e.target.value)}
-                className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
+          {lead.phone && (
+            <div className="flex justify-between px-4 py-2.5">
+              <span className="text-neutral-500">Phone</span>
+              <span className="text-neutral-900">{lead.phone}</span>
             </div>
           )}
-          <div>
-            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
-              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50 resize-none" />
-          </div>
-          {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">{error}</div>}
+          {lead.email && (
+            <div className="flex justify-between px-4 py-2.5">
+              <span className="text-neutral-500">Email</span>
+              <span className="text-neutral-900 truncate ml-4">{lead.email}</span>
+            </div>
+          )}
+          {lead.suburb && (
+            <div className="flex justify-between px-4 py-2.5">
+              <span className="text-neutral-500">Suburb</span>
+              <span className="text-neutral-900">{lead.suburb}</span>
+            </div>
+          )}
         </div>
 
-        <div className="flex gap-3 px-5 pb-5 pt-3 border-t border-neutral-100 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 text-sm py-3 border border-neutral-200 rounded-xl hover:bg-neutral-50 text-neutral-600 font-medium">Cancel</button>
+        {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 mb-4">{error}</div>}
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 border border-neutral-200 rounded-xl text-sm text-neutral-600 hover:bg-neutral-50 font-medium">
+            Cancel
+          </button>
           <button onClick={handleConvert} disabled={saving}
-            className="flex-1 text-sm py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 font-medium">
-            {saving ? 'Converting…' : 'Convert to client ✓'}
+            className="flex-1 py-3 bg-green-600 text-white rounded-xl text-sm hover:bg-green-700 disabled:opacity-50 font-medium">
+            {saving ? 'Converting…' : 'Yes, convert →'}
           </button>
         </div>
       </div>
@@ -474,6 +406,10 @@ export default function LeadsPage() {
   }, [])
 
   async function updateStatus(lead: Lead, status: LeadStatus) {
+    if (status === 'converted') {
+      setConvertLead(lead)
+      return
+    }
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status } : l))
     const supabase = createClient()
     await supabase.from('leads').update({ status }).eq('id', lead.id)
@@ -503,10 +439,10 @@ export default function LeadsPage() {
         <ConvertToClientModal
           lead={convertLead}
           onClose={() => setConvertLead(null)}
-          onConverted={() => {
+          onConverted={(clientId) => {
             setLeads(prev => prev.map(l => l.id === convertLead.id ? { ...l, status: 'converted' } : l))
             setConvertLead(null)
-            router.push('/clients')
+            router.push(`/jobs/new?client=${clientId}`)
           }}
         />
       )}
