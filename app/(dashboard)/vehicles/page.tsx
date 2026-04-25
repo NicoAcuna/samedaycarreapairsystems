@@ -24,8 +24,16 @@ type Vehicle = {
   clients?: { first_name: string; last_name: string }
 }
 
+const NEW_VEHICLE_DRAFT_KEY = 'new_vehicle_draft'
+const EMPTY_VEHICLE_FORM = { make: '', model: '', year: '', colour: '', plate: '', rego_state: 'NSW', odometer_km: '', vin: '', engine: '', client_id: '' }
+
 function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (v: Vehicle) => void }) {
-  const [form, setForm] = useState({ make: '', model: '', year: '', colour: '', plate: '', rego_state: 'NSW', odometer_km: '', vin: '', engine: '', client_id: '' })
+  const [form, setForm] = useState(() => {
+    try {
+      const saved = localStorage.getItem(NEW_VEHICLE_DRAFT_KEY)
+      return saved ? { ...EMPTY_VEHICLE_FORM, ...JSON.parse(saved) } : EMPTY_VEHICLE_FORM
+    } catch { return EMPTY_VEHICLE_FORM }
+  })
   const [clients, setClients] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -37,8 +45,20 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
       .then(({ data }) => setClients(data || []))
   }, [])
 
-  function set(field: string, val: string) { setForm(prev => ({ ...prev, [field]: val })) }
-  function setMake(make: string) { setForm(prev => ({ ...prev, make, model: '' })) }
+  function set(field: string, val: string) {
+    setForm(prev => {
+      const next = { ...prev, [field]: val }
+      localStorage.setItem(NEW_VEHICLE_DRAFT_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+  function setMake(make: string) {
+    setForm(prev => {
+      const next = { ...prev, make, model: '' }
+      localStorage.setItem(NEW_VEHICLE_DRAFT_KEY, JSON.stringify(next))
+      return next
+    })
+  }
 
   async function handleSave() {
     if (!form.make.trim() || !form.model.trim()) { setError('Make and model are required'); return }
@@ -65,6 +85,7 @@ function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
+    localStorage.removeItem(NEW_VEHICLE_DRAFT_KEY)
     onSaved(data as Vehicle)
   }
 
