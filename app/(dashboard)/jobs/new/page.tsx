@@ -35,7 +35,8 @@ function fullName(c: Client) {
 function NewJobPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const preselectedType = searchParams.get('type') || ''
+  const preselectedType     = searchParams.get('type') || ''
+  const preselectedClientId = searchParams.get('client') || ''
 
   const [step, setStep] = useState(1)
 
@@ -71,12 +72,19 @@ function NewJobPageInner() {
   const [vehicleError, setVehicleError] = useState('')
   const modelOptions = getModelsForMake(newVehicleForm.make)
 
-  // Load all clients on mount
+  // Load all clients on mount, and pre-select if ?client= param present
   useEffect(() => {
     const supabase = createClient()
     supabase.from('clients').select('id, first_name, last_name, phone, email').order('first_name')
-      .then(({ data }) => setAllClients((data as Client[]) || []))
-  }, [])
+      .then(({ data }) => {
+        const clients = (data as Client[]) || []
+        setAllClients(clients)
+        if (preselectedClientId) {
+          const match = clients.find(c => c.id === preselectedClientId)
+          if (match) { setSelectedClient(match); setStep(2) }
+        }
+      })
+  }, [preselectedClientId])
 
   // Load ALL vehicles when client is selected (not just their own)
   useEffect(() => {

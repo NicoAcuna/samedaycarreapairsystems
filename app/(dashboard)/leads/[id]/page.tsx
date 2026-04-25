@@ -71,7 +71,7 @@ function mapLeadSource(source: LeadSource): string {
 function ConvertToClientModal({ lead, onClose, onConverted }: {
   lead: Lead
   onClose: () => void
-  onConverted: () => void
+  onConverted: (clientId: string) => void
 }) {
   const [form, setForm] = useState({
     first_name: lead.first_name,
@@ -108,7 +108,7 @@ function ConvertToClientModal({ lead, onClose, onConverted }: {
       .from('users').select('active_company_id, company_id').eq('id', user!.id).single()
     const companyId = userData?.active_company_id || userData?.company_id
 
-    const { error: clientErr } = await supabase.from('clients').insert([{
+    const { data: clientData, error: clientErr } = await supabase.from('clients').insert([{
       user_id: user?.id,
       company_id: companyId,
       first_name: form.first_name.trim(),
@@ -122,13 +122,13 @@ function ConvertToClientModal({ lead, onClose, onConverted }: {
       lead_source: form.lead_source,
       lead_source_other: form.lead_source === 'other' ? form.lead_source_other.trim() : null,
       notes: form.notes.trim(),
-    }])
+    }]).select('id').single()
 
     if (clientErr) { setSaving(false); setError(clientErr.message); return }
 
     await supabase.from('leads').update({ status: 'converted' }).eq('id', lead.id)
     setSaving(false)
-    onConverted()
+    onConverted(clientData.id)
   }
 
   return (
@@ -332,7 +332,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         <ConvertToClientModal
           lead={lead}
           onClose={() => setShowConvert(false)}
-          onConverted={() => router.push('/clients')}
+          onConverted={(clientId) => router.push(`/jobs/new?client=${clientId}`)}
         />
       )}
 
