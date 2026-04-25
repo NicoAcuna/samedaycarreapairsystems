@@ -96,6 +96,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [metricFilter, setMetricFilter] = useState<MetricFilter>('all')
   const [showModal, setShowModal] = useState(false)
 
@@ -125,12 +126,16 @@ export default function JobsPage() {
 
   const filtered = jobs.filter(j => {
     const matchType   = typeFilter === 'All' || j.type === typeFilter
+    const matchStatus =
+      statusFilter === 'All'         ? true :
+      statusFilter === 'In Progress' ? (j.status === 'in_progress' || j.status === 'pending') :
+      statusFilter === 'Completed'   ? j.status === 'completed' : true
     const matchMetric =
       metricFilter === 'all'         ? true :
       metricFilter === 'today'       ? isToday(j.scheduled_at ?? j.created_at) :
       metricFilter === 'in_progress' ? (j.status === 'in_progress' || j.status === 'pending') :
       metricFilter === 'overdue'     ? isOverdue(j) : true
-    return matchType && matchMetric
+    return matchType && matchStatus && matchMetric
   })
 
   return (
@@ -163,20 +168,27 @@ export default function JobsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none">
-        {TYPE_FILTERS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setTypeFilter(tab)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
-              typeFilter === tab
-                ? 'bg-neutral-900 text-white border-neutral-900'
-                : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
-            }`}
-          >
-            {TYPE_FILTER_LABELS[tab]}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {TYPE_FILTERS.map((tab) => (
+            <button key={tab} onClick={() => setTypeFilter(tab)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                typeFilter === tab ? 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
+              }`}>
+              {TYPE_FILTER_LABELS[tab]}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {['All', 'In Progress', 'Completed'].map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                statusFilter === s ? 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
+              }`}>
+              {s}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Desktop table */}
