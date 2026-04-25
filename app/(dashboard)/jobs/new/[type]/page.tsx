@@ -46,7 +46,7 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
           .from('users').select('active_company_id, company_id').eq('id', user.id).single()
         const { data } = await supabase.from('jobs').insert([{
           type,
-          status: 'pending',
+          status: 'in_progress',
           client_id: clientId || null,
           vehicle_id: vehicleId || null,
           user_id: user.id,
