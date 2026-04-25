@@ -28,6 +28,7 @@ export const NSW_SUBURB_POSTCODES = [
   { suburb: 'Hurstville', postcode: '2220' },
   { suburb: 'Leichhardt', postcode: '2040' },
   { suburb: 'Liverpool', postcode: '2170' },
+  { suburb: 'Malabar', postcode: '2036' },
   { suburb: 'Marrickville', postcode: '2204' },
   { suburb: 'Mascot', postcode: '2020' },
   { suburb: 'Merrylands', postcode: '2160' },
