@@ -25,10 +25,11 @@ type Vehicle = {
 }
 
 const NEW_VEHICLE_DRAFT_KEY = 'new_vehicle_draft'
-const EMPTY_VEHICLE_FORM = { make: '', model: '', year: '', colour: '', plate: '', rego_state: 'NSW', odometer_km: '', vin: '', engine: '', client_id: '' }
+type VehicleForm = { make: string; model: string; year: string; colour: string; plate: string; rego_state: string; odometer_km: string; vin: string; engine: string; client_id: string }
+const EMPTY_VEHICLE_FORM: VehicleForm = { make: '', model: '', year: '', colour: '', plate: '', rego_state: 'NSW', odometer_km: '', vin: '', engine: '', client_id: '' }
 
 function NewVehicleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (v: Vehicle) => void }) {
-  const [form, setForm] = useState(() => {
+  const [form, setForm] = useState<VehicleForm>(() => {
     try {
       const saved = localStorage.getItem(NEW_VEHICLE_DRAFT_KEY)
       return saved ? { ...EMPTY_VEHICLE_FORM, ...JSON.parse(saved) } : EMPTY_VEHICLE_FORM
