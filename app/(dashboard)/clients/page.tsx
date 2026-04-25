@@ -74,10 +74,11 @@ function buildLatestNpsMap(interactions: ClientInteraction[]) {
 }
 
 const NEW_CLIENT_DRAFT_KEY = 'new_client_draft'
-const EMPTY_CLIENT_FORM = { first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, lead_source: '', lead_source_other: '', notes: '' }
+type ClientForm = { first_name: string; last_name: string; phone: string; email: string; address: string; suburb: string; postcode: string; state: string; lead_source: string; lead_source_other: string; notes: string }
+const EMPTY_CLIENT_FORM: ClientForm = { first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, lead_source: '', lead_source_other: '', notes: '' }
 
 function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c: Client) => void }) {
-  const [form, setForm] = useState(() => {
+  const [form, setForm] = useState<ClientForm>(() => {
     try {
       const saved = localStorage.getItem(NEW_CLIENT_DRAFT_KEY)
       return saved ? { ...EMPTY_CLIENT_FORM, ...JSON.parse(saved) } : EMPTY_CLIENT_FORM
@@ -88,7 +89,7 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
 
   function set(field: string, val: string) {
     setForm(prev => {
-      const next = { ...prev, [field]: val } as typeof EMPTY_CLIENT_FORM
+      const next = { ...prev, [field]: val }
       localStorage.setItem(NEW_CLIENT_DRAFT_KEY, JSON.stringify(next))
       return next
     })
@@ -97,7 +98,7 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
   function setSuburb(suburb: string) {
     const postcode = getPostcodeForSuburb(suburb)
     setForm(prev => {
-      const next = { ...prev, suburb, postcode: postcode || prev.postcode } as typeof EMPTY_CLIENT_FORM
+      const next = { ...prev, suburb, postcode: postcode || prev.postcode }
       localStorage.setItem(NEW_CLIENT_DRAFT_KEY, JSON.stringify(next))
       return next
     })
