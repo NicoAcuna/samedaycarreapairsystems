@@ -88,7 +88,7 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
 
   function set(field: string, val: string) {
     setForm(prev => {
-      const next = { ...prev, [field]: val }
+      const next = { ...prev, [field]: val } as typeof EMPTY_CLIENT_FORM
       localStorage.setItem(NEW_CLIENT_DRAFT_KEY, JSON.stringify(next))
       return next
     })
@@ -97,7 +97,7 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
   function setSuburb(suburb: string) {
     const postcode = getPostcodeForSuburb(suburb)
     setForm(prev => {
-      const next = { ...prev, suburb, postcode: postcode || prev.postcode }
+      const next = { ...prev, suburb, postcode: postcode || prev.postcode } as typeof EMPTY_CLIENT_FORM
       localStorage.setItem(NEW_CLIENT_DRAFT_KEY, JSON.stringify(next))
       return next
     })
