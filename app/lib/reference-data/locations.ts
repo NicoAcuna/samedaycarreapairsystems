@@ -45,6 +45,7 @@ export const NSW_SUBURB_POSTCODES = [
   { suburb: 'Rhodes', postcode: '2138' },
   { suburb: 'Rockdale', postcode: '2216' },
   { suburb: 'Rozelle', postcode: '2039' },
+  { suburb: 'Spring Farm', postcode: '2570' },
   { suburb: 'Strathfield', postcode: '2135' },
   { suburb: 'Summer Hill', postcode: '2130' },
   { suburb: 'Surry Hills', postcode: '2010' },
