@@ -168,26 +168,36 @@ export default function JobsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {TYPE_FILTERS.map((tab) => (
-            <button key={tab} onClick={() => setTypeFilter(tab)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
-                typeFilter === tab ? 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
-              }`}>
-              {TYPE_FILTER_LABELS[tab]}
-            </button>
-          ))}
+      <div className="flex flex-col gap-2 mb-4">
+        {/* Status — segmented control */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-neutral-400 flex-shrink-0">Status</span>
+          <div className="inline-flex bg-neutral-100 rounded-lg p-0.5">
+            {['All', 'In Progress', 'Completed'].map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`text-xs px-3 py-1.5 rounded-md transition-all font-medium ${
+                  statusFilter === s
+                    ? 'bg-white text-neutral-900 shadow-sm'
+                    : 'text-neutral-500 hover:text-neutral-700'
+                }`}>
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2">
-          {['All', 'In Progress', 'Completed'].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
-                statusFilter === s ? 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
-              }`}>
-              {s}
-            </button>
-          ))}
+        {/* Type — pills */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-neutral-400 flex-shrink-0">Type</span>
+          <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+            {TYPE_FILTERS.map((tab) => (
+              <button key={tab} onClick={() => setTypeFilter(tab)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                  typeFilter === tab ? 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
+                }`}>
+                {TYPE_FILTER_LABELS[tab]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
