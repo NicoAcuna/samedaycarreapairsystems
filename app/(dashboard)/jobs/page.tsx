@@ -285,7 +285,7 @@ export default function JobsPage() {
 
       {/* New Job Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-20">
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center px-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-base font-semibold text-neutral-900">New job</h2>
