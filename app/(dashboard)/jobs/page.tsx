@@ -11,8 +11,60 @@ type Job = {
   scheduled_at: string | null
   odometer_km: number | null
   created_at: string
+  checklist_data?: {
+    serviceFee?: string
+    inspectionFee?: string
+    diagFee?: string
+    estimates?: { estCost?: string }[]
+  } | null
   clients?: { first_name: string; last_name: string } | null
   vehicles?: { make: string; model: string; year: string; plate: string } | null
+}
+
+function parseMoney(v: string | number | null | undefined) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  if (typeof v !== 'string') return 0
+  const n = Number(v.replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+function getJobValue(job: Job) {
+  const d = job.checklist_data
+  if (!d) return 0
+  if (job.type === 'repair')       return (d.estimates || []).reduce((s, e) => s + parseMoney(e.estCost), 0)
+  if (job.type === 'service')      return parseMoney(d.serviceFee)
+  if (job.type === 'pre_purchase') return parseMoney(d.inspectionFee)
+  if (job.type === 'diagnosis')    return parseMoney(d.diagFee)
+  return 0
+}
+
+function fmt(n: number) {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(n)
+}
+
+function isToday(d: string | null) {
+  if (!d) return false
+  const date = new Date(d), now = new Date()
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+}
+
+function isThisWeek(d: string | null) {
+  if (!d) return false
+  const date = new Date(d), now = new Date()
+  const day = now.getDay()
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  start.setDate(now.getDate() + (day === 0 ? -6 : 1 - day))
+  const end = new Date(start)
+  end.setDate(start.getDate() + 7)
+  return date >= start && date < end
+}
+
+function isOverdue(job: Job) {
+  if (job.status === 'completed') return false
+  if (job.scheduled_at && new Date(job.scheduled_at) < new Date()) return true
+  if (job.status === 'pending') return new Date(job.created_at) < new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+  return false
 }
 
 const TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -37,18 +89,21 @@ const TYPE_FILTER_LABELS: Record<string, string> = {
   repair: 'Repair',
 }
 
+type MetricFilter = 'all' | 'today' | 'in_progress' | 'overdue'
+
 export default function JobsPage() {
   const router = useRouter()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState('All')
+  const [metricFilter, setMetricFilter] = useState<MetricFilter>('all')
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
     supabase
       .from('jobs')
-      .select('*, clients(first_name, last_name), vehicles(make, model, year, plate)')
+      .select('*, checklist_data, clients(first_name, last_name), vehicles(make, model, year, plate)')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setJobs((data as Job[]) || [])
@@ -56,23 +111,55 @@ export default function JobsPage() {
       })
   }, [])
 
-  const filtered = jobs.filter(j => typeFilter === 'All' || j.type === typeFilter)
+  // Metrics
+  const todayJobs      = jobs.filter(j => isToday(j.scheduled_at ?? j.created_at))
+  const weekJobs       = jobs.filter(j => isThisWeek(j.scheduled_at ?? j.created_at))
+  const inProgressJobs = jobs.filter(j => j.status === 'in_progress' || j.status === 'pending')
+  const overdueJobs    = jobs.filter(j => isOverdue(j))
+  const metrics = [
+    { key: 'today',       label: "Today",       value: loading ? '…' : fmt(todayJobs.reduce((s, j) => s + getJobValue(j), 0)),       sub: `${todayJobs.length} jobs today`,        dark: true,  red: false },
+    { key: 'in_progress', label: 'In Progress', value: loading ? '…' : fmt(inProgressJobs.reduce((s, j) => s + getJobValue(j), 0)), sub: `${inProgressJobs.length} active`,       dark: false, red: false },
+    { key: 'all',         label: 'This Week',   value: loading ? '…' : fmt(weekJobs.reduce((s, j) => s + getJobValue(j), 0)),        sub: `${weekJobs.length} jobs this week`,     dark: false, red: false },
+    { key: 'overdue',     label: 'Overdue',     value: loading ? '…' : fmt(overdueJobs.reduce((s, j) => s + getJobValue(j), 0)),     sub: `${overdueJobs.length} overdue`,         dark: false, red: true  },
+  ]
+
+  const filtered = jobs.filter(j => {
+    const matchType   = typeFilter === 'All' || j.type === typeFilter
+    const matchMetric =
+      metricFilter === 'all'         ? true :
+      metricFilter === 'today'       ? isToday(j.scheduled_at ?? j.created_at) :
+      metricFilter === 'in_progress' ? (j.status === 'in_progress' || j.status === 'pending') :
+      metricFilter === 'overdue'     ? isOverdue(j) : true
+    return matchType && matchMetric
+  })
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4 md:mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-900">Jobs</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            {loading ? '…' : `${jobs.length} job${jobs.length !== 1 ? 's' : ''}`}
-          </p>
-        </div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-semibold text-neutral-900">Jobs</h1>
         <button
           onClick={() => setShowModal(true)}
           className="bg-neutral-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-neutral-700 transition-colors"
         >
           + New job
         </button>
+      </div>
+
+      {/* Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        {metrics.map(m => (
+          <button key={m.key}
+            onClick={() => setMetricFilter(metricFilter === m.key as MetricFilter ? 'all' : m.key as MetricFilter)}
+            className={`rounded-xl p-4 text-left transition-all border ${
+              m.dark && metricFilter !== m.key ? 'bg-neutral-900 border-neutral-900' :
+              metricFilter === m.key ? 'bg-neutral-900 border-neutral-900 ring-2 ring-offset-1 ring-neutral-400' :
+              'bg-white border-neutral-200 hover:border-neutral-400'
+            }`}>
+            <div className={`text-xs mb-1 ${m.dark || metricFilter === m.key ? 'text-neutral-400' : 'text-neutral-500'}`}>{m.label}</div>
+            <div className={`text-2xl font-semibold ${m.dark || metricFilter === m.key ? 'text-white' : m.red ? 'text-red-500' : 'text-neutral-900'}`}>{m.value}</div>
+            <div className={`text-xs mt-0.5 ${m.dark || metricFilter === m.key ? 'text-neutral-500' : 'text-neutral-400'}`}>{m.sub}</div>
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
