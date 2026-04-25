@@ -73,22 +73,34 @@ function buildLatestNpsMap(interactions: ClientInteraction[]) {
   }, {})
 }
 
+const NEW_CLIENT_DRAFT_KEY = 'new_client_draft'
+const EMPTY_CLIENT_FORM = { first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, lead_source: '', lead_source_other: '', notes: '' }
+
 function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c: Client) => void }) {
-  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '', address: '', suburb: '', postcode: '', state: NSW_STATE, lead_source: '', lead_source_other: '', notes: '' })
+  const [form, setForm] = useState(() => {
+    try {
+      const saved = localStorage.getItem(NEW_CLIENT_DRAFT_KEY)
+      return saved ? { ...EMPTY_CLIENT_FORM, ...JSON.parse(saved) } : EMPTY_CLIENT_FORM
+    } catch { return EMPTY_CLIENT_FORM }
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   function set(field: string, val: string) {
-    setForm(prev => ({ ...prev, [field]: val }))
+    setForm(prev => {
+      const next = { ...prev, [field]: val }
+      localStorage.setItem(NEW_CLIENT_DRAFT_KEY, JSON.stringify(next))
+      return next
+    })
   }
 
   function setSuburb(suburb: string) {
     const postcode = getPostcodeForSuburb(suburb)
-    setForm(prev => ({
-      ...prev,
-      suburb,
-      postcode: postcode || prev.postcode,
-    }))
+    setForm(prev => {
+      const next = { ...prev, suburb, postcode: postcode || prev.postcode }
+      localStorage.setItem(NEW_CLIENT_DRAFT_KEY, JSON.stringify(next))
+      return next
+    })
   }
 
   async function handleSave() {
@@ -118,6 +130,7 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
+    localStorage.removeItem(NEW_CLIENT_DRAFT_KEY)
     onSaved(data as Client)
   }
 
