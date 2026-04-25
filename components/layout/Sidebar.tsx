@@ -6,15 +6,15 @@ import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, useRef } from 'react'
 
 const navItems = [
-  { label: 'Jobs',      href: '/jobs' },
   { label: 'Leads',     href: '/leads' },
+  { label: 'Jobs',      href: '/jobs' },
   { label: 'Clients',   href: '/clients' },
   { label: 'Vehicles',  href: '/vehicles' },
 ]
 
 const icons: Record<string, string> = {
-  '/jobs':     '🔧',
   '/leads':    '📋',
+  '/jobs':     '🔧',
   '/clients':  '👤',
   '/vehicles': '🚗',
 }
