@@ -172,15 +172,17 @@ export default function JobsPage() {
         {/* Status — segmented control */}
         <div className="flex items-center gap-3">
           <span className="text-xs text-neutral-400 flex-shrink-0">Status</span>
-          <div className="inline-flex bg-neutral-100 rounded-lg p-0.5">
-            {['All', 'In Progress', 'Completed'].map(s => (
-              <button key={s} onClick={() => setStatusFilter(s)}
-                className={`text-xs px-3 py-1.5 rounded-md transition-all font-medium ${
-                  statusFilter === s
-                    ? 'bg-white text-neutral-900 shadow-sm'
-                    : 'text-neutral-500 hover:text-neutral-700'
+          <div className="flex gap-2">
+            {[
+              { label: 'All',         color: 'border-neutral-400 text-neutral-700',  active: 'border-neutral-900 bg-neutral-50 text-neutral-900' },
+              { label: 'In Progress', color: 'border-neutral-200 text-neutral-500',  active: 'border-orange-400 bg-orange-50 text-orange-700' },
+              { label: 'Completed',   color: 'border-neutral-200 text-neutral-500',  active: 'border-green-400 bg-green-50 text-green-700' },
+            ].map(({ label, color, active }) => (
+              <button key={label} onClick={() => setStatusFilter(label)}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-all font-medium ${
+                  statusFilter === label ? active : `${color} hover:border-neutral-300`
                 }`}>
-                {s}
+                {label}
               </button>
             ))}
           </div>
