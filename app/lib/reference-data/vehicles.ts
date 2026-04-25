@@ -11,6 +11,7 @@ export const VEHICLE_CATALOG: VehicleCatalogOption[] = [
   { make: 'Honda', models: ['Accord', 'Civic', 'CR-V', 'HR-V', 'Jazz', 'Odyssey'] },
   { make: 'Hyundai', models: ['Accent', 'Elantra', 'Getz', 'Grandeur', 'i30', 'i45', 'ix35', 'Kona', 'Santa Fe', 'Sonata', 'Tucson', 'Venue'] },
   { make: 'Isuzu', models: ['D-MAX', 'MU-X'] },
+  { make: 'Jeep', models: ['Cherokee', 'Compass', 'Grand Cherokee', 'Gladiator', 'Patriot', 'Renegade', 'Wrangler'] },
   { make: 'Kia', models: ['Carnival', 'Cerato', 'Picanto', 'Rio', 'Sorento', 'Sportage'] },
   { make: 'Lexus', models: ['ES', 'IS', 'NX', 'RX', 'UX'] },
   { make: 'Mazda', models: ['BT-50', 'CX-3', 'CX-5', 'CX-9', 'Mazda2', 'Mazda3', 'Mazda6'] },
