@@ -57,6 +57,10 @@ function NewJobPageInner() {
   const [selectedType, setSelectedType] = useState(preselectedType)
   const [selectedServiceSubtype, setSelectedServiceSubtype] = useState('')
 
+  // Scheduled date
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const [scheduledDate, setScheduledDate] = useState(todayStr)
+
   // Modals
   const [showNewClient, setShowNewClient] = useState(false)
   const [showNewVehicle, setShowNewVehicle] = useState(false)
@@ -224,7 +228,7 @@ function NewJobPageInner() {
     const subtype = selectedType === 'service' && selectedServiceSubtype
       ? `&subtype=${encodeURIComponent(selectedServiceSubtype)}`
       : ''
-    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}${subtype}&fresh=1`)
+    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}${subtype}&date=${scheduledDate}&fresh=1`)
   }
 
   function setNcf(field: string, val: string) { setNewClientForm(prev => ({ ...prev, [field]: val })) }
@@ -430,6 +434,20 @@ function NewJobPageInner() {
                 <div className={`text-xs ${selectedType === jt.key ? 'text-neutral-400' : 'text-neutral-500'}`}>{jt.desc}</div>
               </button>
             ))}
+          </div>
+
+          <div className="mt-4">
+            <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Scheduled date</div>
+            <input
+              type="date"
+              value={scheduledDate}
+              min={todayStr}
+              onChange={e => setScheduledDate(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400 bg-neutral-50"
+            />
+            {scheduledDate > todayStr && (
+              <p className="text-xs text-blue-600 mt-1.5">Job will be created as <strong>To do</strong> until that date</p>
+            )}
           </div>
 
           {selectedType === 'service' && (

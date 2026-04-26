@@ -75,9 +75,17 @@ const TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> =
 }
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-  in_progress: { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
-  pending:     { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
-  completed:   { label: 'Completed',  bg: 'bg-green-50',    text: 'text-green-700',  dot: 'bg-green-500'   },
+  in_progress: { label: 'In progress', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+  pending:     { label: 'In progress', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+  completed:   { label: 'Completed',   bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500'  },
+}
+
+const TODO_STYLE = { label: 'To do', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' }
+
+function getDisplayStatus(job: Job) {
+  const today = new Date().toISOString().slice(0, 10)
+  if (job.status === 'pending' && job.scheduled_at && job.scheduled_at.slice(0, 10) > today) return TODO_STYLE
+  return STATUS_STYLES[job.status] || { label: job.status, bg: 'bg-neutral-100', text: 'text-neutral-500', dot: 'bg-neutral-400' }
 }
 
 const TYPE_FILTERS = ['All', 'pre_purchase', 'service', 'diagnosis', 'repair']
@@ -124,11 +132,15 @@ export default function JobsPage() {
     { key: 'overdue',     label: 'Overdue',     value: loading ? '…' : fmt(overdueJobs.reduce((s, j) => s + getJobValue(j), 0)),     sub: `${overdueJobs.length} overdue`,         dark: false, red: true  },
   ]
 
+  const today = new Date().toISOString().slice(0, 10)
+  const isTodo = (j: Job) => j.status === 'pending' && !!j.scheduled_at && j.scheduled_at.slice(0, 10) > today
+
   const filtered = jobs.filter(j => {
     const matchType   = typeFilter === 'All' || j.type === typeFilter
     const matchStatus =
       statusFilter === 'All'         ? true :
-      statusFilter === 'In Progress' ? (j.status === 'in_progress' || j.status === 'pending') :
+      statusFilter === 'To Do'       ? isTodo(j) :
+      statusFilter === 'In Progress' ? (j.status === 'in_progress' || (j.status === 'pending' && !isTodo(j))) :
       statusFilter === 'Completed'   ? j.status === 'completed' : true
     const matchMetric =
       metricFilter === 'all'         ? true :
@@ -174,9 +186,10 @@ export default function JobsPage() {
           <span className="text-xs text-neutral-400 flex-shrink-0">Status</span>
           <div className="flex gap-2">
             {[
-              { label: 'All',         color: 'border-neutral-400 text-neutral-700',  active: 'border-neutral-900 bg-neutral-50 text-neutral-900' },
-              { label: 'In Progress', color: 'border-neutral-200 text-neutral-500',  active: 'border-orange-400 bg-orange-50 text-orange-700' },
-              { label: 'Completed',   color: 'border-neutral-200 text-neutral-500',  active: 'border-green-400 bg-green-50 text-green-700' },
+              { label: 'All',         color: 'border-neutral-400 text-neutral-700', active: 'border-neutral-900 bg-neutral-50 text-neutral-900' },
+              { label: 'To Do',       color: 'border-neutral-200 text-neutral-500', active: 'border-blue-400 bg-blue-50 text-blue-700' },
+              { label: 'In Progress', color: 'border-neutral-200 text-neutral-500', active: 'border-orange-400 bg-orange-50 text-orange-700' },
+              { label: 'Completed',   color: 'border-neutral-200 text-neutral-500', active: 'border-green-400 bg-green-50 text-green-700' },
             ].map(({ label, color, active }) => (
               <button key={label} onClick={() => setStatusFilter(label)}
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-all font-medium ${
@@ -225,7 +238,7 @@ export default function JobsPage() {
               </td></tr>
             ) : filtered.map((job) => {
               const t = TYPE_STYLES[job.type] || { bg: 'bg-neutral-100', text: 'text-neutral-600', label: job.type }
-              const s = STATUS_STYLES[job.status] || { label: job.status, bg: 'bg-neutral-100', text: 'text-neutral-500', dot: 'bg-neutral-400' }
+              const s = getDisplayStatus(job)
               const vehicleLabel = job.vehicles ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}` : '—'
               const clientLabel = job.clients ? `${job.clients.first_name} ${job.clients.last_name}` : '—'
               const dateLabel = job.scheduled_at
@@ -256,7 +269,7 @@ export default function JobsPage() {
           </div>
         ) : filtered.map((job) => {
           const t = TYPE_STYLES[job.type] || { bg: 'bg-neutral-100', text: 'text-neutral-600', label: job.type }
-          const s = STATUS_STYLES[job.status] || { label: job.status, bg: 'bg-neutral-100', text: 'text-neutral-500', dot: 'bg-neutral-400' }
+          const s = getDisplayStatus(job)
           const vehicleLabel = job.vehicles ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}` : '—'
           const clientLabel = job.clients ? `${job.clients.first_name} ${job.clients.last_name}` : '—'
           const dateLabel = job.scheduled_at

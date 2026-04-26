@@ -12,6 +12,7 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
   const clientId = searchParams.get('client') || ''
   const vehicleId = searchParams.get('vehicle') || ''
   const subtype = searchParams.get('subtype') || ''
+  const scheduledDate = searchParams.get('date') || new Date().toISOString().slice(0, 10)
   // `fresh=1` is added by the new-job page when navigating here intentionally
   const isFresh = searchParams.get('fresh') === '1'
 
@@ -44,9 +45,12 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
       } else {
         const { data: userData } = await supabase
           .from('users').select('active_company_id, company_id').eq('id', user.id).single()
+        const today = new Date().toISOString().slice(0, 10)
+        const status = scheduledDate > today ? 'pending' : 'in_progress'
         const { data } = await supabase.from('jobs').insert([{
           type,
-          status: 'in_progress',
+          status,
+          scheduled_at: scheduledDate,
           client_id: clientId || null,
           vehicle_id: vehicleId || null,
           user_id: user.id,
