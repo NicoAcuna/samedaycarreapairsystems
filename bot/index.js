@@ -28,6 +28,8 @@ const TRIGGERS = [
   /\bauto\s+repair\b/i,
   /\bcar\s+service\b/i,
   /\bpink\s*slip\b/i,
+  /\binspection\b/i,
+  /\binspecci[oó]n\b/i,
   /\bpre.?purchase\s+inspection\b/i,
   /inspecci[oó]n\s+(pre|antes|de\s+compra)/i,
   // Spanish variations
