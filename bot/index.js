@@ -36,14 +36,37 @@ const TRIGGERS = [
   /reparar\s+(el\s+)?auto/i,
   /falla\s+(el\s+)?auto/i,
   /problem[a]?\s+(con\s+(el\s+|mi\s+)?auto|con\s+(el\s+|mi\s+)?carro)/i,
+  // New Spanish keywords
+  /reparaci[oó]n\s+(urgente\s+)?(de\s+)?auto/i,
+  /servicio\s+(express\s+)?automotriz/i,
+  /\bfrenos?\b/i,
+  /diagn[oó]stico/i,
+  /neum[aá]ticos?\s+pinchados?/i,
 ]
+
+// ── PRIORITY DETECTION ────────────────────────────────────────────────────────
+const HIGH_PRIORITY_TRIGGERS = [
+  /reparaci[oó]n\s+urgente\s+(de\s+)?auto/i,
+  /servicio\s+express\s+automotriz/i,
+  /frenos?\s+fallando(\s+reparar)?/i,
+]
+
+const MEDIUM_PRIORITY_TRIGGERS = [
+  /diagn[oó]stico\s+de\s+motor/i,
+  /neum[aá]ticos?\s+pinchados?\s+(reparar|arreglar)/i,
+]
+
+function detectPriority(text) {
+  if (HIGH_PRIORITY_TRIGGERS.some(r => r.test(text))) return 'high'
+  if (MEDIUM_PRIORITY_TRIGGERS.some(r => r.test(text))) return 'medium'
+  return 'normal'
+}
 
 // Patterns that indicate "mecanico" is used as adjective (not a person)
 const FALSE_POSITIVES = [
   /\bcaja\s+mec[aá]nica\b/i,
   /\btransmisi[oó]n\s+mec[aá]nica\b/i,
   /\bmarcha\s+mec[aá]nica\b/i,
-  /\bfreno\s+mec[aá]nico\b/i,
   /\breloj\s+mec[aá]nico\b/i,
 ]
 
@@ -63,8 +86,10 @@ function shouldTrigger(text) {
   return true
 }
 
+const PRIORITY_LABEL = { high: '🔴 Alta', medium: '🟡 Media', normal: '⚪ Normal' }
+
 // ── LEAD CREATION ─────────────────────────────────────────────────────────────
-async function createLead({ senderName, senderPhone, message, groupName }) {
+async function createLead({ senderName, senderPhone, message, groupName, priority }) {
   const nameParts  = (senderName || '').trim().split(/\s+/)
   const first_name = nameParts[0] || 'Unknown'
   const last_name  = nameParts.slice(1).join(' ') || null
@@ -81,6 +106,7 @@ async function createLead({ senderName, senderPhone, message, groupName }) {
       source_detail: groupName || null,
       message:       message || null,
       status:        'new',
+      notes:         `Prioridad: ${PRIORITY_LABEL[priority] || PRIORITY_LABEL.normal}`,
     }])
     .select()
     .single()
@@ -90,13 +116,16 @@ async function createLead({ senderName, senderPhone, message, groupName }) {
     return null
   }
 
-  console.log(`✅ Lead created: ${first_name} ${last_name || ''} (${data.id})`)
+  console.log(`✅ Lead created [${priority}]: ${first_name} ${last_name || ''} (${data.id})`)
   return data
 }
 
 // ── EMAIL NOTIFICATION ────────────────────────────────────────────────────────
-async function sendEmailNotification({ senderName, message, groupName, leadId }) {
+async function sendEmailNotification({ senderName, message, groupName, leadId, priority }) {
   if (!RESEND_API_KEY || !NOTIFY_EMAIL) return
+
+  const priorityLabel = PRIORITY_LABEL[priority] || PRIORITY_LABEL.normal
+  const priorityColor = priority === 'high' ? '#dc2626' : priority === 'medium' ? '#d97706' : '#6b7280'
 
   try {
     await fetch('https://api.resend.com/emails', {
@@ -108,17 +137,18 @@ async function sendEmailNotification({ senderName, message, groupName, leadId })
       body: JSON.stringify({
         from:    'SDCR Leads <leads@samedaycarrepair.com.au>',
         to:      [NOTIFY_EMAIL],
-        subject: `🔔 New lead — ${senderName}`,
+        subject: `${priorityLabel} Nuevo lead — ${senderName}`,
         html: `
           <div style="font-family:sans-serif;max-width:480px">
-            <h2 style="margin:0 0 16px">New lead detected 🔧</h2>
+            <h2 style="margin:0 0 16px">Nuevo lead detectado 🔧</h2>
             <table style="width:100%;border-collapse:collapse">
-              <tr><td style="padding:8px 0;color:#666;font-size:14px">Name</td><td style="padding:8px 0;font-size:14px;font-weight:600">${senderName}</td></tr>
-              <tr><td style="padding:8px 0;color:#666;font-size:14px">Group</td><td style="padding:8px 0;font-size:14px">${groupName || '—'}</td></tr>
-              <tr><td style="padding:8px 0;color:#666;font-size:14px;vertical-align:top">Message</td><td style="padding:8px 0;font-size:14px">${message}</td></tr>
+              <tr><td style="padding:8px 0;color:#666;font-size:14px">Prioridad</td><td style="padding:8px 0;font-size:14px;font-weight:700;color:${priorityColor}">${priorityLabel}</td></tr>
+              <tr><td style="padding:8px 0;color:#666;font-size:14px">Nombre</td><td style="padding:8px 0;font-size:14px;font-weight:600">${senderName}</td></tr>
+              <tr><td style="padding:8px 0;color:#666;font-size:14px">Grupo</td><td style="padding:8px 0;font-size:14px">${groupName || '—'}</td></tr>
+              <tr><td style="padding:8px 0;color:#666;font-size:14px;vertical-align:top">Mensaje</td><td style="padding:8px 0;font-size:14px">${message}</td></tr>
             </table>
             <a href="${APP_URL}/leads/${leadId}" style="display:inline-block;margin-top:20px;background:#171717;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-size:14px">
-              View lead →
+              Ver lead →
             </a>
           </div>
         `,
@@ -131,12 +161,15 @@ async function sendEmailNotification({ senderName, message, groupName, leadId })
 }
 
 // ── WHATSAPP NOTIFICATION ─────────────────────────────────────────────────────
-async function sendWhatsAppNotification(sock, { senderName, message, groupName, leadId }) {
+async function sendWhatsAppNotification(sock, { senderName, message, groupName, leadId, priority }) {
   if (!NOTIFY_WA_NUMBER) return
+
+  const priorityLabel = PRIORITY_LABEL[priority] || PRIORITY_LABEL.normal
 
   try {
     const jid  = `${NOTIFY_WA_NUMBER}@s.whatsapp.net`
     const text = `🔔 *Nuevo lead detectado*\n\n` +
+                 `⚡ *Prioridad:* ${priorityLabel}\n` +
                  `👤 *Nombre:* ${senderName}\n` +
                  `💬 *Grupo:* ${groupName || '—'}\n` +
                  `📝 *Mensaje:*\n${message}\n\n` +
@@ -244,14 +277,15 @@ async function startBot() {
         }
       } catch {}
 
-      console.log(`🎯 Trigger in "${groupName}": ${senderName} — "${text.slice(0, 80)}..."`)
+      const priority = detectPriority(text)
+      console.log(`🎯 Trigger [${priority}] in "${groupName}": ${senderName} — "${text.slice(0, 80)}..."`)
 
-      const lead = await createLead({ senderName, senderPhone, message: text, groupName })
+      const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority })
       if (!lead) continue
 
       await Promise.all([
-        sendEmailNotification({ senderName, message: text, groupName, leadId: lead.id }),
-        sendWhatsAppNotification(sock, { senderName, message: text, groupName, leadId: lead.id }),
+        sendEmailNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
+        sendWhatsAppNotification(sock, { senderName, message: text, groupName, leadId: lead.id, priority }),
       ])
     }
   })
