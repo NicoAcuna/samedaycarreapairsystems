@@ -38,7 +38,13 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
       webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         JSON.stringify(payload),
-      )
+      ).catch(async (err) => {
+        // 410 Gone / 404 Not Found = subscription is no longer valid — remove it
+        if (err?.statusCode === 410 || err?.statusCode === 404) {
+          await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        }
+        throw err
+      })
     )
   )
 

@@ -75,6 +75,11 @@ export default function NotificationCenter() {
           { event: 'INSERT', schema: 'public', table: 'notifications', filter: `company_id=eq.${cid}` },
           (payload) => setNotifications((prev) => [payload.new as Notification, ...prev]),
         )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'notifications', filter: `company_id=eq.${cid}` },
+          (payload) => setNotifications((prev) => prev.filter((n) => n.id !== payload.old.id)),
+        )
         .subscribe()
     })
   }, [load, supabase])
@@ -103,6 +108,12 @@ export default function NotificationCenter() {
     if (!ids.length) return
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
     await supabase.from('notifications').update({ read: true }).in('id', ids)
+  }
+
+  async function dismiss(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    setNotifications((prev) => prev.filter((n) => n.id !== id))
+    await supabase.from('notifications').delete().eq('id', id)
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -166,29 +177,40 @@ export default function NotificationCenter() {
               </div>
             ) : (
               notifications.map((n) => (
-                <button
+                <div
                   key={n.id}
-                  onClick={() => tap(n)}
-                  className={`w-full text-left px-4 py-3 flex items-start gap-3 border-b border-neutral-50 last:border-0 transition-colors hover:bg-neutral-50 active:bg-neutral-100 ${
+                  className={`relative group flex items-start gap-3 px-4 py-3 border-b border-neutral-50 last:border-0 transition-colors hover:bg-neutral-50 ${
                     !n.read ? 'bg-blue-50/40' : ''
                   }`}
                 >
-                  <NotifIcon type={n.type} />
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-sm truncate ${!n.read ? 'font-semibold text-neutral-900' : 'font-medium text-neutral-700'}`}>
-                      {n.title}
+                  <button
+                    onClick={() => tap(n)}
+                    className="flex items-start gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <NotifIcon type={n.type} />
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm truncate ${!n.read ? 'font-semibold text-neutral-900' : 'font-medium text-neutral-700'}`}>
+                        {n.title}
+                      </div>
+                      {n.body && (
+                        <div className="text-xs text-neutral-500 mt-0.5 line-clamp-2">{n.body}</div>
+                      )}
+                      <div className="text-[11px] text-neutral-400 mt-1">
+                        {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                      </div>
                     </div>
-                    {n.body && (
-                      <div className="text-xs text-neutral-500 mt-0.5 line-clamp-2">{n.body}</div>
+                    {!n.read && (
+                      <span className="shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
                     )}
-                    <div className="text-[11px] text-neutral-400 mt-1">
-                      {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-                    </div>
-                  </div>
-                  {!n.read && (
-                    <span className="shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
-                  )}
-                </button>
+                  </button>
+                  <button
+                    onClick={(e) => dismiss(e, n.id)}
+                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-neutral-200 text-neutral-400 hover:text-neutral-700 mt-0.5"
+                    aria-label="Descartar"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
               ))
             )}
           </div>

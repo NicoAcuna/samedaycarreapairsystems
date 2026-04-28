@@ -232,6 +232,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   async function handleDelete() {
     setDeleting(true)
     const supabase = createClient()
+    await supabase.from('notifications').delete().eq('url', `/leads/${id}`)
     await supabase.from('leads').delete().eq('id', id)
     router.push('/leads')
   }
