@@ -31,6 +31,7 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
     .select('endpoint, p256dh, auth')
     .eq('company_id', companyId)
 
+  console.log('[push] subscriptions found:', subs?.length ?? 0, 'for company', companyId)
   if (!subs?.length) return { sent: 0, failed: 0 }
 
   const results = await Promise.allSettled(
@@ -39,12 +40,13 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         JSON.stringify(payload),
       ).catch(async (err) => {
-        // 410 Gone / 404 Not Found = subscription is no longer valid — remove it
-        if (err?.statusCode === 410 || err?.statusCode === 404) {
-          await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-        }
-        throw err
-      })
+          console.error('[push] send error', err?.statusCode, sub.endpoint.slice(-30))
+          // 410 Gone / 404 Not Found = subscription is no longer valid — remove it
+          if (err?.statusCode === 410 || err?.statusCode === 404) {
+            await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+          }
+          throw err
+        })
     )
   )
 

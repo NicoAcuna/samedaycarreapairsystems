@@ -64,5 +64,6 @@ export async function POST(req: NextRequest) {
 
   // Send push to subscribed devices (best-effort)
   const result = await sendPushToCompany(companyId, body.payload)
+  console.log('[notify] push result', { companyId, ...result })
   return NextResponse.json(result)
 }
