@@ -219,13 +219,14 @@ async function sendPushNotification({ senderName, message, groupName, leadId, pr
 
 // ── CONVERSATION MANAGEMENT ───────────────────────────────────────────────────
 async function getActiveConversation(contactJid) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('bot_conversations')
     .select('*')
     .eq('company_id', SUPABASE_COMPANY_ID)
     .eq('contact_jid', contactJid)
-    .not('status', 'in', '("closed","scheduled")')
+    .not('status', 'in', '(closed,scheduled)')
     .maybeSingle()
+  if (error) console.error('❌ getActiveConversation error:', error.message)
   return data
 }
 
