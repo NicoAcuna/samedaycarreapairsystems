@@ -475,8 +475,9 @@ async function startBot() {
         } catch {}
       }
 
-      // ── If contact has an active conversation, continue it ──────────────────
-      if (contactJid) {
+      // ── Conversational bot (stand by — enable with BOT_CONVERSATION_ENABLED=true) ──
+      const convEnabled = process.env.BOT_CONVERSATION_ENABLED === 'true'
+      if (convEnabled && contactJid) {
         const conv = await getActiveConversation(contactJid)
         if (conv) {
           await handleConversationMessage(sock, { conv, contactJid, text })
@@ -484,7 +485,7 @@ async function startBot() {
         }
       }
 
-      // ── No active conversation — check for keyword trigger ──────────────────
+      // ── Keyword trigger → lead + notifications ──────────────────────────────
       if (!shouldTrigger(text)) continue
 
       const source   = isGroup ? 'whatsapp_group' : 'whatsapp_direct'
@@ -500,8 +501,8 @@ async function startBot() {
         sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
       ])
 
-      // ── Start bot conversation with the client ──────────────────────────────
-      if (contactJid) {
+      // ── Start conversation (only when enabled) ──────────────────────────────
+      if (convEnabled && contactJid) {
         await startConversation(sock, { lead, contactJid, senderName, senderPhone, originalMessage: text })
       }
     }
