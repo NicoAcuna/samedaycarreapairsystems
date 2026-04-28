@@ -1,5 +1,6 @@
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys')
 const { createClient } = require('@supabase/supabase-js')
+const { askClaude } = require('./claude')
 const pino = require('pino')
 const http = require('http')
 const qrcode = require('qrcode')
@@ -216,6 +217,105 @@ async function sendPushNotification({ senderName, message, groupName, leadId, pr
   }
 }
 
+// ── CONVERSATION MANAGEMENT ───────────────────────────────────────────────────
+async function getActiveConversation(contactJid) {
+  const { data } = await supabase
+    .from('bot_conversations')
+    .select('*')
+    .eq('company_id', SUPABASE_COMPANY_ID)
+    .eq('contact_jid', contactJid)
+    .not('status', 'in', '("closed","scheduled")')
+    .maybeSingle()
+  return data
+}
+
+async function startConversation(sock, { lead, contactJid, senderName, senderPhone, originalMessage }) {
+  const history = [{ role: 'user', content: originalMessage }]
+  const response = await askClaude(history)
+
+  const { data: conv } = await supabase
+    .from('bot_conversations')
+    .insert({
+      lead_id:       lead.id,
+      company_id:    SUPABASE_COMPANY_ID,
+      contact_jid:   contactJid,
+      contact_name:  senderName,
+      contact_phone: senderPhone,
+      status:        'qualifying',
+      messages:      [...history, { role: 'assistant', content: response.message }],
+    })
+    .select()
+    .single()
+
+  await sock.sendMessage(contactJid, { text: response.message })
+  console.log(`💬 Bot replied to ${senderName}: "${response.message.slice(0, 60)}..."`)
+
+  if (response.action === 'request_quote' && conv) {
+    await handleRequestQuote(conv, response.data, senderName)
+  }
+}
+
+async function handleConversationMessage(sock, { conv, contactJid, text }) {
+  const userMsg      = { role: 'user', content: text }
+  const allMessages  = [...(conv.messages || []), userMsg]
+  const historySlice = allMessages.slice(-20) // keep last 20 for Claude context
+
+  const response = await askClaude(historySlice)
+
+  const updatedMessages = [...allMessages, { role: 'assistant', content: response.message }]
+  await supabase
+    .from('bot_conversations')
+    .update({ messages: updatedMessages, updated_at: new Date().toISOString() })
+    .eq('id', conv.id)
+
+  await sock.sendMessage(contactJid, { text: response.message })
+  console.log(`💬 Bot replied to ${conv.contact_name}: "${response.message.slice(0, 60)}..."`)
+
+  if (response.action === 'request_quote') {
+    await handleRequestQuote(conv, response.data, conv.contact_name)
+  }
+}
+
+async function handleRequestQuote(conv, data, contactName) {
+  const updates = {
+    status:          'awaiting_quote_approval',
+    language:        data.language || 'es',
+    vehicle:         data.vehicle  || null,
+    suburb:          data.suburb   || null,
+    job_type:        data.job_type || null,
+    job_description: data.job_description || null,
+    updated_at:      new Date().toISOString(),
+  }
+  await supabase.from('bot_conversations').update(updates).eq('id', conv.id)
+
+  if (data.suburb && conv.lead_id) {
+    await supabase.from('leads').update({ suburb: data.suburb }).eq('id', conv.lead_id)
+  }
+
+  if (!NOTIFY_SECRET) return
+  const vehicleStr = data.vehicle
+    ? `${data.vehicle.year} ${data.vehicle.make} ${data.vehicle.model}`
+    : 'Auto sin identificar'
+  try {
+    await fetch(`${APP_URL}/api/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-notify-secret': NOTIFY_SECRET },
+      body: JSON.stringify({
+        companyId: SUPABASE_COMPANY_ID,
+        type: 'lead_ready_to_quote',
+        payload: {
+          title: `💰 Listo para cotizar — ${contactName}`,
+          body:  `${data.suburb || '?'} · ${vehicleStr} · ${(data.job_description || '').slice(0, 60)}`,
+          url:   conv.lead_id ? `/leads/${conv.lead_id}` : '/leads',
+        },
+      }),
+    })
+    console.log('🔔 Quote approval notification sent')
+  } catch (e) {
+    console.error('❌ Quote notification failed:', e.message)
+  }
+}
+
 // ── QR SERVER ─────────────────────────────────────────────────────────────────
 let currentQR = null
 const PORT = process.env.PORT || 3000
@@ -275,14 +375,11 @@ async function startBot() {
     if (type !== 'notify') return
 
     for (const msg of messages) {
-      // Skip own messages
       if (msg.key.fromMe) continue
 
       const remoteJid = msg.key.remoteJid || ''
-      const isGroup  = remoteJid.endsWith('@g.us')
-      const isDirect = remoteJid.endsWith('@s.whatsapp.net')
-
-      // Only handle group or direct chats (ignore status broadcasts, newsletters, etc.)
+      const isGroup   = remoteJid.endsWith('@g.us')
+      const isDirect  = remoteJid.endsWith('@s.whatsapp.net')
       if (!isGroup && !isDirect) continue
 
       const text =
@@ -290,15 +387,19 @@ async function startBot() {
         msg.message?.extendedTextMessage?.text ||
         msg.message?.imageMessage?.caption ||
         ''
+      if (!text) continue
 
-      if (!shouldTrigger(text)) continue
-
-      let groupName  = null
+      // ── Resolve contact JID (always the person's direct WA number) ──────────
+      let contactJid  = null
       let senderPhone = null
       let senderName  = msg.pushName || ''
+      let groupName   = null
 
-      if (isGroup) {
-        // Sender info from group participant
+      if (isDirect) {
+        contactJid  = remoteJid
+        senderPhone = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+        if (!senderName) senderName = senderPhone
+      } else {
         const senderJid = msg.key.participant || ''
         if (!senderName) senderName = senderJid
         try {
@@ -306,21 +407,31 @@ async function startBot() {
           groupName = meta.subject
           if (senderJid.endsWith('@s.whatsapp.net')) {
             senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+            contactJid  = senderJid
           } else if (senderJid.endsWith('@lid')) {
-            const match = meta.participants.find(p => p.lid === senderJid || p.id === senderJid)
+            const match  = meta.participants.find(p => p.lid === senderJid || p.id === senderJid)
             const realJid = match?.jid || match?.id
             if (realJid?.endsWith('@s.whatsapp.net')) {
               senderPhone = realJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+              contactJid  = realJid
             }
           }
         } catch {}
-      } else {
-        // Direct message — sender is remoteJid itself
-        senderPhone = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
-        if (!senderName) senderName = senderPhone
       }
 
-      const source = isGroup ? 'whatsapp_group' : 'whatsapp_direct'
+      // ── If contact has an active conversation, continue it ──────────────────
+      if (contactJid) {
+        const conv = await getActiveConversation(contactJid)
+        if (conv) {
+          await handleConversationMessage(sock, { conv, contactJid, text })
+          continue
+        }
+      }
+
+      // ── No active conversation — check for keyword trigger ──────────────────
+      if (!shouldTrigger(text)) continue
+
+      const source   = isGroup ? 'whatsapp_group' : 'whatsapp_direct'
       const priority = detectPriority(text)
       console.log(`🎯 Trigger [${priority}] ${isGroup ? `in "${groupName}"` : '(direct)'}: ${senderName} — "${text.slice(0, 80)}..."`)
 
@@ -332,6 +443,11 @@ async function startBot() {
         sendWhatsAppNotification(sock, { senderName, message: text, groupName, leadId: lead.id, priority }),
         sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
       ])
+
+      // ── Start bot conversation with the client ──────────────────────────────
+      if (contactJid) {
+        await startConversation(sock, { lead, contactJid, senderName, senderPhone, originalMessage: text })
+      }
     }
   })
 }
