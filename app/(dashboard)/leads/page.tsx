@@ -112,7 +112,22 @@ function NewLeadModal({ onClose, onSaved }: { onClose: () => void; onSaved: (lea
       .single()
     setSaving(false)
     if (err) { setError(err.message); return }
-    onSaved(data as Lead)
+    const lead = data as Lead
+
+    // Fire push — don't await so the modal closes immediately
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payload: {
+          title: '🔔 Nuevo lead',
+          body: `${fullName(lead)}${lead.suburb ? ` · ${lead.suburb}` : ''}${lead.message ? ` — ${lead.message.slice(0, 60)}` : ''}`,
+          url: `/leads/${lead.id}`,
+        },
+      }),
+    }).catch(() => {})
+
+    onSaved(lead)
   }
 
   return (
@@ -584,7 +599,6 @@ export default function LeadsPage() {
           </div>
         ) : filtered.map(lead => {
           const src = getSource(lead.source)
-          const s = getStatus(lead.status)
           return (
             <div key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} className="px-4 py-3.5 border-b border-neutral-100 last:border-0 cursor-pointer active:bg-neutral-50">
               <div className="flex items-start justify-between gap-2 mb-1.5">

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, useRef } from 'react'
+import PushPermission from '@/components/PushPermission'
 
 const navItems = [
   { label: 'Leads',     href: '/leads' },
@@ -172,12 +173,15 @@ export default function Sidebar() {
         </nav>
 
         <div className="px-4 py-4 border-t border-neutral-100">
-          <button
-            onClick={handleLogout}
-            className="w-full text-left text-xs text-neutral-400 hover:text-red-500 transition-colors flex items-center gap-2 py-1 cursor-pointer"
-          >
-            <span>→</span> Log out
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleLogout}
+              className="text-xs text-neutral-400 hover:text-red-500 transition-colors flex items-center gap-2 py-1 cursor-pointer"
+            >
+              <span>→</span> Log out
+            </button>
+            <PushPermission />
+          </div>
         </div>
       </div>
 

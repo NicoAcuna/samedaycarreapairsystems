@@ -15,6 +15,7 @@ const SUPABASE_USER_ID      = process.env.SUPABASE_USER_ID
 const SUPABASE_COMPANY_ID   = process.env.SUPABASE_COMPANY_ID
 const APP_URL               = process.env.APP_URL || 'https://samedaycarreapairsystems.vercel.app'
 const AUTH_DIR              = process.env.AUTH_DIR || './auth_info'
+const NOTIFY_SECRET         = process.env.NOTIFY_SECRET
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
@@ -183,6 +184,38 @@ async function sendWhatsAppNotification(sock, { senderName, message, groupName, 
   }
 }
 
+// ── PUSH NOTIFICATION ────────────────────────────────────────────────────────
+async function sendPushNotification({ senderName, message, groupName, leadId, priority }) {
+  if (!NOTIFY_SECRET) return
+  const priorityEmoji = priority === 'high' ? '🔴' : priority === 'medium' ? '🟡' : '🔔'
+  const body = [
+    groupName ? `${groupName}` : null,
+    message ? message.slice(0, 80) : null,
+  ].filter(Boolean).join(' · ')
+
+  try {
+    const res = await fetch(`${APP_URL}/api/notify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-notify-secret': NOTIFY_SECRET,
+      },
+      body: JSON.stringify({
+        companyId: SUPABASE_COMPANY_ID,
+        payload: {
+          title: `${priorityEmoji} Nuevo lead — ${senderName}`,
+          body,
+          url: `/leads/${leadId}`,
+        },
+      }),
+    })
+    if (res.ok) console.log('🔔 Push notification sent')
+    else console.error('❌ Push notification failed:', await res.text())
+  } catch (e) {
+    console.error('❌ Push notification failed:', e.message)
+  }
+}
+
 // ── QR SERVER ─────────────────────────────────────────────────────────────────
 let currentQR = null
 const PORT = process.env.PORT || 3000
@@ -288,6 +321,7 @@ async function startBot() {
       await Promise.all([
         sendEmailNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
         sendWhatsAppNotification(sock, { senderName, message: text, groupName, leadId: lead.id, priority }),
+        sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
       ])
     }
   })
