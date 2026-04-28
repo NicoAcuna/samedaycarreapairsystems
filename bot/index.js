@@ -230,6 +230,8 @@ async function getActiveConversation(contactJid) {
   return data
 }
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
 async function startConversation(sock, { lead, contactJid, senderName, senderPhone, originalMessage }) {
   const history = [{ role: 'user', content: originalMessage }]
   const response = await askClaude(history)
@@ -248,6 +250,7 @@ async function startConversation(sock, { lead, contactJid, senderName, senderPho
     .select()
     .single()
 
+  await sleep(2500)
   await sock.sendMessage(contactJid, { text: response.message })
   console.log(`💬 Bot replied to ${senderName}: "${response.message.slice(0, 60)}..."`)
 
@@ -259,7 +262,7 @@ async function startConversation(sock, { lead, contactJid, senderName, senderPho
 async function handleConversationMessage(sock, { conv, contactJid, text }) {
   const userMsg      = { role: 'user', content: text }
   const allMessages  = [...(conv.messages || []), userMsg]
-  const historySlice = allMessages.slice(-20) // keep last 20 for Claude context
+  const historySlice = allMessages.slice(-20)
 
   const response = await askClaude(historySlice)
 
@@ -269,6 +272,7 @@ async function handleConversationMessage(sock, { conv, contactJid, text }) {
     .update({ messages: updatedMessages, updated_at: new Date().toISOString() })
     .eq('id', conv.id)
 
+  await sleep(2500)
   await sock.sendMessage(contactJid, { text: response.message })
   console.log(`💬 Bot replied to ${conv.contact_name}: "${response.message.slice(0, 60)}..."`)
 
