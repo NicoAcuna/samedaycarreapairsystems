@@ -4,4 +4,5 @@ WORKDIR /app
 COPY bot/package.json .
 RUN npm install --production
 COPY bot/index.js .
+COPY bot/claude.js .
 CMD ["node", "index.js"]
