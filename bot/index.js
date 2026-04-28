@@ -316,6 +316,60 @@ async function handleRequestQuote(conv, data, contactName) {
   }
 }
 
+// ── QUOTE APPROVAL (realtime) ─────────────────────────────────────────────────
+function subscribeToQuoteApprovals(sock) {
+  supabase
+    .channel('bot_quote_approvals')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'bot_conversations', filter: `company_id=eq.${SUPABASE_COMPANY_ID}` },
+      async (payload) => {
+        const next = payload.new
+        const prev = payload.old
+        if (next.status === 'quoted' && prev.status === 'awaiting_quote_approval') {
+          await sendQuoteToClient(sock, next)
+        }
+      }
+    )
+    .subscribe()
+  console.log('📋 Listening for quote approvals via realtime...')
+}
+
+async function sendQuoteToClient(sock, conv) {
+  if (!conv.contact_jid || !conv.suggested_price) return
+
+  const isEs    = (conv.language || 'es') === 'es'
+  const vehicle = conv.vehicle
+    ? `${conv.vehicle.year} ${conv.vehicle.make} ${conv.vehicle.model}`
+    : null
+  const price   = conv.suggested_price
+
+  const text = isEs
+    ? `✅ *Same Day Car Repair — Cotización*\n\n` +
+      (vehicle         ? `🚗 *Auto:* ${vehicle}\n`              : '') +
+      (conv.suburb     ? `📍 *Suburb:* ${conv.suburb}\n`        : '') +
+      `🔧 *Trabajo:* ${conv.job_description || 'Diagnóstico en terreno'}\n` +
+      `💰 *Precio:* $${price} AUD\n\n` +
+      `¿Te parece bien po? Confirmame y coordinamos la visita 🙌`
+    : `✅ *Same Day Car Repair — Quote*\n\n` +
+      (vehicle         ? `🚗 *Car:* ${vehicle}\n`               : '') +
+      (conv.suburb     ? `📍 *Suburb:* ${conv.suburb}\n`        : '') +
+      `🔧 *Work:* ${conv.job_description || 'On-site diagnosis'}\n` +
+      `💰 *Price:* $${price} AUD\n\n` +
+      `Does that work for you? Let me know and we'll lock in a time 🙌`
+
+  try {
+    await sock.sendMessage(conv.contact_jid, { text })
+    console.log(`💰 Quote sent to ${conv.contact_name}: $${price}`)
+    await supabase
+      .from('bot_conversations')
+      .update({ status: 'quote_sent', updated_at: new Date().toISOString() })
+      .eq('id', conv.id)
+  } catch (e) {
+    console.error('❌ Failed to send quote:', e.message)
+  }
+}
+
 // ── QR SERVER ─────────────────────────────────────────────────────────────────
 let currentQR = null
 const PORT = process.env.PORT || 3000
@@ -362,6 +416,7 @@ async function startBot() {
     if (connection === 'open') {
       currentQR = null
       console.log('✅ WhatsApp Bot connected and listening...')
+      subscribeToQuoteApprovals(sock)
     }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode

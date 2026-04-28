@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 import { NSW_SUBURB_SUGGESTIONS, NSW_STATE, getPostcodeForSuburb, normalizeNswState, normalizeOptionalPostcode } from '../../../lib/reference-data/locations'
+import BotConversationPanel from '@/components/BotConversationPanel'
 
 type LeadStatus = 'new' | 'contacted' | 'quoted' | 'converted' | 'lost'
 type LeadSource = 'whatsapp_group' | 'facebook_group' | 'airtasker' | 'google' | 'reddit' | 'recommendation' | 'other'
@@ -460,6 +461,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </>
         )}
       </div>
+
+      {/* Bot conversation panel */}
+      {!editing && <BotConversationPanel leadId={id} />}
 
       {/* Convert action */}
       {!editing && lead.status !== 'converted' && lead.status !== 'lost' && (
