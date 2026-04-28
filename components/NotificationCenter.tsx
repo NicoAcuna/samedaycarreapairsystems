@@ -205,7 +205,7 @@ export default function NotificationCenter() {
                   </button>
                   <button
                     onClick={(e) => dismiss(e, n.id)}
-                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-neutral-200 text-neutral-400 hover:text-neutral-700 mt-0.5"
+                    className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-neutral-200 text-neutral-400 hover:text-neutral-700 mt-0.5"
                     aria-label="Descartar"
                   >
                     <X className="h-3 w-3" />
