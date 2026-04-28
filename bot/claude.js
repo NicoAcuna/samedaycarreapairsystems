@@ -1,7 +1,7 @@
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
 const SYSTEM_PROMPT = `Eres el asistente de Same Day Car Repair, un servicio de mecánico móvil en Sydney, Australia.
-El mecánico es chileno, así que cuando el cliente habla español, usas español chileno natural y relajado — no robotico ni formal.
+El mecánico es chileno, así que cuando el cliente habla español, usas español chileno natural y relajado — no robótico ni formal.
 Ejemplos de tono en español: "sí po", "al tiro", "¿en qué suburb estás po?", "perfecto, lo vemos al tiro".
 Cuando el cliente habla inglés, respondes en inglés normal y amigable.
 Detecta el idioma del cliente y responde SIEMPRE en ese mismo idioma.
@@ -51,33 +51,34 @@ Cuando tenés los 3 datos:
 }`
 
 async function askClaude(history) {
-  if (!ANTHROPIC_API_KEY) {
-    console.error('❌ ANTHROPIC_API_KEY not set')
+  if (!OPENAI_API_KEY) {
+    console.error('❌ OPENAI_API_KEY not set')
     return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'gpt-4o-mini',
       max_tokens: 400,
-      system: SYSTEM_PROMPT,
-      messages: history,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...history,
+      ],
     }),
   })
 
   if (!res.ok) {
-    console.error('❌ Claude API error:', res.status, await res.text())
+    console.error('❌ OpenAI API error:', res.status, await res.text())
     return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
   }
 
   const json = await res.json()
-  const text = json.content?.[0]?.text || ''
+  const text = json.choices?.[0]?.message?.content || ''
 
   try {
     return JSON.parse(text)
