@@ -92,7 +92,7 @@ function shouldTrigger(text) {
 const PRIORITY_LABEL = { high: '🔴 Alta', medium: '🟡 Media', normal: '⚪ Normal' }
 
 // ── LEAD CREATION ─────────────────────────────────────────────────────────────
-async function createLead({ senderName, senderPhone, message, groupName, priority }) {
+async function createLead({ senderName, senderPhone, message, groupName, priority, source = 'whatsapp_group' }) {
   const nameParts  = (senderName || '').trim().split(/\s+/)
   const first_name = nameParts[0] || 'Unknown'
   const last_name  = nameParts.slice(1).join(' ') || null
@@ -105,7 +105,7 @@ async function createLead({ senderName, senderPhone, message, groupName, priorit
       first_name,
       last_name,
       phone:         senderPhone || null,
-      source:        'whatsapp_group',
+      source,
       source_detail: groupName || null,
       message:       message || null,
       status:        'new',
@@ -275,10 +275,15 @@ async function startBot() {
     if (type !== 'notify') return
 
     for (const msg of messages) {
-      // Only group messages
-      if (!msg.key.remoteJid?.endsWith('@g.us')) continue
       // Skip own messages
       if (msg.key.fromMe) continue
+
+      const remoteJid = msg.key.remoteJid || ''
+      const isGroup  = remoteJid.endsWith('@g.us')
+      const isDirect = remoteJid.endsWith('@s.whatsapp.net')
+
+      // Only handle group or direct chats (ignore status broadcasts, newsletters, etc.)
+      if (!isGroup && !isDirect) continue
 
       const text =
         msg.message?.conversation ||
@@ -288,34 +293,38 @@ async function startBot() {
 
       if (!shouldTrigger(text)) continue
 
-      // Sender info
-      const senderJid = msg.key.participant || ''
-      const senderName = msg.pushName || senderJid
-
-      // Group metadata (used for name + LID resolution)
-      let groupName = null
+      let groupName  = null
       let senderPhone = null
-      try {
-        const meta = await sock.groupMetadata(msg.key.remoteJid)
-        groupName = meta.subject
-        if (senderJid.endsWith('@s.whatsapp.net')) {
-          senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
-        } else if (senderJid.endsWith('@lid')) {
-          // Try to resolve LID via participants
-          const match = meta.participants.find(p =>
-            p.lid === senderJid || p.id === senderJid
-          )
-          const realJid = match?.jid || match?.id
-          if (realJid?.endsWith('@s.whatsapp.net')) {
-            senderPhone = realJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+      let senderName  = msg.pushName || ''
+
+      if (isGroup) {
+        // Sender info from group participant
+        const senderJid = msg.key.participant || ''
+        if (!senderName) senderName = senderJid
+        try {
+          const meta = await sock.groupMetadata(remoteJid)
+          groupName = meta.subject
+          if (senderJid.endsWith('@s.whatsapp.net')) {
+            senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+          } else if (senderJid.endsWith('@lid')) {
+            const match = meta.participants.find(p => p.lid === senderJid || p.id === senderJid)
+            const realJid = match?.jid || match?.id
+            if (realJid?.endsWith('@s.whatsapp.net')) {
+              senderPhone = realJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      } else {
+        // Direct message — sender is remoteJid itself
+        senderPhone = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
+        if (!senderName) senderName = senderPhone
+      }
 
+      const source = isGroup ? 'whatsapp_group' : 'whatsapp_direct'
       const priority = detectPriority(text)
-      console.log(`🎯 Trigger [${priority}] in "${groupName}": ${senderName} — "${text.slice(0, 80)}..."`)
+      console.log(`🎯 Trigger [${priority}] ${isGroup ? `in "${groupName}"` : '(direct)'}: ${senderName} — "${text.slice(0, 80)}..."`)
 
-      const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority })
+      const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
       if (!lead) continue
 
       await Promise.all([
