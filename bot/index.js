@@ -253,8 +253,12 @@ async function startConversation(sock, { lead, contactJid, senderName, senderPho
     .single()
 
   await sleep(REPLY_DELAY_MS)
-  await sock.sendMessage(contactJid, { text: response.message })
-  console.log(`💬 Bot replied to ${senderName}: "${response.message.slice(0, 60)}..."`)
+  try {
+    await sock.sendMessage(contactJid, { text: response.message })
+    console.log(`💬 Bot replied to ${senderName}: "${response.message.slice(0, 60)}..."`)
+  } catch (e) {
+    console.error('❌ Bot send failed (startConversation):', e.message)
+  }
 
   if (response.action === 'request_quote' && conv) {
     await handleRequestQuote(conv, response.data, senderName)
@@ -275,8 +279,12 @@ async function handleConversationMessage(sock, { conv, contactJid, text }) {
     .eq('id', conv.id)
 
   await sleep(REPLY_DELAY_MS)
-  await sock.sendMessage(contactJid, { text: response.message })
-  console.log(`💬 Bot replied to ${conv.contact_name}: "${response.message.slice(0, 60)}..."`)
+  try {
+    await sock.sendMessage(contactJid, { text: response.message })
+    console.log(`💬 Bot replied to ${conv.contact_name}: "${response.message.slice(0, 60)}..."`)
+  } catch (e) {
+    console.error('❌ Bot send failed (handleConversationMessage):', e.message)
+  }
 
   if (response.action === 'request_quote') {
     await handleRequestQuote(conv, response.data, conv.contact_name)
@@ -411,6 +419,10 @@ async function startBot() {
     logger:             pino({ level: 'silent' }),
     printQRInTerminal:  true,
     browser:            ['Ubuntu', 'Chrome', '20.0.04'],
+    syncFullHistory:    false,
+    markOnlineOnConnect: false,
+    // Required for Baileys to retry messages with updated E2E keys
+    getMessage: async () => ({ conversation: '' }),
   })
 
   sock.ev.on('creds.update', saveCreds)
