@@ -3,18 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 import { sendText, getGroupSubject } from '@/lib/evolution'
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const SUPABASE_URL         = process.env.SUPABASE_URL!
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const SUPABASE_USER_ID     = process.env.SUPABASE_USER_ID!
-const SUPABASE_COMPANY_ID  = process.env.SUPABASE_COMPANY_ID!
-const NOTIFY_SECRET        = process.env.NOTIFY_SECRET!
-const RESEND_API_KEY       = process.env.RESEND_API_KEY
-const NOTIFY_EMAIL         = process.env.NOTIFY_EMAIL
-const NOTIFY_WA_NUMBER     = process.env.NOTIFY_WA_NUMBER
-const APP_URL              = process.env.APP_URL || 'https://samedaycarreapairsystems.vercel.app'
-const WEBHOOK_SECRET       = process.env.EVOLUTION_WEBHOOK_SECRET
+const SUPABASE_USER_ID    = process.env.SUPABASE_USER_ID!
+const SUPABASE_COMPANY_ID = process.env.SUPABASE_COMPANY_ID!
+const NOTIFY_SECRET       = process.env.NOTIFY_SECRET!
+const RESEND_API_KEY      = process.env.RESEND_API_KEY
+const NOTIFY_EMAIL        = process.env.NOTIFY_EMAIL
+const NOTIFY_WA_NUMBER    = process.env.NOTIFY_WA_NUMBER
+const APP_URL             = process.env.APP_URL || 'https://samedaycarreapairsystems.vercel.app'
+const WEBHOOK_SECRET      = process.env.EVOLUTION_WEBHOOK_SECRET
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+// Lazy to avoid build-time crash when env vars aren't present
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 // ── KEYWORD DETECTION ─────────────────────────────────────────────────────────
 const TRIGGERS = [
@@ -87,7 +91,7 @@ async function createLead(args: {
   const first_name = parts[0] || 'Unknown'
   const last_name  = parts.slice(1).join(' ') || null
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('leads')
     .insert([{
       user_id:       SUPABASE_USER_ID,
@@ -210,17 +214,14 @@ export async function POST(req: NextRequest) {
   if (!text) return NextResponse.json({ ok: true })
 
   const senderName = msg.pushName || ''
-  let contactJid: string | null = null
   let senderPhone: string | null = null
   let groupName: string | null = null
 
   if (isDirect) {
-    contactJid  = remoteJid
     senderPhone = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
   } else {
     const senderJid = msg.key?.participant || ''
     if (senderJid.endsWith('@s.whatsapp.net')) {
-      contactJid  = senderJid
       senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
     }
     groupName = await getGroupSubject(remoteJid)
