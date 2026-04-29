@@ -231,6 +231,8 @@ async function getActiveConversation(contactJid) {
 }
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+// 5s gives WhatsApp time to sync new E2E keys before the bot replies
+const REPLY_DELAY_MS = 5000
 
 async function startConversation(sock, { lead, contactJid, senderName, senderPhone, originalMessage }) {
   const history = [{ role: 'user', content: originalMessage }]
@@ -250,7 +252,7 @@ async function startConversation(sock, { lead, contactJid, senderName, senderPho
     .select()
     .single()
 
-  await sleep(2500)
+  await sleep(REPLY_DELAY_MS)
   await sock.sendMessage(contactJid, { text: response.message })
   console.log(`💬 Bot replied to ${senderName}: "${response.message.slice(0, 60)}..."`)
 
@@ -272,7 +274,7 @@ async function handleConversationMessage(sock, { conv, contactJid, text }) {
     .update({ messages: updatedMessages, updated_at: new Date().toISOString() })
     .eq('id', conv.id)
 
-  await sleep(2500)
+  await sleep(REPLY_DELAY_MS)
   await sock.sendMessage(contactJid, { text: response.message })
   console.log(`💬 Bot replied to ${conv.contact_name}: "${response.message.slice(0, 60)}..."`)
 
@@ -480,8 +482,9 @@ async function startBot() {
       }
 
       // ── Conversational bot (stand by — enable with BOT_CONVERSATION_ENABLED=true) ──
+      // Only route direct messages to active conversations — group messages always go through the trigger flow
       const convEnabled = process.env.BOT_CONVERSATION_ENABLED === 'true'
-      if (convEnabled && contactJid) {
+      if (convEnabled && isDirect && contactJid) {
         const conv = await getActiveConversation(contactJid)
         if (conv) {
           await handleConversationMessage(sock, { conv, contactJid, text })
