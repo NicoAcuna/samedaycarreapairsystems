@@ -26,6 +26,7 @@ export const NSW_SUBURB_POSTCODES = [
   { suburb: 'Harris Park', postcode: '2150' },
   { suburb: 'Homebush', postcode: '2140' },
   { suburb: 'Hurstville', postcode: '2220' },
+  { suburb: 'Kensington', postcode: '2033' },
   { suburb: 'Leichhardt', postcode: '2040' },
   { suburb: 'Liverpool', postcode: '2170' },
   { suburb: 'Malabar', postcode: '2036' },
