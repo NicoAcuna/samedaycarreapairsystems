@@ -318,6 +318,11 @@ function detectPriority(text: string): 'high' | 'medium' | 'normal' {
 
 const PRIORITY_LABEL = { high: '🔴 Alta', medium: '🟡 Media', normal: '⚪ Normal' }
 
+function normalizeEventName(value: string | null | undefined) {
+  if (!value) return null
+  return value.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toUpperCase()
+}
+
 // ── LEAD CREATION ─────────────────────────────────────────────────────────────
 async function createLead(args: {
   senderName: string; senderPhone: string | null; message: string
@@ -419,7 +424,7 @@ async function sendPushNotification(args: {
 }
 
 // ── WEBHOOK HANDLER ───────────────────────────────────────────────────────────
-export async function POST(req: NextRequest) {
+export async function handleWebhookPost(req: NextRequest, routeEvent?: string | null) {
   // Validate webhook secret (Evolution API sends apikey header)
   if (WEBHOOK_SECRET) {
     const incoming = req.headers.get('apikey') ?? req.headers.get('x-webhook-secret')
@@ -431,8 +436,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ ok: true })
 
-  // Evolution API v2 event format
-  if (body.event !== 'MESSAGES_UPSERT') return NextResponse.json({ ok: true })
+  // Evolution can send the event name in the payload or in the URL suffix.
+  const eventName = normalizeEventName(body.event) ?? normalizeEventName(routeEvent)
+  if (eventName !== 'MESSAGES_UPSERT') {
+    console.log(`[webhook] Ignored event: ${eventName || 'unknown'} via ${routeEvent || 'root'}`)
+    return NextResponse.json({ ok: true })
+  }
 
   const msg = body.data
   if (!msg || msg.key?.fromMe) return NextResponse.json({ ok: true })
@@ -500,4 +509,8 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true })
+}
+
+export async function POST(req: NextRequest) {
+  return handleWebhookPost(req)
 }
