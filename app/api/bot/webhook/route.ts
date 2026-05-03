@@ -14,6 +14,7 @@ const WEBHOOK_SECRET      = process.env.EVOLUTION_WEBHOOK_SECRET
 const OPENAI_API_KEY      = process.env.OPENAI_API_KEY
 const BOT_CONVERSATION_ENABLED = process.env.BOT_CONVERSATION_ENABLED === 'true'
 const REPLY_DELAY_MS = 5000
+const OPENAI_CHAT_MODELS = ['gpt-5.4-mini', 'gpt-4o-mini'] as const
 
 // Lazy to avoid build-time crash when env vars aren't present
 function getSupabase() {
@@ -332,55 +333,71 @@ function inferStartsFromHistory(history: Array<{ role: string; content: string }
 }
 
 async function askBot(history: Array<{ role: string; content: string }>): Promise<BotReply> {
+  const fallbackGreeting: BotReply = {
+    message: 'Hola, soy Nico mecánico 🔧, como te puedo ayudar?',
+    action: null,
+    data: {},
+  }
+  const genericFallback: BotReply = {
+    message: 'Gracias por contactarnos, te responderemos a la brevedad.',
+    action: null,
+    data: {},
+  }
+  const isFirstTurn = history.length === 1 && history[0]?.role === 'user'
+
   if (!OPENAI_API_KEY) {
     console.error('[webhook] OPENAI_API_KEY not set')
-    return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
+    return isFirstTurn ? fallbackGreeting : genericFallback
   }
 
   const heuristicContext = buildHeuristicContext(history)
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-5.4-mini',
-      max_tokens: 400,
-      messages: [
-        { role: 'system', content: `${SYSTEM_PROMPT}\n\n${heuristicContext}` },
-        ...history,
-      ],
-    }),
-  })
+  for (const model of OPENAI_CHAT_MODELS) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 400,
+        messages: [
+          { role: 'system', content: `${SYSTEM_PROMPT}\n\n${heuristicContext}` },
+          ...history,
+        ],
+      }),
+    })
 
-  if (!res.ok) {
-    console.error('[webhook] OpenAI API error:', res.status, await res.text())
-    return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
+    if (!res.ok) {
+      console.error(`[webhook] OpenAI API error with ${model}:`, res.status, await res.text())
+      continue
+    }
+
+    const json = await res.json()
+    const text = json.choices?.[0]?.message?.content || ''
+
+    try {
+      let reply = JSON.parse(text) as BotReply
+      reply = maybeForceScheduleConfirm(history, reply)
+      reply.message = sanitizeBotMessage(reply.message, reply.action)
+      // When confirming schedule, always use the canonical message — ignore any extra text the model adds
+      if (reply.action === 'request_schedule_confirm') {
+        const lang = reply.data?.language === 'en' ? 'en' : 'es'
+        reply.message = lang === 'en'
+          ? 'Perfect, give me a sec to check my schedule'
+          : 'perfecto, dame un seg. para confirmar mi horario'
+      }
+      if (reply.action === 'confirm_appointment' && reply.data?.confirmed_time) {
+        reply.message = `perfecto, nos vemos a las ${reply.data.confirmed_time}!`
+      }
+      return reply
+    } catch {
+      return { message: sanitizeBotMessage(text, null), action: null, data: {} }
+    }
   }
 
-  const json = await res.json()
-  const text = json.choices?.[0]?.message?.content || ''
-
-  try {
-    let reply = JSON.parse(text) as BotReply
-    reply = maybeForceScheduleConfirm(history, reply)
-    reply.message = sanitizeBotMessage(reply.message, reply.action)
-    // When confirming schedule, always use the canonical message — ignore any extra text the model adds
-    if (reply.action === 'request_schedule_confirm') {
-      const lang = reply.data?.language === 'en' ? 'en' : 'es'
-      reply.message = lang === 'en'
-        ? 'Perfect, give me a sec to check my schedule'
-        : 'perfecto, dame un seg. para confirmar mi horario'
-    }
-    if (reply.action === 'confirm_appointment' && reply.data?.confirmed_time) {
-      reply.message = `perfecto, nos vemos a las ${reply.data.confirmed_time}!`
-    }
-    return reply
-  } catch {
-    return { message: sanitizeBotMessage(text, null), action: null, data: {} }
-  }
+  return isFirstTurn ? fallbackGreeting : genericFallback
 }
 
 function sanitizeBotMessage(message: string, action: BotReply['action']) {
@@ -575,6 +592,26 @@ async function attachLeadToConversation(args: {
   ])
 
   return lead.id
+}
+
+async function ensureConversationLead(args: {
+  conv: any
+  message: string
+  source: string
+  priority: 'high' | 'medium' | 'normal'
+  groupName?: string | null
+}) {
+  if (args.conv.lead_id) return args.conv.lead_id
+
+  const leadId = await attachLeadToConversation({
+    conv: args.conv,
+    message: args.message,
+    source: args.source,
+    priority: args.priority,
+    groupName: args.groupName || null,
+  })
+
+  return leadId
 }
 
 async function setLeadStage(leadId: string, stage: string) {
@@ -927,6 +964,12 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   if (BOT_CONVERSATION_ENABLED && isDirect && senderPhone && contactJid) {
     const conv = await getActiveConversation(contactJid)
     if (conv) {
+      await ensureConversationLead({
+        conv,
+        message: text,
+        source: 'whatsapp_direct',
+        priority: detectPriority(text),
+      })
       await handleConversationMessage({ conv, contactPhone: senderPhone, text })
       return NextResponse.json({ ok: true, conversation: 'continued' })
     }
@@ -943,10 +986,29 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     if (existingConv) {
       // Client messaged the group again while a conversation is already active — continue it
       console.log(`[webhook] ↩️ Resuming existing conversation ${existingConv.id} for ${contactJid}`)
+      if (isDirect) {
+        await ensureConversationLead({
+          conv: existingConv,
+          message: text,
+          source,
+          priority,
+          groupName,
+        })
+      }
       await handleConversationMessage({ conv: existingConv, contactPhone: senderPhone, text })
     } else {
       if (isDirect) {
+        const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
+        if (lead) {
+          await Promise.all([
+            sendEmailNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
+            sendWANotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
+            sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
+          ])
+        }
+
         await startConversation({
+          leadId: lead?.id || null,
           contactJid,
           contactPhone: senderPhone,
           senderName,
