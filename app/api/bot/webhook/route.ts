@@ -273,9 +273,13 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
 
   const json = await res.json()
   const text = json.choices?.[0]?.message?.content || ''
+  console.log('[webhook] model raw:', text.slice(0, 200))
+
+  // Strip markdown code blocks if model wraps the JSON
+  const jsonText = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
 
   try {
-    let reply = JSON.parse(text) as BotReply
+    let reply = JSON.parse(jsonText) as BotReply
     reply = maybeForceScheduleConfirm(history, reply)
     reply.message = sanitizeBotMessage(reply.message, reply.action)
     if (reply.action === 'request_schedule_confirm') {
@@ -286,7 +290,8 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
     }
     return reply
   } catch {
-    return { message: sanitizeBotMessage(text, null), action: null, data: {} }
+    console.error('[webhook] JSON parse failed, raw:', jsonText.slice(0, 300))
+    return { message: sanitizeBotMessage(jsonText, null), action: null, data: {} }
   }
 }
 
