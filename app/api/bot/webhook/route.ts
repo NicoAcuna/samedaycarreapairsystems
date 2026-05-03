@@ -104,21 +104,35 @@ EN — primer mensaje:
 EN — diagnóstico:
 "It sounds like master cyl or slave cyl, I could go to inspect it tomorrow"
 
+REGLAS DE DIAGNÓSTICO:
+- Si el cliente YA sugirió el problema ("creo que es la batería", "me tinca que es X") → decí "puede ser, pero hay que revisarlo" — NUNCA "me suena a X" como si ya lo hubieras diagnosticado
+- No agregues filler antes de preguntar ("joyita gracias", "perfecto gracias") — preguntá directo
+
+FLUJO DE HORARIO — DOS CASOS:
+CASO 1 — primera vez que el cliente da disponibilidad → action "request_schedule_confirm" (para que Nico proponga)
+CASO 2 — Nico ya propuso un horario (hay un mensaje "Nico puede X" en el historial) y el cliente confirma una hora específica que cae dentro de ese rango → confirmá vos directamente y usá action "confirm_appointment"
+Ejemplo caso 2: Nico propuso "después de las 3pm", cliente dice "4:30?" → "dale, 4:30 perfecto, nos vemos!" + action "confirm_appointment"
+NUNCA vuelvas a pedir confirmación a Nico si el cliente ya aceptó el horario propuesto
+
 FORMATO DE RESPUESTA — SIEMPRE JSON puro, sin markdown, sin texto extra:
 {"message": "texto para el cliente", "action": null, "data": {}}
 
-Cuando tenés los 5 datos + disponibilidad del cliente:
-{"message": "perfecto, dame un seg. para confirmar mi horario", "action": "request_schedule_confirm", "data": {"vehicle": {"year": "2018", "make": "Toyota", "model": "Camry"}, "suburb": "Parramatta", "starts": false, "job_type": "diagnosis", "job_description": "No arranca, hace click al girar la llave.", "warning_lights": "batería", "client_availability": "miércoles, jueves o viernes después de las 3pm", "language": "es"}}`
+Cuando tenés los 5 datos + disponibilidad del cliente (primera vez):
+{"message": "perfecto, dame un seg. para confirmar mi horario", "action": "request_schedule_confirm", "data": {"vehicle": {"year": "2018", "make": "Toyota", "model": "Camry"}, "suburb": "Parramatta", "starts": false, "job_type": "diagnosis", "job_description": "No arranca, hace click al girar la llave.", "warning_lights": "batería", "client_availability": "miércoles, jueves o viernes después de las 3pm", "language": "es"}}
+
+Cuando el cliente confirma una hora dentro del rango ya propuesto por Nico:
+{"message": "dale, [hora] perfecto, nos vemos!", "action": "confirm_appointment", "data": {"confirmed_time": "viernes a las 4:30pm"}}`
 
 type BotReply = {
   message: string
-  action: null | 'request_quote' | 'request_schedule_confirm'
+  action: null | 'request_quote' | 'request_schedule_confirm' | 'confirm_appointment'
   data: {
     vehicle?: { year?: string; make?: string; model?: string }
     suburb?: string
     job_type?: string
     job_description?: string
     client_availability?: string
+    confirmed_time?: string
     language?: string
   }
 }
@@ -257,6 +271,18 @@ async function setLeadStage(leadId: string, stage: string) {
   await getSupabase().from('leads').update({ lifecycle_stage: stage }).eq('id', leadId)
 }
 
+async function handleConfirmAppointment(conv: any) {
+  await getSupabase().from('bot_conversations').update({
+    status: 'scheduled',
+    scheduled_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', conv.id)
+  if (conv.lead_id) {
+    await setLeadStage(conv.lead_id, 'activation')
+  }
+  console.log(`[webhook] ✅ Appointment confirmed for conv ${conv.id}`)
+}
+
 async function startConversation(args: {
   lead: { id: string }
   contactJid: string
@@ -331,6 +357,9 @@ async function handleConversationMessage(args: {
 
   if (response.action === 'request_schedule_confirm') {
     await handleRequestScheduleConfirm(args.conv, response.data, args.conv.contact_name || 'Cliente')
+  }
+  if (response.action === 'confirm_appointment') {
+    await handleConfirmAppointment(args.conv)
   }
 }
 
