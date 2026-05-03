@@ -473,7 +473,7 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     senderPhone = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
     contactJid = remoteJid.replace(/:\d+$/, '')
   } else {
-    const senderJid = msg.key?.participant || ''
+    const senderJid = msg.key?.participant || msg.participant || ''
     if (senderJid.endsWith('@s.whatsapp.net')) {
       senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
       contactJid = `${senderPhone}@s.whatsapp.net`
