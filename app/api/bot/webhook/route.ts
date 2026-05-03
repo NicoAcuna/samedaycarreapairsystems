@@ -206,6 +206,21 @@ async function handleRequestScheduleConfirm(conv: any, data: BotReply['data'], c
     await getSupabase().from('leads').update({ suburb: data.suburb }).eq('id', conv.lead_id)
   }
 
+  // WA notification to Nico
+  if (NOTIFY_WA_NUMBER) {
+    const waText =
+      `📅 *Confirmar horario — ${contactName}*\n\n` +
+      `🚗 ${vehicleStr}\n` +
+      `📍 ${data.suburb || '?'}\n` +
+      `🕐 Disponible: ${data.client_availability || '?'}\n\n` +
+      `→ ${APP_URL}/leads/${conv.lead_id}`
+    try {
+      await sendText(NOTIFY_WA_NUMBER, waText)
+    } catch (e: any) {
+      console.error('[webhook] Schedule WA notification error:', e.message)
+    }
+  }
+
   if (!NOTIFY_SECRET) return
 
   try {
