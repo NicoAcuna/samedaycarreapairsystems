@@ -357,19 +357,20 @@ async function handleConversationMessage(args: {
   // Person replied → engagement stage
   if (args.conv.lead_id) await setLeadStage(args.conv.lead_id, 'engagement')
 
+  // Fire action handlers BEFORE the send delay so they never get cut off by a timeout
+  if (response.action === 'request_schedule_confirm') {
+    await handleRequestScheduleConfirm(args.conv, response.data, args.conv.contact_name || 'Cliente')
+  }
+  if (response.action === 'confirm_appointment') {
+    await handleConfirmAppointment(args.conv)
+  }
+
   await sleep(REPLY_DELAY_MS)
   try {
     await sendMessages(args.contactPhone, response.message)
     console.log(`[webhook] 💬 Bot replied to ${args.conv.contact_name}: "${response.message.slice(0, 60)}..."`)
   } catch (e: any) {
     console.error('[webhook] Bot send failed (handleConversationMessage):', e.message)
-  }
-
-  if (response.action === 'request_schedule_confirm') {
-    await handleRequestScheduleConfirm(args.conv, response.data, args.conv.contact_name || 'Cliente')
-  }
-  if (response.action === 'confirm_appointment') {
-    await handleConfirmAppointment(args.conv)
   }
 }
 

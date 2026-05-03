@@ -248,14 +248,16 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => {
     const supabase = createClient()
-    Promise.all([
-      supabase.from('leads').select('*').eq('id', id).single(),
-      supabase.from('bot_conversations')
-        .select('id, status, language, vehicle, suburb, job_type, job_description, client_availability, contact_name, contact_phone')
-        .eq('lead_id', id)
-        .eq('status', 'awaiting_schedule_confirmation')
-        .maybeSingle(),
-    ]).then(([{ data }, { data: conv }]) => {
+
+    async function loadData() {
+      const [{ data }, { data: conv }] = await Promise.all([
+        supabase.from('leads').select('*').eq('id', id).single(),
+        supabase.from('bot_conversations')
+          .select('id, status, language, vehicle, suburb, job_type, job_description, client_availability, contact_name, contact_phone')
+          .eq('lead_id', id)
+          .eq('status', 'awaiting_schedule_confirmation')
+          .maybeSingle(),
+      ])
       if (data) {
         setLead(data as Lead)
         setForm({
@@ -273,7 +275,20 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       }
       if (conv) setScheduleConv(conv)
       setLoading(false)
-    })
+    }
+
+    loadData()
+    // Poll every 8s so the schedule card appears without manual refresh
+    const interval = setInterval(() => {
+      supabase.from('bot_conversations')
+        .select('id, status, language, vehicle, suburb, job_type, job_description, client_availability, contact_name, contact_phone')
+        .eq('lead_id', id)
+        .eq('status', 'awaiting_schedule_confirmation')
+        .maybeSingle()
+        .then(({ data: conv }) => { if (conv) setScheduleConv(conv) })
+    }, 8000)
+
+    return () => clearInterval(interval)
   }, [id])
 
   function setF(field: string, val: string) {
