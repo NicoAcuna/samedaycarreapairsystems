@@ -484,26 +484,6 @@ async function attachLeadToConversation(args: {
   return lead.id
 }
 
-async function ensureConversationLead(args: {
-  conv: any
-  message: string
-  source: string
-  priority: 'high' | 'medium' | 'normal'
-  groupName?: string | null
-}) {
-  if (args.conv.lead_id) return args.conv.lead_id
-
-  const leadId = await attachLeadToConversation({
-    conv: args.conv,
-    message: args.message,
-    source: args.source,
-    priority: args.priority,
-    groupName: args.groupName || null,
-  })
-
-  return leadId
-}
-
 async function setLeadStage(leadId: string, stage: string) {
   await getSupabase().from('leads').update({ lifecycle_stage: stage }).eq('id', leadId)
 }
@@ -851,15 +831,10 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     console.log(`[webhook] group lookup for ${remoteJid}: "${groupName}"`)
   }
 
+  // DMs: continue active bot conversation without creating a new lead
   if (BOT_CONVERSATION_ENABLED && isDirect && senderPhone && contactJid) {
     const conv = await getActiveConversation(contactJid)
     if (conv) {
-      await ensureConversationLead({
-        conv,
-        message: text,
-        source: 'whatsapp_direct',
-        priority: detectPriority(text),
-      })
       await handleConversationMessage({ conv, contactPhone: senderPhone, text })
       return NextResponse.json({ ok: true, conversation: 'continued' })
     }
@@ -871,60 +846,6 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   const priority = detectPriority(text)
   console.log(`[webhook] 🎯 Trigger [${priority}] ${isGroup ? `"${groupName}"` : '(direct)'}: ${senderName} — "${text.slice(0, 80)}"`)
 
-  if (BOT_CONVERSATION_ENABLED && senderPhone && contactJid) {
-    const existingConv = await getActiveConversation(contactJid)
-    if (existingConv) {
-      // Client messaged the group again while a conversation is already active — continue it
-      console.log(`[webhook] ↩️ Resuming existing conversation ${existingConv.id} for ${contactJid}`)
-      if (isDirect) {
-        await ensureConversationLead({
-          conv: existingConv,
-          message: text,
-          source,
-          priority,
-          groupName,
-        })
-      }
-      await handleConversationMessage({ conv: existingConv, contactPhone: senderPhone, text })
-    } else {
-      if (isDirect) {
-        const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
-        if (lead) {
-          await Promise.all([
-            sendEmailNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
-            sendWANotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
-            sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
-          ])
-        }
-
-        await startConversation({
-          leadId: lead?.id || null,
-          contactJid,
-          contactPhone: senderPhone,
-          senderName,
-          originalMessage: text,
-        })
-      } else {
-        const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
-        if (!lead) return NextResponse.json({ ok: true })
-
-        await Promise.all([
-          sendEmailNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
-          sendWANotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
-          sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
-        ])
-
-        await startConversation({
-          contactJid,
-          contactPhone: senderPhone,
-          senderName,
-          originalMessage: text,
-        })
-      }
-    }
-    return NextResponse.json({ ok: true })
-  }
-
   const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
   if (!lead) return NextResponse.json({ ok: true })
 
@@ -933,6 +854,16 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     sendWANotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
     sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
   ])
+
+  if (BOT_CONVERSATION_ENABLED && isDirect && senderPhone && contactJid) {
+    await startConversation({
+      leadId: lead.id,
+      contactJid,
+      contactPhone: senderPhone,
+      senderName,
+      originalMessage: text,
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }
