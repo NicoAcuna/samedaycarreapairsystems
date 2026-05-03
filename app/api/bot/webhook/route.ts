@@ -167,9 +167,19 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
   const text = json.choices?.[0]?.message?.content || ''
 
   try {
-    return JSON.parse(text) as BotReply
+    const reply = JSON.parse(text) as BotReply
+    // Sanitize: remove ¿ the model inserts despite instructions
+    reply.message = reply.message.replace(/¿/g, '')
+    // When confirming schedule, always use the canonical message — ignore any extra text the model adds
+    if (reply.action === 'request_schedule_confirm') {
+      const lang = reply.data?.language === 'en' ? 'en' : 'es'
+      reply.message = lang === 'en'
+        ? 'Perfect, give me a sec to check my schedule'
+        : 'perfecto, dame un seg. para confirmar mi horario'
+    }
+    return reply
   } catch {
-    return { message: text, action: null, data: {} }
+    return { message: text.replace(/¿/g, ''), action: null, data: {} }
   }
 }
 
