@@ -47,6 +47,10 @@ REGLAS DE CONVERSACIÓN:
 - Máximo 2 líneas por mensaje. Como texto de WhatsApp, no email
 - Reaccioná primero antes de preguntar — una exclamación corta ("malísima", "uf", "joya", "dale")
 - Podés agrupar 2-3 preguntas relacionadas en un solo mensaje cuando fluye natural: "malísima, cuáles son los síntomas? qué auto es y de qué año?"
+- Preferí una sola pregunta clara por turno cuando el cliente viene respondiendo corto o dubitativo
+- No hagas interrogatorios. Cada mensaje tiene que sentirse como avance natural, no formulario
+- Si el cliente ya respondió algo, construí sobre eso. Nunca vuelvas a la pregunta anterior
+- Copiá levemente el tono del cliente: si habla seco, respondé seco; si habla más cálido, podés soltar "bro", "mate", etc.
 - NUNCA empieces con "y," — nunca
 - Emojis: solo ocasionalmente (👍, 💪) — no en cada mensaje
 - NUNCA uses  al inicio de las preguntas — solo el signo de cierre: "qué auto es?" no "qué auto es?"
@@ -65,6 +69,17 @@ REGLA CLAVE DE PREGUNTAS: Si el cliente ya te dio información, no la vuelvas a 
 
 NUNCA RESUMAS NI VALIDES LO QUE YA SABÉS: No digas "entonces está claro", "perfecto, entonces tenemos", "o sea que el auto es un X en Y" — el cliente ya lo sabe, no necesita confirmación. Ir directo a la siguiente pregunta o acción.
 
+REGLAS DE FLUJO:
+- Siempre elegí la pregunta que más destraba la conversación
+- Si faltan varias cosas, preguntá primero la más fácil o la más útil para cotizar
+- La dirección va antes que la disponibilidad
+- Si el cliente pregunta precio demasiado temprano, respondé breve y honesto, y volvé a pedir el dato faltante más importante
+- Si el cliente se va por las ramas, traelo de vuelta con una sola pregunta concreta
+- Si el cliente deja de responder algo clave, reformulá una vez más corto y simple
+- Si el trabajo no aplica o no lo hacemos, decilo claro y cerrá amable, sin dejar la conversación colgando
+- Si el cliente habla como chat real de WhatsApp, vos también: menos prolijo, más natural, pero siempre claro
+- Soná humano, no vendedor de call center. Nada de "con gusto", "encantado de ayudarte", "permíteme"
+
 REGLAS CLAVE:
 - Nunca confirmés precio exacto ni fecha — eso lo decide Nico
 - Si el cliente dice qué parte es: "puede ser, pero hay que revisarlo primero antes de cambiar piezas"
@@ -79,6 +94,52 @@ TIPOS DE TRABAJO (solo para clasificar internamente):
 - "diagnosis": no sabe qué es — ruido, luz, no prende
 - "direct_job": sabe qué quiere — cambio de aceite, batería, frenos
 - "client_dx": dice qué parte es — tratalo como diagnosis igual
+
+HEURÍSTICAS POR TIPO DE TRABAJO:
+
+1. PRE-PURCHASE INSPECTION
+- El cliente suele decir "pre-purchase", "inspection", "before buying", "inspección pre compra"
+- No preguntes si arranca o luces del tablero como si fuera avería, salvo que el cliente ya mencionó un problema
+- Tu foco es:
+  1. qué auto es y de qué año
+  2. suburb/dirección donde está el auto
+  3. cuándo necesita la inspección
+  4. si es dealer/private seller o si ya vio algo raro
+- Soná práctico: "dale, qué auto es?" / "dónde está el auto?" / "cuándo querés hacer la inspección?"
+
+2. OIL SERVICE / MINOR SERVICE
+- El cliente suele decir "oil change", "service", "aceite", "filtro", "minor service"
+- No preguntes síntomas, arranque o warning lights si no viene al caso
+- Tu foco es:
+  1. qué auto es y de qué año
+  2. dirección/suburb
+  3. si tiene driveway o estacionamiento donde se pueda trabajar
+  4. si quiere solo aceite/filtro o también revisión básica
+  5. disponibilidad
+- Si pide logbook service, decí claro que no hacemos logbook
+- Si pregunta precio muy temprano, podés dar rango o base breve, pero seguí pidiendo el auto y dirección
+- Para cambio de aceite necesitás driveway o estacionamiento. Si no sabés eso todavía, NO pidas disponibilidad todavía
+
+3. DIAGNÓSTICO
+- Aplica cuando el cliente no sabe exactamente qué tiene: no arranca, ruido, vibración, pérdida, luces, etc.
+- Tu foco es:
+  1. qué auto es y de qué año
+  2. síntoma principal
+  3. arranca o no, solo si no quedó claro
+  4. warning lights relevantes
+  5. dirección
+  6. disponibilidad
+- No diagnostiques con demasiada certeza. "puede ser", "hay que revisarlo"
+
+4. REPARACIÓN / DIRECT JOB
+- El cliente ya sabe más o menos lo que quiere: frenos, batería, alternador, starter, radiador, change pads, etc.
+- No lo contradigas de entrada. Primero ubicá el trabajo
+- Tu foco es:
+  1. qué auto es y de qué año
+  2. dirección
+  3. si ya está diagnosticado o si hay que revisar igual
+  4. disponibilidad
+- Si menciona una pieza específica, podés decir "sip, puede ser eso, pero prefiero revisarlo antes de cambiar piezas"
 
 CUANDO TENÉS los 5 datos → preguntá disponibilidad: "cuándo tenés tiempo para que vaya a verlo?" / "when are you free?"
 CUANDO TENÉS los 5 datos + disponibilidad del cliente → action "request_schedule_confirm"
@@ -109,6 +170,8 @@ EN — diagnóstico:
 REGLAS DE DIAGNÓSTICO:
 - Si el cliente YA sugirió el problema → "puede ser, pero hay que revisarlo" — NUNCA "me suena a X"
 - NUNCA agregues filler antes de preguntar. MAL: "Joya, me suena a batería. Antes de..." / "Dale, gracias por la info. Cuándo..." BIEN: ir directo a la pregunta
+- Si no estás seguro del diagnóstico, no inventes. Pedí el siguiente síntoma o dato útil
+- Si el cliente ya viene frustrado, primero contené breve y después preguntá
 
 FLUJO DE HORARIO — TRES CASOS:
 CASO 1 — primera vez que el cliente da disponibilidad → action "request_schedule_confirm"
@@ -152,11 +215,93 @@ async function sendMessages(phone: string, message: string) {
   }
 }
 
+type InquiryType = 'pre_purchase' | 'oil_service' | 'diagnosis' | 'repair' | 'unknown'
+
+function inferInquiryType(history: Array<{ role: string; content: string }>): InquiryType {
+  const userText = history
+    .filter(msg => msg.role === 'user')
+    .map(msg => msg.content || '')
+    .join(' \n ')
+    .toLowerCase()
+
+  if (/(pre.?purchase|before buying|pre purchase|inspecci[oó]n pre.?compra|pre.?compra)/i.test(userText)) {
+    return 'pre_purchase'
+  }
+  if (/\b(oil change|minor service|service|aceite|filtro de aceite|oil filter)\b/i.test(userText) &&
+      !/\b(logbook)\b/i.test(userText)) {
+    return 'oil_service'
+  }
+  if (/\b(brakes?|battery|alternator|starter|radiator|pads?|rotors?|spark plugs?|clutch|control arm|suspension)\b/i.test(userText)) {
+    return 'repair'
+  }
+  if (/\b(no arranca|no parte|no enciende|check engine|diagn[oó]stic|diagn[oó]stico|noise|ruido|vibration|vibraci[oó]n|leak|fuga|warning light|luz)\b/i.test(userText)) {
+    return 'diagnosis'
+  }
+
+  return 'unknown'
+}
+
+function hasOilAccessInfo(history: Array<{ role: string; content: string }>) {
+  const userText = history
+    .filter(msg => msg.role === 'user')
+    .map(msg => msg.content || '')
+    .join(' \n ')
+
+  return /\b(driveway|garage|garaje|parking|estacionamiento|cochera|off[- ]street)\b/i.test(userText)
+}
+
+function buildHeuristicContext(history: Array<{ role: string; content: string }>) {
+  const userMessages = history.filter(msg => msg.role === 'user').map(msg => msg.content || '')
+  const lastUserMessage = userMessages[userMessages.length - 1] || ''
+  const joinedText = userMessages.join(' ').toLowerCase()
+  const inquiryType = inferInquiryType(history)
+
+  const tone =
+    /(\bpls\b|\bplease\b|\bthanks\b|\bthank you\b|\bgracias\b)/i.test(lastUserMessage) ? 'warm' :
+    /(\bbro\b|\bmate\b|\bhno\b|\bloco\b)/i.test(lastUserMessage) ? 'casual' :
+    lastUserMessage.trim().split(/\s+/).length <= 4 ? 'brief' :
+    'neutral'
+
+  const hintLines = [
+    `Tipo inferido: ${inquiryType}`,
+    `Tono del cliente: ${tone}`,
+  ]
+
+  if (inquiryType === 'pre_purchase') {
+    hintLines.push('Prioridad: auto/año → ubicación del auto → cuándo necesita la inspección → si vio algo raro')
+    hintLines.push('No preguntar arranque o warning lights salvo que el cliente haya descrito una falla')
+  } else if (inquiryType === 'oil_service') {
+    hintLines.push('Prioridad: auto/año → dirección → confirmar driveway/parking → si es solo aceite/filtro o revisión básica → disponibilidad')
+    hintLines.push('No llevar la conversación a diagnóstico si el cliente solo pidió service')
+    if (!hasOilAccessInfo(history)) {
+      hintLines.push('Falta confirmar si tiene driveway o estacionamiento. No pedir disponibilidad antes de eso')
+    }
+  } else if (inquiryType === 'repair') {
+    hintLines.push('Prioridad: auto/año → dirección → confirmar si ya está diagnosticado o hay que revisar → disponibilidad')
+    hintLines.push('No sonar confrontacional cuando el cliente cree saber la pieza')
+  } else if (inquiryType === 'diagnosis') {
+    hintLines.push('Prioridad: auto/año → síntoma principal → arranque solo si falta → warning lights relevantes → dirección')
+    hintLines.push('No afirmes diagnóstico con certeza')
+  }
+
+  if (/\b(price|precio|quote|cotizaci[oó]n|cu[aá]nto)\b/i.test(joinedText)) {
+    hintLines.push('El cliente ya preguntó precio: responder breve y volver al dato faltante más importante')
+  }
+
+  if (/\b(logbook)\b/i.test(joinedText)) {
+    hintLines.push('Si el cliente quiere logbook service, decir que no lo hacemos')
+  }
+
+  return `CONTEXTO HEURÍSTICO:\n- ${hintLines.join('\n- ')}`
+}
+
 async function askBot(history: Array<{ role: string; content: string }>): Promise<BotReply> {
   if (!OPENAI_API_KEY) {
     console.error('[webhook] OPENAI_API_KEY not set')
     return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
   }
+
+  const heuristicContext = buildHeuristicContext(history)
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -168,7 +313,7 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
       model: 'gpt-4o-mini',
       max_tokens: 400,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: `${SYSTEM_PROMPT}\n\n${heuristicContext}` },
         ...history,
       ],
     }),
@@ -184,22 +329,7 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
 
   try {
     const reply = JSON.parse(text) as BotReply
-    // Sanitize: remove ¿ the model inserts despite instructions
-    reply.message = reply.message.replace(/¿/g, '')
-    // Strip common filler phrases the model prepends before questions
-    reply.message = reply.message
-      .replace(/^(joya[,.]?\s*|dale[,.]?\s*|perfecto[,.]?\s*|genial[,.]?\s*|claro[,.]?\s*|entendido[,.]?\s*)(gracias\s*(por\s*la\s*info[,.]?\s*)?)?/i, '')
-      .trim()
-    // Replace "me suena a X" anywhere in the message with "puede ser"
-    reply.message = reply.message
-      .replace(/,?\s*me suena a [^,\.]+[,\.]?\s*/gi, ', puede ser, ')
-      .replace(/^me suena a [^,\.]+[,\.]?\s*/gi, 'puede ser, ')
-      .replace(/,\s*,/g, ',')
-      .trim()
-    // Strip summary/validation sentences before a question — e.g. "entonces está claro. El auto no arranca..."
-    reply.message = reply.message
-      .replace(/^(entonces está claro[,.]?\s*|perfecto[,.]?\s*entonces[,.]?\s*|o sea que[^\.]+\.\s*|entonces tenemos[^\.]+\.\s*)/i, '')
-      .trim()
+    reply.message = sanitizeBotMessage(reply.message, reply.action)
     // When confirming schedule, always use the canonical message — ignore any extra text the model adds
     if (reply.action === 'request_schedule_confirm') {
       const lang = reply.data?.language === 'en' ? 'en' : 'es'
@@ -207,10 +337,56 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
         ? 'Perfect, give me a sec to check my schedule'
         : 'perfecto, dame un seg. para confirmar mi horario'
     }
+    if (reply.action === 'confirm_appointment' && reply.data?.confirmed_time) {
+      reply.message = `perfecto, nos vemos a las ${reply.data.confirmed_time}!`
+    }
     return reply
   } catch {
-    return { message: text.replace(/¿/g, ''), action: null, data: {} }
+    return { message: sanitizeBotMessage(text, null), action: null, data: {} }
   }
+}
+
+function sanitizeBotMessage(message: string, action: BotReply['action']) {
+  let clean = (message || '').replace(/¿/g, '').trim()
+
+  clean = clean
+    // Strip common filler phrases before the useful content
+    .replace(/^(joya[,.]?\s*|dale[,.]?\s*|perfecto[,.]?\s*|genial[,.]?\s*|claro[,.]?\s*|entendido[,.]?\s*)(gracias\s*(por\s*la\s*info[,.]?\s*)?)?/i, '')
+    // Replace "me suena a X" anywhere in the message with "puede ser"
+    .replace(/,?\s*me suena a [^,\.]+[,\.]?\s*/gi, ', puede ser, ')
+    .replace(/^me suena a [^,\.]+[,\.]?\s*/gi, 'puede ser, ')
+    // Strip summary/validation sentences before a question
+    .replace(/^(entonces está claro[,.]?\s*|perfecto[,.]?\s*entonces[,.]?\s*|o sea que[^\.]+\.\s*|entonces tenemos[^\.]+\.\s*)/i, '')
+    // Remove "y," at the start if the model slips it in
+    .replace(/^y,\s*/i, '')
+    // Collapse duplicate separators and whitespace
+    .replace(/,\s*,/g, ',')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+
+  const lines = clean.split('\n').map(line => line.trim()).filter(Boolean)
+  const dedupedLines = lines.filter((line, index) => {
+    const prev = lines[index - 1]
+    return !prev || prev.toLowerCase() !== line.toLowerCase()
+  })
+  clean = dedupedLines.join('\n')
+
+  const asksQuestion = clean.includes('?')
+  if (asksQuestion) {
+    clean = clean
+      .replace(/\b(avisame|me avisas|me cuentas)\b[.!]?$/i, '')
+      .trim()
+  }
+
+  if (!asksQuestion && action === null) {
+    clean = clean
+      .replace(/\.\.+/g, '.')
+      .trim()
+  }
+
+  return clean
 }
 
 async function getActiveConversation(contactJid: string) {
@@ -283,6 +459,66 @@ async function handleRequestScheduleConfirm(conv: any, data: BotReply['data'], c
   }
 }
 
+async function attachLeadToConversation(args: {
+  conv: any
+  message: string
+  source: string
+  priority: 'high' | 'medium' | 'normal'
+  groupName?: string | null
+  suburb?: string | null
+}) {
+  if (args.conv.lead_id) return args.conv.lead_id
+
+  const lead = await createLead({
+    senderName: args.conv.contact_name || 'Unknown',
+    senderPhone: args.conv.contact_phone || null,
+    message: args.message,
+    groupName: args.groupName || null,
+    priority: args.priority,
+    source: args.source,
+  })
+
+  if (!lead) return null
+
+  await getSupabase()
+    .from('bot_conversations')
+    .update({
+      lead_id: lead.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.conv.id)
+
+  if (args.suburb) {
+    await getSupabase().from('leads').update({ suburb: args.suburb }).eq('id', lead.id)
+  }
+
+  await Promise.all([
+    sendEmailNotification({
+      senderName: args.conv.contact_name || 'Unknown',
+      message: args.message,
+      groupName: args.groupName || null,
+      leadId: lead.id,
+      priority: args.priority,
+    }),
+    sendWANotification({
+      senderName: args.conv.contact_name || 'Unknown',
+      message: args.message,
+      groupName: args.groupName || null,
+      leadId: lead.id,
+      priority: args.priority,
+    }),
+    sendPushNotification({
+      senderName: args.conv.contact_name || 'Unknown',
+      message: args.message,
+      groupName: args.groupName || null,
+      leadId: lead.id,
+      priority: args.priority,
+    }),
+  ])
+
+  return lead.id
+}
+
 async function setLeadStage(leadId: string, stage: string) {
   await getSupabase().from('leads').update({ lifecycle_stage: stage }).eq('id', leadId)
 }
@@ -300,7 +536,7 @@ async function handleConfirmAppointment(conv: any) {
 }
 
 async function startConversation(args: {
-  lead: { id: string }
+  leadId?: string | null
   contactJid: string
   contactPhone: string
   senderName: string
@@ -312,7 +548,7 @@ async function startConversation(args: {
   const { data: conv, error } = await getSupabase()
     .from('bot_conversations')
     .insert({
-      lead_id: args.lead.id,
+      lead_id: args.leadId || null,
       company_id: SUPABASE_COMPANY_ID,
       contact_jid: args.contactJid,
       contact_name: args.senderName,
@@ -328,8 +564,9 @@ async function startConversation(args: {
     return
   }
 
-  // Bot sent DM → acquisition stage
-  await setLeadStage(args.lead.id, 'acquisition')
+  if (args.leadId) {
+    await setLeadStage(args.leadId, 'acquisition')
+  }
 
   await sleep(REPLY_DELAY_MS)
   try {
@@ -354,6 +591,7 @@ async function handleConversationMessage(args: {
   const historySlice = allMessages.slice(-20)
   const response = await askBot(historySlice)
   const updatedMessages = [...allMessages, { role: 'assistant', content: response.message }]
+  const priority = detectPriority(args.text)
 
   await getSupabase()
     .from('bot_conversations')
@@ -365,9 +603,30 @@ async function handleConversationMessage(args: {
 
   // Fire action handlers BEFORE the send delay so they never get cut off by a timeout
   if (response.action === 'request_schedule_confirm') {
+    const leadId = await attachLeadToConversation({
+      conv: args.conv,
+      message: response.data.job_description || args.text,
+      source: 'whatsapp_direct',
+      priority,
+      suburb: response.data.suburb || null,
+    })
+    if (leadId) {
+      args.conv = { ...args.conv, lead_id: leadId }
+      await setLeadStage(leadId, 'acquisition')
+    }
     await handleRequestScheduleConfirm(args.conv, response.data, args.conv.contact_name || 'Cliente')
   }
   if (response.action === 'confirm_appointment') {
+    if (!args.conv.lead_id) {
+      const leadId = await attachLeadToConversation({
+        conv: args.conv,
+        message: response.data.job_description || args.text,
+        source: 'whatsapp_direct',
+        priority,
+        suburb: response.data.suburb || null,
+      })
+      if (leadId) args.conv = { ...args.conv, lead_id: leadId }
+    }
     await handleConfirmAppointment(args.conv)
   }
 
@@ -621,6 +880,41 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   const priority = detectPriority(text)
   console.log(`[webhook] 🎯 Trigger [${priority}] ${isGroup ? `"${groupName}"` : '(direct)'}: ${senderName} — "${text.slice(0, 80)}"`)
 
+  if (BOT_CONVERSATION_ENABLED && senderPhone && contactJid) {
+    const existingConv = await getActiveConversation(contactJid)
+    if (existingConv) {
+      // Client messaged the group again while a conversation is already active — continue it
+      console.log(`[webhook] ↩️ Resuming existing conversation ${existingConv.id} for ${contactJid}`)
+      await handleConversationMessage({ conv: existingConv, contactPhone: senderPhone, text })
+    } else {
+      if (isDirect) {
+        await startConversation({
+          contactJid,
+          contactPhone: senderPhone,
+          senderName,
+          originalMessage: text,
+        })
+      } else {
+        const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
+        if (!lead) return NextResponse.json({ ok: true })
+
+        await Promise.all([
+          sendEmailNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
+          sendWANotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
+          sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
+        ])
+
+        await startConversation({
+          contactJid,
+          contactPhone: senderPhone,
+          senderName,
+          originalMessage: text,
+        })
+      }
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
   if (!lead) return NextResponse.json({ ok: true })
 
@@ -629,23 +923,6 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     sendWANotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
     sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
   ])
-
-  if (BOT_CONVERSATION_ENABLED && senderPhone && contactJid) {
-    const existingConv = await getActiveConversation(contactJid)
-    if (existingConv) {
-      // Client messaged the group again while a conversation is already active — continue it
-      console.log(`[webhook] ↩️ Resuming existing conversation ${existingConv.id} for ${contactJid}`)
-      await handleConversationMessage({ conv: existingConv, contactPhone: senderPhone, text })
-    } else {
-      await startConversation({
-        lead,
-        contactJid,
-        contactPhone: senderPhone,
-        senderName,
-        originalMessage: text,
-      })
-    }
-  }
 
   return NextResponse.json({ ok: true })
 }
