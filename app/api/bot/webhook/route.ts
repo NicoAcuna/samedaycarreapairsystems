@@ -125,6 +125,14 @@ type BotReply = {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+async function sendMessages(phone: string, message: string) {
+  const parts = message.split('\n').map(p => p.trim()).filter(Boolean)
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0) await sleep(5000)
+    await sendText(phone, parts[i])
+  }
+}
+
 async function askBot(history: Array<{ role: string; content: string }>): Promise<BotReply> {
   if (!OPENAI_API_KEY) {
     console.error('[webhook] OPENAI_API_KEY not set')
@@ -255,7 +263,7 @@ async function startConversation(args: {
 
   await sleep(REPLY_DELAY_MS)
   try {
-    await sendText(args.contactPhone, response.message)
+    await sendMessages(args.contactPhone, response.message)
     console.log(`[webhook] 💬 Bot replied to ${args.senderName}: "${response.message.slice(0, 60)}..."`)
   } catch (e: any) {
     console.error('[webhook] Bot send failed (startConversation):', e.message)
@@ -287,7 +295,7 @@ async function handleConversationMessage(args: {
 
   await sleep(REPLY_DELAY_MS)
   try {
-    await sendText(args.contactPhone, response.message)
+    await sendMessages(args.contactPhone, response.message)
     console.log(`[webhook] 💬 Bot replied to ${args.conv.contact_name}: "${response.message.slice(0, 60)}..."`)
   } catch (e: any) {
     console.error('[webhook] Bot send failed (handleConversationMessage):', e.message)
