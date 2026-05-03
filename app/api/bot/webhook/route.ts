@@ -296,6 +296,12 @@ const FALSE_POSITIVES = [
   /\btransmisi[oó]n\s+mec[aá]nica\b/i,
   /\bmarcha\s+mec[aá]nica\b/i,
   /\breloj\s+mec[aá]nico\b/i,
+  // Property/rental inspection false positives
+  /\bopen\s+(for\s+)?inspection\b/i,
+  /\barrange\s+(an?\s+)?inspection\b/i,
+  /\b(property|house|home|apartment|unit|room|flat)\s+(inspection|for\s+rent|for\s+lease)\b/i,
+  /\bshort.term\s+stay\b/i,
+  /\b(for\s+rent|for\s+lease|available\s+for\s+rent)\b/i,
 ]
 
 function isCarListing(text: string) {
