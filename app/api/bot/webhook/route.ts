@@ -518,13 +518,18 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   ])
 
   if (BOT_CONVERSATION_ENABLED && senderPhone && contactJid) {
-    await startConversation({
-      lead,
-      contactJid,
-      contactPhone: senderPhone,
-      senderName,
-      originalMessage: text,
-    })
+    const existingConv = await getActiveConversation(contactJid)
+    if (existingConv) {
+      console.log(`[webhook] ⏭️ Skipping startConversation — active conversation already exists for ${contactJid}`)
+    } else {
+      await startConversation({
+        lead,
+        contactJid,
+        contactPhone: senderPhone,
+        senderName,
+        originalMessage: text,
+      })
+    }
   }
 
   return NextResponse.json({ ok: true })

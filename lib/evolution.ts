@@ -14,6 +14,7 @@ export async function sendText(to: string, text: string) {
 }
 
 export async function getGroupSubject(groupJid: string): Promise<string | null> {
+  console.log('[evolution] getGroupSubject vars:', { hasBASE: !!BASE_URL, hasKEY: !!API_KEY, hasINSTANCE: !!INSTANCE, instance: INSTANCE })
   if (!BASE_URL || !API_KEY || !INSTANCE) return null
   try {
     const url = `${BASE_URL}/group/findGroupInfos/${encodeURIComponent(INSTANCE)}?groupJid=${encodeURIComponent(groupJid)}`
