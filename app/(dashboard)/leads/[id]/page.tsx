@@ -204,6 +204,9 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
 
       <div className="mb-3">
         <label className="text-xs text-amber-800 font-medium mb-1 block">Cuándo podés ir</label>
+        <div className="text-[11px] text-amber-700 mb-1.5">
+          Base general: lun-jue después de las 3pm. Vie-dom casi todo el día.
+        </div>
         <input
           value={when}
           onChange={e => setWhen(e.target.value)}

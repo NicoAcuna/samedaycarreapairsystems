@@ -86,6 +86,10 @@ REGLAS CLAVE:
 - No hacemos logbook service
 - Si pide algo que no hacemos, decíselo directo
 - NUNCA propongas ni confirmes hora ni día — NUNCA digas "puedo ir mañana", "dale a las 10", "te viene el jueves?" — eso lo decide Nico
+- Disponibilidad base de Nico, salvo excepción manual:
+  - Lunes a jueves: después de las 3pm
+  - Viernes a domingo: casi todo el día
+- Si el cliente dice una ventana como "mañana am", "martes en la mañana" o algo que podría chocar con esa disponibilidad, NO la negocies ni pidas hora exacta. Cortá y mandá action "request_schedule_confirm"
 - Pregunta de disponibilidad: "cuándo tenés tiempo para que vaya a verlo?" / "when are you free?"
 - En cuanto el cliente dé cualquier disponibilidad (mañana, el jueves, después de las 3, etc.) → disparar INMEDIATAMENTE action "request_schedule_confirm" con message "perfecto, dame un seg. para confirmar mi horario"
 - NUNCA respondas con texto conversacional cuando ya tenés la disponibilidad — siempre el JSON con la action
@@ -194,6 +198,7 @@ type BotReply = {
   data: {
     vehicle?: { year?: string; make?: string; model?: string }
     suburb?: string
+    starts?: boolean
     job_type?: string
     job_description?: string
     client_availability?: string
@@ -292,7 +297,38 @@ function buildHeuristicContext(history: Array<{ role: string; content: string }>
     hintLines.push('Si el cliente quiere logbook service, decir que no lo hacemos')
   }
 
+  hintLines.push('Disponibilidad base de Nico: lunes a jueves después de las 3pm; viernes a domingo casi todo el día')
+  hintLines.push('Si el cliente da cualquier ventana horaria y Nico todavía no propuso bloque, cortar con request_schedule_confirm. No seguir negociando horas')
+
   return `CONTEXTO HEURÍSTICO:\n- ${hintLines.join('\n- ')}`
+}
+
+function detectAvailabilityMention(text: string) {
+  return /\b(hoy|mañana|tomorrow|tonight|esta tarde|esta mañana|morning|afternoon|evening|am|pm|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday|despu[eé]s de|after|before|antes de|finde|weekend|cualquier hora|any time|anytime|free|disponible)\b/i.test(text)
+}
+
+function hasNicoScheduleProposal(history: Array<{ role: string; content: string }>) {
+  return history.some(msg =>
+    msg.role === 'assistant' &&
+    /\b(nico puede|nico is free|te viene bien|does that work for you|type \d|around \d|despu[eé]s de las \d|after \d)/i.test(msg.content || '')
+  )
+}
+
+function inferStartsFromHistory(history: Array<{ role: string; content: string }>) {
+  const userText = history
+    .filter(msg => msg.role === 'user')
+    .map(msg => msg.content || '')
+    .join(' \n ')
+    .toLowerCase()
+
+  if (/\b(no arranca|no parte|no enciende|no prende|dejó de prender|dejo de prender|won't start|wont start|doesn't start|doesnt start)\b/i.test(userText)) {
+    return false
+  }
+  if (/\b(arranca|prende|enciende|starts)\b/i.test(userText)) {
+    return true
+  }
+
+  return undefined
 }
 
 async function askBot(history: Array<{ role: string; content: string }>): Promise<BotReply> {
@@ -328,7 +364,8 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
   const text = json.choices?.[0]?.message?.content || ''
 
   try {
-    const reply = JSON.parse(text) as BotReply
+    let reply = JSON.parse(text) as BotReply
+    reply = maybeForceScheduleConfirm(history, reply)
     reply.message = sanitizeBotMessage(reply.message, reply.action)
     // When confirming schedule, always use the canonical message — ignore any extra text the model adds
     if (reply.action === 'request_schedule_confirm') {
@@ -359,6 +396,8 @@ function sanitizeBotMessage(message: string, action: BotReply['action']) {
     .replace(/^(entonces está claro[,.]?\s*|perfecto[,.]?\s*entonces[,.]?\s*|o sea que[^\.]+\.\s*|entonces tenemos[^\.]+\.\s*)/i, '')
     // Remove "y," at the start if the model slips it in
     .replace(/^y,\s*/i, '')
+    .replace(/^,\s*(bro|mate|loco|hno)[,.]?\s*/i, '')
+    .replace(/^[,\.\-\s]+/g, '')
     // Collapse duplicate separators and whitespace
     .replace(/,\s*,/g, ',')
     .replace(/[ \t]+\n/g, '\n')
@@ -387,6 +426,25 @@ function sanitizeBotMessage(message: string, action: BotReply['action']) {
   }
 
   return clean
+}
+
+function maybeForceScheduleConfirm(history: Array<{ role: string; content: string }>, reply: BotReply): BotReply {
+  const lastUserMessage = [...history].reverse().find(msg => msg.role === 'user')?.content || ''
+
+  if (!detectAvailabilityMention(lastUserMessage)) return reply
+  if (reply.action === 'request_schedule_confirm' || reply.action === 'confirm_appointment') return reply
+  if (hasNicoScheduleProposal(history)) return reply
+
+  return {
+    message: 'perfecto, dame un seg. para confirmar mi horario',
+    action: 'request_schedule_confirm',
+    data: {
+      ...reply.data,
+      client_availability: reply.data?.client_availability || lastUserMessage,
+      starts: reply.data?.starts ?? inferStartsFromHistory(history),
+      language: reply.data?.language || 'es',
+    },
+  }
 }
 
 async function getActiveConversation(contactJid: string) {
