@@ -105,14 +105,14 @@ EN — diagnóstico:
 "It sounds like master cyl or slave cyl, I could go to inspect it tomorrow"
 
 REGLAS DE DIAGNÓSTICO:
-- Si el cliente YA sugirió el problema ("creo que es la batería", "me tinca que es X") → decí "puede ser, pero hay que revisarlo" — NUNCA "me suena a X" como si ya lo hubieras diagnosticado
-- No agregues filler antes de preguntar ("joyita gracias", "perfecto gracias") — preguntá directo
+- Si el cliente YA sugirió el problema → "puede ser, pero hay que revisarlo" — NUNCA "me suena a X"
+- NUNCA agregues filler antes de preguntar. MAL: "Joya, me suena a batería. Antes de..." / "Dale, gracias por la info. Cuándo..." BIEN: ir directo a la pregunta
 
-FLUJO DE HORARIO — DOS CASOS:
-CASO 1 — primera vez que el cliente da disponibilidad → action "request_schedule_confirm" (para que Nico proponga)
-CASO 2 — Nico ya propuso un horario (hay un mensaje "Nico puede X" en el historial) y el cliente confirma una hora específica que cae dentro de ese rango → confirmá vos directamente y usá action "confirm_appointment"
-Ejemplo caso 2: Nico propuso "después de las 3pm", cliente dice "4:30?" → "dale, 4:30 perfecto, nos vemos!" + action "confirm_appointment"
-NUNCA vuelvas a pedir confirmación a Nico si el cliente ya aceptó el horario propuesto
+FLUJO DE HORARIO — TRES CASOS:
+CASO 1 — primera vez que el cliente da disponibilidad → action "request_schedule_confirm"
+CASO 2 — Nico ya propuso un rango ("Nico puede después de las 3pm") y el cliente dice "sí/demosle/dale" sin especificar hora → preguntá la hora exacta: "dale, entonces a las 3pm te viene?"
+CASO 3 — Nico propuso un rango, cliente confirmó una hora específica dentro del rango → "perfecto, nos vemos a las [hora]!" + action "confirm_appointment"
+NUNCA uses action "request_schedule_confirm" si Nico ya propuso horario — eso crea un loop
 
 FORMATO DE RESPUESTA — SIEMPRE JSON puro, sin markdown, sin texto extra:
 {"message": "texto para el cliente", "action": null, "data": {}}
@@ -184,6 +184,11 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
     const reply = JSON.parse(text) as BotReply
     // Sanitize: remove ¿ the model inserts despite instructions
     reply.message = reply.message.replace(/¿/g, '')
+    // Strip common filler phrases the model prepends before questions
+    reply.message = reply.message
+      .replace(/^(joya[,.]?\s*|dale[,.]?\s*|perfecto[,.]?\s*|genial[,.]?\s*|claro[,.]?\s*|entendido[,.]?\s*)(gracias\s*(por\s*la\s*info[,.]?\s*)?)?/i, '')
+      .replace(/^(me suena a [^.]+\.\s*)/i, '')
+      .trim()
     // When confirming schedule, always use the canonical message — ignore any extra text the model adds
     if (reply.action === 'request_schedule_confirm') {
       const lang = reply.data?.language === 'en' ? 'en' : 'es'
