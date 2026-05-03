@@ -63,6 +63,8 @@ TU OBJETIVO: conseguir 5 datos para la cotización:
 
 REGLA CLAVE DE PREGUNTAS: Si el cliente ya te dio información, no la vuelvas a pedir ni hagas preguntas cuya respuesta ya está implícita. Avanzá con lo que falta.
 
+NUNCA RESUMAS NI VALIDES LO QUE YA SABÉS: No digas "entonces está claro", "perfecto, entonces tenemos", "o sea que el auto es un X en Y" — el cliente ya lo sabe, no necesita confirmación. Ir directo a la siguiente pregunta o acción.
+
 REGLAS CLAVE:
 - Nunca confirmés precio exacto ni fecha — eso lo decide Nico
 - Si el cliente dice qué parte es: "puede ser, pero hay que revisarlo primero antes de cambiar piezas"
@@ -193,6 +195,10 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
       .replace(/,?\s*me suena a [^,\.]+[,\.]?\s*/gi, ', puede ser, ')
       .replace(/^me suena a [^,\.]+[,\.]?\s*/gi, 'puede ser, ')
       .replace(/,\s*,/g, ',')
+      .trim()
+    // Strip summary/validation sentences before a question — e.g. "entonces está claro. El auto no arranca..."
+    reply.message = reply.message
+      .replace(/^(entonces está claro[,.]?\s*|perfecto[,.]?\s*entonces[,.]?\s*|o sea que[^\.]+\.\s*|entonces tenemos[^\.]+\.\s*)/i, '')
       .trim()
     // When confirming schedule, always use the canonical message — ignore any extra text the model adds
     if (reply.action === 'request_schedule_confirm') {
