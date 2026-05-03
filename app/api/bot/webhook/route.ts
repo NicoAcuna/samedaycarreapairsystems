@@ -442,6 +442,17 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ ok: true })
 
+  const d = body.data
+  console.log('[webhook] DEBUG payload:', JSON.stringify({
+    event: body.event,
+    dataIsArray: Array.isArray(d),
+    dataKeys: d && !Array.isArray(d) ? Object.keys(d) : null,
+    keyParticipant: d?.key?.participant,
+    participant: d?.participant,
+    pushName: d?.pushName,
+    remoteJid: d?.key?.remoteJid,
+  }))
+
   // Evolution can send the event name in the payload or in the URL suffix.
   const eventName = normalizeEventName(body.event) ?? normalizeEventName(routeEvent)
   if (eventName !== 'MESSAGES_UPSERT') {
