@@ -78,7 +78,8 @@ TIPOS DE TRABAJO (solo para clasificar internamente):
 - "direct_job": sabe qué quiere — cambio de aceite, batería, frenos
 - "client_dx": dice qué parte es — tratalo como diagnosis igual
 
-CUANDO TENÉS los 5 datos → action "request_quote"
+CUANDO TENÉS los 5 datos → preguntá disponibilidad: "cuándo tenés tiempo para que vaya a verlo?" / "when are you free?"
+CUANDO TENÉS los 5 datos + disponibilidad del cliente → action "request_schedule_confirm"
 
 PRIMER MENSAJE (cuando el bot abre la conversación):
 - Siempre presentate brevemente — el cliente recibe un DM de un número desconocido
@@ -106,17 +107,18 @@ EN — diagnóstico:
 FORMATO DE RESPUESTA — SIEMPRE JSON puro, sin markdown, sin texto extra:
 {"message": "texto para el cliente", "action": null, "data": {}}
 
-Cuando tenés los 5 datos:
-{"message": "texto confirmando que viene la info", "action": "request_quote", "data": {"vehicle": {"year": "2018", "make": "Toyota", "model": "Camry"}, "suburb": "Parramatta", "starts": false, "job_type": "diagnosis", "job_description": "No arranca, hace click al girar la llave. Luz de batería encendida.", "warning_lights": "batería", "language": "es"}}`
+Cuando tenés los 5 datos + disponibilidad del cliente:
+{"message": "perfecto, dame un seg. para confirmar mi horario", "action": "request_schedule_confirm", "data": {"vehicle": {"year": "2018", "make": "Toyota", "model": "Camry"}, "suburb": "Parramatta", "starts": false, "job_type": "diagnosis", "job_description": "No arranca, hace click al girar la llave.", "warning_lights": "batería", "client_availability": "miércoles, jueves o viernes después de las 3pm", "language": "es"}}`
 
 type BotReply = {
   message: string
-  action: null | 'request_quote'
+  action: null | 'request_quote' | 'request_schedule_confirm'
   data: {
     vehicle?: { year?: string; make?: string; model?: string }
     suburb?: string
     job_type?: string
     job_description?: string
+    client_availability?: string
     language?: string
   }
 }
@@ -173,18 +175,21 @@ async function getActiveConversation(contactJid: string) {
   return data
 }
 
-async function handleRequestQuote(conv: any, data: BotReply['data'], contactName: string) {
-  const updates = {
-    status: 'awaiting_quote_approval',
+async function handleRequestScheduleConfirm(conv: any, data: BotReply['data'], contactName: string) {
+  const vehicleStr = data.vehicle
+    ? `${data.vehicle.year || ''} ${data.vehicle.make || ''} ${data.vehicle.model || ''}`.trim()
+    : 'Auto sin identificar'
+
+  await getSupabase().from('bot_conversations').update({
+    status: 'awaiting_schedule_confirmation',
     language: data.language || 'es',
     vehicle: data.vehicle || null,
     suburb: data.suburb || null,
     job_type: data.job_type || null,
     job_description: data.job_description || null,
+    client_availability: data.client_availability || null,
     updated_at: new Date().toISOString(),
-  }
-
-  await getSupabase().from('bot_conversations').update(updates).eq('id', conv.id)
+  }).eq('id', conv.id)
 
   if (data.suburb && conv.lead_id) {
     await getSupabase().from('leads').update({ suburb: data.suburb }).eq('id', conv.lead_id)
@@ -192,27 +197,23 @@ async function handleRequestQuote(conv: any, data: BotReply['data'], contactName
 
   if (!NOTIFY_SECRET) return
 
-  const vehicleStr = data.vehicle
-    ? `${data.vehicle.year || ''} ${data.vehicle.make || ''} ${data.vehicle.model || ''}`.trim()
-    : 'Auto sin identificar'
-
   try {
     await fetch(`${APP_URL}/api/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-notify-secret': NOTIFY_SECRET },
       body: JSON.stringify({
         companyId: SUPABASE_COMPANY_ID,
-        type: 'lead_ready_to_quote',
+        type: 'schedule_confirm_needed',
         payload: {
-          title: `💰 Listo para cotizar — ${contactName}`,
-          body: `${data.suburb || '?'} · ${vehicleStr} · ${(data.job_description || '').slice(0, 60)}`,
+          title: `📅 Confirmar horario — ${contactName}`,
+          body: `${vehicleStr} · ${data.suburb || '?'} · Disponible: ${data.client_availability || '?'}`,
           url: conv.lead_id ? `/leads/${conv.lead_id}` : '/leads',
         },
       }),
     })
-    console.log('[webhook] 🔔 Quote approval notification sent')
+    console.log('[webhook] 🔔 Schedule confirm notification sent')
   } catch (e: any) {
-    console.error('[webhook] Quote notification failed:', e.message)
+    console.error('[webhook] Schedule confirm notification failed:', e.message)
   }
 }
 
@@ -260,8 +261,8 @@ async function startConversation(args: {
     console.error('[webhook] Bot send failed (startConversation):', e.message)
   }
 
-  if (response.action === 'request_quote' && conv) {
-    await handleRequestQuote(conv, response.data, args.senderName)
+  if (response.action === 'request_schedule_confirm' && conv) {
+    await handleRequestScheduleConfirm(conv, response.data, args.senderName)
   }
 }
 
@@ -292,8 +293,8 @@ async function handleConversationMessage(args: {
     console.error('[webhook] Bot send failed (handleConversationMessage):', e.message)
   }
 
-  if (response.action === 'request_quote') {
-    await handleRequestQuote(args.conv, response.data, args.conv.contact_name || 'Cliente')
+  if (response.action === 'request_schedule_confirm') {
+    await handleRequestScheduleConfirm(args.conv, response.data, args.conv.contact_name || 'Cliente')
   }
 }
 
