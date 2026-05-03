@@ -163,8 +163,7 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
   conv: { id: string; client_availability: string | null; contact_name: string | null; vehicle: { year?: string; make?: string; model?: string } | null }
   onConfirmed: () => void
 }) {
-  const [day, setDay] = useState('')
-  const [time, setTime] = useState('')
+  const [when, setWhen] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [err, setErr] = useState('')
 
@@ -172,15 +171,15 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
     ? `${conv.vehicle.year || ''} ${conv.vehicle.make || ''} ${conv.vehicle.model || ''}`.trim()
     : null
 
-  async function handleConfirm() {
-    if (!day.trim() || !time.trim()) { setErr('Ingresá día y hora'); return }
+  async function handlePropose() {
+    if (!when.trim()) { setErr('Ingresá cuándo podés ir'); return }
     setConfirming(true); setErr('')
     const res = await fetch(`/api/leads/${leadId}/confirm-schedule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conv.id, day: day.trim(), time: time.trim() }),
+      body: JSON.stringify({ conversation_id: conv.id, when: when.trim() }),
     })
-    if (!res.ok) { setErr('Error al confirmar, intenta de nuevo'); setConfirming(false); return }
+    if (!res.ok) { setErr('Error al enviar, intenta de nuevo'); setConfirming(false); return }
     onConfirmed()
   }
 
@@ -188,7 +187,7 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-base">📅</span>
-        <span className="text-sm font-semibold text-amber-900">Confirmar horario</span>
+        <span className="text-sm font-semibold text-amber-900">Coordinar horario</span>
         <span className="ml-auto text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Pendiente</span>
       </div>
 
@@ -203,35 +202,24 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
         </div>
       )}
 
-      <div className="flex gap-2 mb-3">
-        <div className="flex-1">
-          <label className="text-xs text-amber-800 font-medium mb-1 block">Día</label>
-          <input
-            value={day}
-            onChange={e => setDay(e.target.value)}
-            placeholder="ej. jueves 8 de mayo"
-            className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-amber-400"
-          />
-        </div>
-        <div className="w-28">
-          <label className="text-xs text-amber-800 font-medium mb-1 block">Hora</label>
-          <input
-            type="time"
-            value={time}
-            onChange={e => setTime(e.target.value)}
-            className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-amber-400"
-          />
-        </div>
+      <div className="mb-3">
+        <label className="text-xs text-amber-800 font-medium mb-1 block">Cuándo podés ir</label>
+        <input
+          value={when}
+          onChange={e => setWhen(e.target.value)}
+          placeholder="ej. viernes después de las 3pm"
+          className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-amber-400"
+        />
       </div>
 
       {err && <div className="text-xs text-red-600 mb-2">{err}</div>}
 
       <button
-        onClick={handleConfirm}
+        onClick={handlePropose}
         disabled={confirming}
         className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
       >
-        {confirming ? 'Enviando…' : 'Confirmar turno → cliente recibe WA 🔧'}
+        {confirming ? 'Enviando…' : 'Matchear con el cliente →'}
       </button>
     </div>
   )

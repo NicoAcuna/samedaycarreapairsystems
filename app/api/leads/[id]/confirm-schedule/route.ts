@@ -12,8 +12,8 @@ function getSupabase() {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: leadId } = await params
   const body = await req.json().catch(() => null)
-  if (!body?.conversation_id || !body?.day || !body?.time) {
-    return NextResponse.json({ error: 'Missing conversation_id, day or time' }, { status: 400 })
+  if (!body?.conversation_id || !body?.when) {
+    return NextResponse.json({ error: 'Missing conversation_id or when' }, { status: 400 })
   }
 
   const supabase = getSupabase()
@@ -29,12 +29,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
   }
 
-  const scheduledLabel = `${body.day} a las ${body.time}`
   const lang = conv.language || 'es'
-
   const clientMsg = lang === 'en'
-    ? `All set! Nico will be there ${scheduledLabel} 🔧 See you then!`
-    : `Perfecto! Nico va a estar el ${scheduledLabel} 🔧 nos vemos!`
+    ? `Hey! Nico is free ${body.when} — does that work for you?`
+    : `Hola! Nico puede ${body.when}, te viene bien?`
 
   try {
     await sendText(conv.contact_phone, clientMsg)
@@ -43,13 +41,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Failed to send WhatsApp message' }, { status: 500 })
   }
 
+  // Keep conversation active so the bot can handle the client's reply
+  const proposalMsg = { role: 'assistant', content: clientMsg }
+  const updatedMessages = [...(conv.messages || []), proposalMsg]
+
   await supabase.from('bot_conversations').update({
-    status: 'scheduled',
-    scheduled_at: new Date().toISOString(),
+    status: 'qualifying',
+    messages: updatedMessages,
     updated_at: new Date().toISOString(),
   }).eq('id', conv.id)
 
-  await supabase.from('leads').update({ lifecycle_stage: 'activation' }).eq('id', leadId)
-
-  return NextResponse.json({ ok: true, scheduledLabel })
+  return NextResponse.json({ ok: true })
 }
