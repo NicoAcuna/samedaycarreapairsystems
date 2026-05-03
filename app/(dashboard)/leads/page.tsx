@@ -7,6 +7,7 @@ import { NSW_SUBURB_SUGGESTIONS, getPostcodeForSuburb, normalizeNswState, normal
 
 type LeadStatus = 'new' | 'contacted' | 'quoted' | 'converted' | 'lost'
 type LeadSource = 'whatsapp_group' | 'facebook_group' | 'airtasker' | 'google' | 'reddit' | 'recommendation' | 'other'
+type LifecycleStage = 'awareness' | 'acquisition' | 'engagement' | 'activation' | 'retention' | 'lost'
 
 type Lead = {
   id: string
@@ -19,6 +20,7 @@ type Lead = {
   message: string | null
   suburb: string | null
   status: LeadStatus
+  lifecycle_stage: LifecycleStage
   notes: string | null
   created_at: string
 }
@@ -398,6 +400,123 @@ function StatusBadge({ lead, onChange }: { lead: Lead; onChange: (status: LeadSt
   )
 }
 
+// ── FUNNEL STAGES CONFIG ──────────────────────────────────────────────────────
+const FUNNEL_STAGES: { value: LifecycleStage; label: string; color: string; bg: string; border: string }[] = [
+  { value: 'awareness',   label: 'Awareness',   color: 'text-violet-700', bg: 'bg-violet-50',  border: 'border-violet-200' },
+  { value: 'acquisition', label: 'Acquisition', color: 'text-blue-700',   bg: 'bg-blue-50',    border: 'border-blue-200' },
+  { value: 'engagement',  label: 'Engagement',  color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200' },
+  { value: 'activation',  label: 'Activation',  color: 'text-green-700',  bg: 'bg-green-50',   border: 'border-green-200' },
+  { value: 'retention',   label: 'Retention',   color: 'text-teal-700',   bg: 'bg-teal-50',    border: 'border-teal-200' },
+]
+
+// ── FUNNEL VIEW ───────────────────────────────────────────────────────────────
+function FunnelView({ leads, onSelectStage, selectedStage, onLeadClick }: {
+  leads: Lead[]
+  selectedStage: LifecycleStage | null
+  onSelectStage: (s: LifecycleStage | null) => void
+  onLeadClick: (id: string) => void
+}) {
+  const activeLeads = leads.filter(l => l.lifecycle_stage !== 'lost')
+  const top = activeLeads.length || 1
+
+  const stageCounts = FUNNEL_STAGES.map(s => ({
+    ...s,
+    count: leads.filter(l => l.lifecycle_stage === s.value).length,
+  }))
+  const lostCount = leads.filter(l => l.lifecycle_stage === 'lost').length
+
+  const filtered = selectedStage
+    ? leads.filter(l => l.lifecycle_stage === selectedStage)
+    : leads.filter(l => l.lifecycle_stage !== 'lost')
+
+  return (
+    <div>
+      {/* Funnel chart */}
+      <div className="bg-white border border-neutral-200 rounded-xl p-5 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-neutral-700">Pipeline funnel</h2>
+          {lostCount > 0 && (
+            <button
+              onClick={() => onSelectStage(selectedStage === 'lost' ? null : 'lost')}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${selectedStage === 'lost' ? 'bg-neutral-800 text-white border-neutral-800' : 'text-neutral-500 border-neutral-200 hover:border-neutral-400'}`}
+            >
+              {lostCount} lost
+            </button>
+          )}
+        </div>
+        <div className="space-y-2">
+          {stageCounts.map((stage, i) => {
+            const pct = Math.round((stage.count / top) * 100)
+            const prevCount = i > 0 ? stageCounts[i - 1].count : null
+            const dropPct = prevCount && prevCount > 0 ? Math.round((stage.count / prevCount) * 100) : null
+            const isSelected = selectedStage === stage.value
+            return (
+              <button
+                key={stage.value}
+                onClick={() => onSelectStage(isSelected ? null : stage.value)}
+                className="w-full text-left group"
+              >
+                <div className="flex items-center gap-3 mb-1">
+                  <span className={`text-xs font-medium w-24 shrink-0 ${stage.color}`}>{stage.label}</span>
+                  <div className="flex-1 bg-neutral-100 rounded-full h-7 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full flex items-center px-3 transition-all ${isSelected ? stage.bg.replace('50','100') : stage.bg} ${stage.border} border`}
+                      style={{ width: `${Math.max(pct, 4)}%`, minWidth: stage.count > 0 ? '2.5rem' : '1rem' }}
+                    >
+                      <span className={`text-xs font-bold ${stage.color}`}>{stage.count}</span>
+                    </div>
+                  </div>
+                  <span className="text-xs text-neutral-400 w-10 text-right shrink-0">
+                    {dropPct !== null ? `${dropPct}%` : ''}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {selectedStage && (
+          <button onClick={() => onSelectStage(null)} className="mt-3 text-xs text-neutral-400 hover:text-neutral-600">
+            ← Clear filter
+          </button>
+        )}
+      </div>
+
+      {/* Filtered list */}
+      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-neutral-400">No leads in this stage</div>
+        ) : filtered.map(lead => {
+          const src = LEAD_SOURCES.find(s => s.value === lead.source) || LEAD_SOURCES[LEAD_SOURCES.length - 1]
+          const stage = FUNNEL_STAGES.find(s => s.value === lead.lifecycle_stage)
+          return (
+            <div key={lead.id} onClick={() => onLeadClick(lead.id)}
+              className="px-4 py-3.5 border-b border-neutral-100 last:border-0 cursor-pointer hover:bg-neutral-50 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="font-medium text-sm text-neutral-900 truncate">
+                    {[lead.first_name, lead.last_name].filter(Boolean).join(' ')}
+                  </span>
+                  {stage && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${stage.color} ${stage.bg} ${stage.border}`}>
+                      {stage.label}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-neutral-400">
+                  {src.icon} {src.label}{lead.source_detail ? ` · ${lead.source_detail}` : ''}
+                  {lead.suburb ? ` · ${lead.suburb}` : ''}
+                </div>
+                {lead.message && <div className="text-xs text-neutral-500 mt-1 line-clamp-1">{lead.message}</div>}
+              </div>
+              <div className="text-[11px] text-neutral-300 shrink-0 mt-0.5">{formatDate(lead.created_at)}</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── LEADS PAGE ────────────────────────────────────────────────────────────────
 export default function LeadsPage() {
   const router = useRouter()
@@ -407,6 +526,8 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
   const [showNew, setShowNew] = useState(false)
   const [convertLead, setConvertLead] = useState<Lead | null>(null)
+  const [activeTab, setActiveTab] = useState<'list' | 'funnel'>('list')
+  const [stageFilter, setStageFilter] = useState<LifecycleStage | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -494,7 +615,33 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Status filter tabs */}
+      {/* View tabs */}
+      <div className="flex gap-1 mb-4 bg-neutral-100 p-1 rounded-lg w-fit">
+        {(['list', 'funnel'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`text-xs px-4 py-1.5 rounded-md font-medium transition-colors capitalize ${
+              activeTab === tab ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'
+            }`}
+          >
+            {tab === 'list' ? '☰ List' : '◈ Funnel'}
+          </button>
+        ))}
+      </div>
+
+      {/* Funnel view */}
+      {activeTab === 'funnel' && !loading && (
+        <FunnelView
+          leads={leads}
+          selectedStage={stageFilter}
+          onSelectStage={setStageFilter}
+          onLeadClick={id => router.push(`/leads/${id}`)}
+        />
+      )}
+
+      {/* List view */}
+      {activeTab === 'list' && <>
       <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-none">
         {STATUS_TABS.map(tab => (
           <button
@@ -632,6 +779,7 @@ export default function LeadsPage() {
           )
         })}
       </div>
+      </>}
     </div>
   )
 }
