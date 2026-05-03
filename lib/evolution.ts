@@ -16,15 +16,15 @@ export async function sendText(to: string, text: string) {
 export async function getGroupSubject(groupJid: string): Promise<string | null> {
   if (!BASE_URL || !API_KEY || !INSTANCE) return null
   try {
-    const res = await fetch(
-      `${BASE_URL}/group/findGroupInfos/${INSTANCE}?groupJid=${encodeURIComponent(groupJid)}`,
-      { headers: { apikey: API_KEY } },
-    )
+    const url = `${BASE_URL}/group/findGroupInfos/${encodeURIComponent(INSTANCE)}?groupJid=${encodeURIComponent(groupJid)}`
+    console.log('[evolution] getGroupSubject url:', url)
+    const res = await fetch(url, { headers: { apikey: API_KEY } })
     if (!res.ok) {
-      console.error(`[evolution] getGroupSubject ${res.status} for ${groupJid}`)
+      console.error(`[evolution] getGroupSubject ${res.status}: ${await res.text()}`)
       return null
     }
     const data = await res.json()
+    console.log('[evolution] getGroupSubject response:', JSON.stringify(data).slice(0, 200))
     // Evolution v2 may return an array or a single object
     const obj = Array.isArray(data) ? data[0] : data
     return obj?.subject ?? obj?.name ?? null
