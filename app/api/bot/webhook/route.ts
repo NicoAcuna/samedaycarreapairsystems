@@ -268,34 +268,8 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
   })
 
   if (!res.ok) {
-    console.error('[webhook] OpenAI API error (gpt-5.4-mini):', res.status, await res.text())
-    // Fallback to gpt-4o-mini
-    const res2 = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        max_tokens: 400,
-        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
-      }),
-    })
-    if (!res2.ok) {
-      console.error('[webhook] OpenAI fallback error:', res2.status, await res2.text())
-      return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
-    }
-    const j2 = await res2.json()
-    const t2 = j2.choices?.[0]?.message?.content || ''
-    try {
-      let r2 = JSON.parse(t2) as BotReply
-      r2 = maybeForceScheduleConfirm(history, r2)
-      r2.message = sanitizeBotMessage(r2.message, r2.action)
-      if (r2.action === 'request_schedule_confirm') {
-        r2.message = r2.data?.language === 'en' ? 'Perfect, give me a sec to check my schedule' : 'perfecto, dame un seg. para confirmar mi horario'
-      }
-      return r2
-    } catch {
-      return { message: sanitizeBotMessage(t2, null), action: null, data: {} }
-    }
+    console.error('[webhook] OpenAI API error:', res.status, await res.text())
+    return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
   }
 
   const json = await res.json()
