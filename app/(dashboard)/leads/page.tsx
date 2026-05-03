@@ -528,9 +528,20 @@ export default function LeadsPage() {
   const [convertLead, setConvertLead] = useState<Lead | null>(null)
   const [activeTab, setActiveTab] = useState<'list' | 'funnel'>('list')
   const [stageFilter, setStageFilter] = useState<LifecycleStage | null>(null)
+  const [pendingScheduleIds, setPendingScheduleIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const supabase = createClient()
+
+    async function fetchPendingSchedule() {
+      const { data } = await supabase
+        .from('bot_conversations')
+        .select('lead_id')
+        .eq('status', 'awaiting_schedule_confirmation')
+        .not('lead_id', 'is', null)
+      if (data) setPendingScheduleIds(new Set(data.map((r: any) => r.lead_id)))
+    }
+
     supabase
       .from('leads')
       .select('*')
@@ -539,6 +550,10 @@ export default function LeadsPage() {
         setLeads((data as Lead[]) || [])
         setLoading(false)
       })
+
+    fetchPendingSchedule()
+    const interval = setInterval(fetchPendingSchedule, 10000)
+    return () => clearInterval(interval)
   }, [])
 
   async function updateStatus(lead: Lead, status: LeadStatus) {

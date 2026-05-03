@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendText, getGroupSubject } from '@/lib/evolution'
-import { NSW_SUBURB_SUGGESTIONS } from '@/app/lib/reference-data/locations'
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const SUPABASE_USER_ID    = process.env.SUPABASE_USER_ID!
@@ -15,36 +14,6 @@ const WEBHOOK_SECRET      = process.env.EVOLUTION_WEBHOOK_SECRET
 const OPENAI_API_KEY      = process.env.OPENAI_API_KEY
 const BOT_CONVERSATION_ENABLED = process.env.BOT_CONVERSATION_ENABLED === 'true'
 const REPLY_DELAY_MS = 5000
-const OPENAI_CHAT_MODELS = ['gpt-5.4-mini', 'gpt-4o-mini'] as const
-const PRICING_BASE_SUBURB = 'Paddington'
-const ZONE_UNDER_5KM = new Set([
-  'paddington',
-  'edgecliff',
-  'bondi junction',
-  'bondi',
-  'bondi beach',
-  'bronte',
-  'waverley',
-  'surry hills',
-  'kensington',
-  'randwick',
-  'alexandria',
-])
-const ZONE_5_TO_10KM = new Set([
-  'coogee',
-  'mascot',
-  'newtown',
-  'marrickville',
-  'leichhardt',
-  'drummoyne',
-  'five dock',
-  'homebush',
-  'summer hill',
-  'petersham',
-  'tempe',
-  'rozelle',
-  'sydney',
-])
 
 // Lazy to avoid build-time crash when env vars aren't present
 function getSupabase() {
@@ -251,89 +220,6 @@ async function sendMessages(phone: string, message: string) {
   }
 }
 
-type InquiryType = 'pre_purchase' | 'oil_service' | 'diagnosis' | 'repair' | 'unknown'
-
-function inferInquiryType(history: Array<{ role: string; content: string }>): InquiryType {
-  const userText = history
-    .filter(msg => msg.role === 'user')
-    .map(msg => msg.content || '')
-    .join(' \n ')
-    .toLowerCase()
-
-  if (/(pre.?purchase|before buying|pre purchase|inspecci[oó]n pre.?compra|pre.?compra)/i.test(userText)) {
-    return 'pre_purchase'
-  }
-  if (/\b(oil change|minor service|service|aceite|filtro de aceite|oil filter)\b/i.test(userText) &&
-      !/\b(logbook)\b/i.test(userText)) {
-    return 'oil_service'
-  }
-  if (/\b(brakes?|battery|alternator|starter|radiator|pads?|rotors?|spark plugs?|clutch|control arm|suspension)\b/i.test(userText)) {
-    return 'repair'
-  }
-  if (/\b(no arranca|no parte|no enciende|check engine|diagn[oó]stic|diagn[oó]stico|noise|ruido|vibration|vibraci[oó]n|leak|fuga|warning light|luz)\b/i.test(userText)) {
-    return 'diagnosis'
-  }
-
-  return 'unknown'
-}
-
-function hasOilAccessInfo(history: Array<{ role: string; content: string }>) {
-  const userText = history
-    .filter(msg => msg.role === 'user')
-    .map(msg => msg.content || '')
-    .join(' \n ')
-
-  return /\b(driveway|garage|garaje|parking|estacionamiento|cochera|off[- ]street)\b/i.test(userText)
-}
-
-function buildHeuristicContext(history: Array<{ role: string; content: string }>) {
-  const userMessages = history.filter(msg => msg.role === 'user').map(msg => msg.content || '')
-  const lastUserMessage = userMessages[userMessages.length - 1] || ''
-  const joinedText = userMessages.join(' ').toLowerCase()
-  const inquiryType = inferInquiryType(history)
-
-  const tone =
-    /(\bpls\b|\bplease\b|\bthanks\b|\bthank you\b|\bgracias\b)/i.test(lastUserMessage) ? 'warm' :
-    /(\bbro\b|\bmate\b|\bhno\b|\bloco\b)/i.test(lastUserMessage) ? 'casual' :
-    lastUserMessage.trim().split(/\s+/).length <= 4 ? 'brief' :
-    'neutral'
-
-  const hintLines = [
-    `Tipo inferido: ${inquiryType}`,
-    `Tono del cliente: ${tone}`,
-  ]
-
-  if (inquiryType === 'pre_purchase') {
-    hintLines.push('Prioridad: auto/año → ubicación del auto → cuándo necesita la inspección → si vio algo raro')
-    hintLines.push('No preguntar arranque o warning lights salvo que el cliente haya descrito una falla')
-  } else if (inquiryType === 'oil_service') {
-    hintLines.push('Prioridad: auto/año → dirección → confirmar driveway/parking → si es solo aceite/filtro o revisión básica → disponibilidad')
-    hintLines.push('No llevar la conversación a diagnóstico si el cliente solo pidió service')
-    if (!hasOilAccessInfo(history)) {
-      hintLines.push('Falta confirmar si tiene driveway o estacionamiento. No pedir disponibilidad antes de eso')
-    }
-  } else if (inquiryType === 'repair') {
-    hintLines.push('Prioridad: auto/año → dirección → confirmar si ya está diagnosticado o hay que revisar → disponibilidad')
-    hintLines.push('No sonar confrontacional cuando el cliente cree saber la pieza')
-  } else if (inquiryType === 'diagnosis') {
-    hintLines.push('Prioridad: auto/año → síntoma principal → arranque solo si falta → warning lights relevantes → dirección')
-    hintLines.push('No afirmes diagnóstico con certeza')
-  }
-
-  if (/\b(price|precio|quote|cotizaci[oó]n|cu[aá]nto)\b/i.test(joinedText)) {
-    hintLines.push('El cliente ya preguntó precio: responder breve y volver al dato faltante más importante')
-  }
-
-  if (/\b(logbook)\b/i.test(joinedText)) {
-    hintLines.push('Si el cliente quiere logbook service, decir que no lo hacemos')
-  }
-
-  hintLines.push('Disponibilidad base de Nico: lunes a jueves después de las 3pm; viernes a domingo casi todo el día')
-  hintLines.push('Si el cliente da cualquier ventana horaria y Nico todavía no propuso bloque, cortar con request_schedule_confirm. No seguir negociando horas')
-
-  return `CONTEXTO HEURÍSTICO:\n- ${hintLines.join('\n- ')}`
-}
-
 function detectAvailabilityMention(text: string) {
   return /\b(hoy|mañana|tomorrow|tonight|esta tarde|esta mañana|morning|afternoon|evening|am|pm|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday|despu[eé]s de|after|before|antes de|finde|weekend|cualquier hora|any time|anytime|free|disponible)\b/i.test(text)
 }
@@ -362,155 +248,47 @@ function inferStartsFromHistory(history: Array<{ role: string; content: string }
   return undefined
 }
 
-function normalizeSuburbName(value: string | null | undefined) {
-  return (value || '').trim().toLowerCase()
-}
-
-function inferSuburbFromText(text: string) {
-  const lower = text.toLowerCase()
-  const matched = NSW_SUBURB_SUGGESTIONS.find(suburb => lower.includes(suburb.toLowerCase()))
-  return matched || null
-}
-
-function inferConversationSuburb(conv: any) {
-  if (conv?.suburb) return conv.suburb
-  const joined = Array.isArray(conv?.messages)
-    ? conv.messages.map((msg: any) => msg?.content || '').join(' \n ')
-    : ''
-  return inferSuburbFromText(joined)
-}
-
-function getPricingZone(suburb: string | null | undefined) {
-  const normalized = normalizeSuburbName(suburb)
-  if (!normalized) return 'over_10km' as const
-  if (ZONE_UNDER_5KM.has(normalized)) return 'under_5km' as const
-  if (ZONE_5_TO_10KM.has(normalized)) return '5_to_10km' as const
-  return 'over_10km' as const
-}
-
-function inferServiceType(jobType: string | null | undefined, jobDescription: string | null | undefined) {
-  const combined = `${jobType || ''} ${jobDescription || ''}`.toLowerCase()
-  if (/(pre.?purchase|inspection|inspecci[oó]n)/i.test(combined)) return 'inspection' as const
-  if (/\b(oil|aceite|service|minor service|filtro)\b/i.test(combined)) return 'oil_service' as const
-  if (/\b(diagnosis|diagn[oó]stico|no arranca|no parte|warning light|ruido|noise|vibration|vibraci[oó]n)\b/i.test(combined)) return 'diagnosis' as const
-  if (/\b(repair|reparaci[oó]n|frenos|brakes|battery|alternator|starter|radiator|pads?)\b/i.test(combined)) return 'repair' as const
-  return 'unknown' as const
-}
-
-function buildPricingMessage(conv: any) {
-  const suburb = inferConversationSuburb(conv)
-  const zone = getPricingZone(suburb)
-  const serviceType = inferServiceType(conv?.job_type, conv?.job_description)
-
-  if (serviceType === 'unknown') return null
-
-  if (serviceType === 'repair') {
-    return 'el repair hay que cotizarlo después de revisarlo'
-  }
-
-  const prices = {
-    under_5km: {
-      inspection: 180,
-      oil_service: 130,
-      diagnosis: 120,
-    },
-    '5_to_10km': {
-      inspection: 180,
-      oil_service: 150,
-      diagnosis: 130,
-    },
-    over_10km: {
-      inspection: 200,
-      oil_service: 160,
-      diagnosis: 150,
-    },
-  } as const
-
-  const label = zone === 'under_5km'
-    ? `por tu zona cerca de ${PRICING_BASE_SUBURB}`
-    : zone === '5_to_10km'
-      ? `por tu zona`
-      : `por la distancia`
-
-  if (serviceType === 'inspection') {
-    return `la inspección ${label} sale $${prices[zone].inspection}`
-  }
-  if (serviceType === 'oil_service') {
-    return `el cambio de aceite ${label} sale $${prices[zone].oil_service} de mano de obra`
-  }
-  if (serviceType === 'diagnosis') {
-    return `el diagnóstico ${label} sale $${prices[zone].diagnosis}`
-  }
-
-  return null
-}
-
 async function askBot(history: Array<{ role: string; content: string }>): Promise<BotReply> {
-  const fallbackGreeting: BotReply = {
-    message: 'Hola, soy Nico mecánico 🔧, como te puedo ayudar?',
-    action: null,
-    data: {},
-  }
-  const genericFallback: BotReply = {
-    message: 'Gracias por contactarnos, te responderemos a la brevedad.',
-    action: null,
-    data: {},
-  }
-  const isFirstTurn = history.length === 1 && history[0]?.role === 'user'
-
   if (!OPENAI_API_KEY) {
     console.error('[webhook] OPENAI_API_KEY not set')
-    return isFirstTurn ? fallbackGreeting : genericFallback
+    return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
   }
 
-  const heuristicContext = buildHeuristicContext(history)
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      max_tokens: 400,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...history,
+      ],
+    }),
+  })
 
-  for (const model of OPENAI_CHAT_MODELS) {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 400,
-        messages: [
-          { role: 'system', content: `${SYSTEM_PROMPT}\n\n${heuristicContext}` },
-          ...history,
-        ],
-      }),
-    })
-
-    if (!res.ok) {
-      console.error(`[webhook] OpenAI API error with ${model}:`, res.status, await res.text())
-      continue
-    }
-
-    const json = await res.json()
-    const text = json.choices?.[0]?.message?.content || ''
-
-    try {
-      let reply = JSON.parse(text) as BotReply
-      reply = maybeForceScheduleConfirm(history, reply)
-      reply.message = sanitizeBotMessage(reply.message, reply.action)
-      // When confirming schedule, always use the canonical message — ignore any extra text the model adds
-      if (reply.action === 'request_schedule_confirm') {
-        const lang = reply.data?.language === 'en' ? 'en' : 'es'
-        reply.message = lang === 'en'
-          ? 'Perfect, give me a sec to check my schedule'
-          : 'perfecto, dame un seg. para confirmar mi horario'
-      }
-      if (reply.action === 'confirm_appointment' && reply.data?.confirmed_time) {
-        reply.message = `perfecto, nos vemos a las ${reply.data.confirmed_time}!`
-      }
-      return reply
-    } catch {
-      return { message: sanitizeBotMessage(text, null), action: null, data: {} }
-    }
+  if (!res.ok) {
+    console.error('[webhook] OpenAI API error:', res.status, await res.text())
+    return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
   }
 
-  return isFirstTurn ? fallbackGreeting : genericFallback
+  const json = await res.json()
+  const text = json.choices?.[0]?.message?.content || ''
+
+  try {
+    let reply = JSON.parse(text) as BotReply
+    reply = maybeForceScheduleConfirm(history, reply)
+    reply.message = sanitizeBotMessage(reply.message, reply.action)
+    if (reply.action === 'request_schedule_confirm') {
+      const lang = reply.data?.language === 'en' ? 'en' : 'es'
+      reply.message = lang === 'en'
+        ? 'Perfect, give me a sec to check my schedule'
+        : 'perfecto, dame un seg. para confirmar mi horario'
+    }
+    return reply
+  } catch {
+    return { message: sanitizeBotMessage(text, null), action: null, data: {} }
+  }
 }
 
 function sanitizeBotMessage(message: string, action: BotReply['action']) {
@@ -834,10 +612,6 @@ async function handleConversationMessage(args: {
         suburb: response.data.suburb || null,
       })
       if (leadId) args.conv = { ...args.conv, lead_id: leadId }
-    }
-    const pricingMessage = buildPricingMessage(args.conv)
-    if (pricingMessage) {
-      response.message = `${response.message}\n${pricingMessage}`
     }
     await handleConfirmAppointment(args.conv)
   }
