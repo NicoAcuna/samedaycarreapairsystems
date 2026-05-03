@@ -20,10 +20,16 @@ export async function getGroupSubject(groupJid: string): Promise<string | null> 
       `${BASE_URL}/group/findGroupInfos/${INSTANCE}?groupJid=${encodeURIComponent(groupJid)}`,
       { headers: { apikey: API_KEY } },
     )
-    if (!res.ok) return null
+    if (!res.ok) {
+      console.error(`[evolution] getGroupSubject ${res.status} for ${groupJid}`)
+      return null
+    }
     const data = await res.json()
-    return data?.subject ?? null
-  } catch {
+    // Evolution v2 may return an array or a single object
+    const obj = Array.isArray(data) ? data[0] : data
+    return obj?.subject ?? obj?.name ?? null
+  } catch (e: any) {
+    console.error('[evolution] getGroupSubject error:', e.message)
     return null
   }
 }

@@ -484,12 +484,14 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     senderPhone = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
     contactJid = remoteJid.replace(/:\d+$/, '')
   } else {
-    const senderJid = msg.key?.participant || msg.participant || ''
+    // Evolution v2 uses LID addressing in groups: participant is @lid, real phone is in participantAlt
+    const senderJid = msg.key?.participantAlt || msg.key?.participant || msg.participant || ''
     if (senderJid.endsWith('@s.whatsapp.net')) {
       senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
       contactJid = `${senderPhone}@s.whatsapp.net`
     }
     groupName = await getGroupSubject(remoteJid)
+    console.log(`[webhook] group lookup for ${remoteJid}: "${groupName}"`)
   }
 
   if (BOT_CONVERSATION_ENABLED && isDirect && senderPhone && contactJid) {
