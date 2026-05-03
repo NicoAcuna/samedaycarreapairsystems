@@ -45,8 +45,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const proposalMsg = { role: 'assistant', content: clientMsg }
   const updatedMessages = [...(conv.messages || []), proposalMsg]
 
+  // Keep the conversation in schedule-confirm mode so the UI card stays visible
+  // while the client responds and the bot can continue the scheduling negotiation.
   await supabase.from('bot_conversations').update({
-    status: 'qualifying',
+    status: 'awaiting_schedule_confirmation',
     messages: updatedMessages,
     updated_at: new Date().toISOString(),
   }).eq('id', conv.id)

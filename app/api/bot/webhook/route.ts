@@ -346,7 +346,7 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
       Authorization: `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.4-mini',
       max_tokens: 400,
       messages: [
         { role: 'system', content: `${SYSTEM_PROMPT}\n\n${heuristicContext}` },

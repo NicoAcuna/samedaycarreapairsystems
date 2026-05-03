@@ -166,6 +166,7 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
   const [when, setWhen] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [err, setErr] = useState('')
+  const [lastSent, setLastSent] = useState('')
 
   const vehicleStr = conv.vehicle
     ? `${conv.vehicle.year || ''} ${conv.vehicle.make || ''} ${conv.vehicle.model || ''}`.trim()
@@ -174,12 +175,16 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
   async function handlePropose() {
     if (!when.trim()) { setErr('Ingresá cuándo podés ir'); return }
     setConfirming(true); setErr('')
+    const normalizedWhen = when.trim()
     const res = await fetch(`/api/leads/${leadId}/confirm-schedule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conv.id, when: when.trim() }),
+      body: JSON.stringify({ conversation_id: conv.id, when: normalizedWhen }),
     })
     if (!res.ok) { setErr('Error al enviar, intenta de nuevo'); setConfirming(false); return }
+    setLastSent(normalizedWhen)
+    setWhen('')
+    setConfirming(false)
     onConfirmed()
   }
 
@@ -214,6 +219,13 @@ function ScheduleConfirmCard({ leadId, conv, onConfirmed }: {
           className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-amber-400"
         />
       </div>
+
+      {lastSent && (
+        <div className="bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm text-neutral-700 mb-3">
+          <span className="text-xs text-neutral-400 block mb-0.5">Última propuesta enviada</span>
+          {lastSent}
+        </div>
+      )}
 
       {err && <div className="text-xs text-red-600 mb-2">{err}</div>}
 
@@ -562,7 +574,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         <ScheduleConfirmCard
           leadId={id}
           conv={scheduleConv}
-          onConfirmed={() => setScheduleConv(null)}
+          onConfirmed={() => {
+            setScheduleConv((prev: any) => prev ? { ...prev } : prev)
+          }}
         />
       )}
 
