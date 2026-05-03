@@ -187,7 +187,12 @@ async function askBot(history: Array<{ role: string; content: string }>): Promis
     // Strip common filler phrases the model prepends before questions
     reply.message = reply.message
       .replace(/^(joya[,.]?\s*|dale[,.]?\s*|perfecto[,.]?\s*|genial[,.]?\s*|claro[,.]?\s*|entendido[,.]?\s*)(gracias\s*(por\s*la\s*info[,.]?\s*)?)?/i, '')
-      .replace(/^(me suena a [^.]+\.\s*)/i, '')
+      .trim()
+    // Replace "me suena a X" anywhere in the message with "puede ser"
+    reply.message = reply.message
+      .replace(/,?\s*me suena a [^,\.]+[,\.]?\s*/gi, ', puede ser, ')
+      .replace(/^me suena a [^,\.]+[,\.]?\s*/gi, 'puede ser, ')
+      .replace(/,\s*,/g, ',')
       .trim()
     // When confirming schedule, always use the canonical message — ignore any extra text the model adds
     if (reply.action === 'request_schedule_confirm') {
