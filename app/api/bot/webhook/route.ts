@@ -128,7 +128,10 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 async function sendMessages(phone: string, message: string) {
   const parts = message.split('\n').map(p => p.trim()).filter(Boolean)
   for (let i = 0; i < parts.length; i++) {
-    if (i > 0) await sleep(5000)
+    if (i > 0) {
+      const wordCount = parts[i - 1].split(/\s+/).length
+      await sleep(wordCount >= 10 ? 10000 : 5000)
+    }
     await sendText(phone, parts[i])
   }
 }
