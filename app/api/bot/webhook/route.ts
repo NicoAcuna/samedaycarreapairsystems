@@ -412,8 +412,11 @@ async function handleRequestScheduleConfirm(conv: any, data: BotReply['data'], c
     updated_at: new Date().toISOString(),
   }).eq('id', conv.id)
 
-  if (data.suburb && conv.lead_id) {
-    await getSupabase().from('leads').update({ suburb: data.suburb }).eq('id', conv.lead_id)
+  if (conv.lead_id) {
+    await Promise.all([
+      data.suburb ? getSupabase().from('leads').update({ suburb: data.suburb }).eq('id', conv.lead_id) : Promise.resolve(),
+      setLeadStatus(conv.lead_id, 'quoted'),
+    ])
   }
 
   // WA notification to Nico
@@ -517,6 +520,10 @@ async function setLeadStage(leadId: string, stage: string) {
   await getSupabase().from('leads').update({ lifecycle_stage: stage }).eq('id', leadId)
 }
 
+async function setLeadStatus(leadId: string, status: string) {
+  await getSupabase().from('leads').update({ status }).eq('id', leadId)
+}
+
 async function handleConfirmAppointment(conv: any) {
   await getSupabase().from('bot_conversations').update({
     status: 'scheduled',
@@ -559,7 +566,10 @@ async function startConversation(args: {
   }
 
   if (args.leadId) {
-    await setLeadStage(args.leadId, 'acquisition')
+    await Promise.all([
+      setLeadStage(args.leadId, 'acquisition'),
+      setLeadStatus(args.leadId, 'contacted'),
+    ])
   }
 
   await sleep(REPLY_DELAY_MS)
