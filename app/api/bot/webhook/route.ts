@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendText, getGroupSubject } from '@/lib/evolution'
 
@@ -848,8 +848,8 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   if (BOT_CONVERSATION_ENABLED && isDirect && senderPhone && contactJid) {
     const conv = await getActiveConversation(contactJid)
     if (conv) {
-      handleConversationMessage({ conv, contactPhone: senderPhone, text })
-        .catch(e => console.error('[webhook] handleConversationMessage error:', e.message))
+      after(handleConversationMessage({ conv, contactPhone: senderPhone, text })
+        .catch(e => console.error('[webhook] handleConversationMessage error:', e.message)))
       return NextResponse.json({ ok: true, conversation: 'continued' })
     }
   }
@@ -870,13 +870,13 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   ])
 
   if (BOT_CONVERSATION_ENABLED && senderPhone && contactJid) {
-    startConversation({
+    after(startConversation({
       leadId: lead.id,
       contactJid,
       contactPhone: senderPhone,
       senderName,
       originalMessage: text,
-    }).catch(e => console.error('[webhook] startConversation error:', e.message))
+    }).catch(e => console.error('[webhook] startConversation error:', e.message)))
   }
 
   return NextResponse.json({ ok: true })
