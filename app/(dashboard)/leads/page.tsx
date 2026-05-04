@@ -410,11 +410,12 @@ const FUNNEL_STAGES: { value: LifecycleStage; label: string; color: string; bg: 
 ]
 
 // ── FUNNEL VIEW ───────────────────────────────────────────────────────────────
-function FunnelView({ leads, onSelectStage, selectedStage, onLeadClick }: {
+function FunnelView({ leads, onSelectStage, selectedStage, onLeadClick, pendingScheduleIds }: {
   leads: Lead[]
   selectedStage: LifecycleStage | null
   onSelectStage: (s: LifecycleStage | null) => void
   onLeadClick: (id: string) => void
+  pendingScheduleIds: Set<string>
 }) {
   const activeLeads = leads.filter(l => l.lifecycle_stage !== 'lost')
   const top = activeLeads.length || 1
@@ -496,6 +497,9 @@ function FunnelView({ leads, onSelectStage, selectedStage, onLeadClick }: {
                   <span className="font-medium text-sm text-neutral-900 truncate">
                     {[lead.first_name, lead.last_name].filter(Boolean).join(' ')}
                   </span>
+                  {pendingScheduleIds.has(lead.id) && (
+                    <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-medium shrink-0">📅 Schedule</span>
+                  )}
                   {stage && (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${stage.color} ${stage.bg} ${stage.border}`}>
                       {stage.label}
@@ -652,6 +656,7 @@ export default function LeadsPage() {
           selectedStage={stageFilter}
           onSelectStage={setStageFilter}
           onLeadClick={id => router.push(`/leads/${id}`)}
+          pendingScheduleIds={pendingScheduleIds}
         />
       )}
 
@@ -714,7 +719,12 @@ export default function LeadsPage() {
               return (
                 <tr key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50 cursor-pointer">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-neutral-900">{fullName(lead)}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-neutral-900">{fullName(lead)}</span>
+                      {pendingScheduleIds.has(lead.id) && (
+                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-medium shrink-0">📅 Schedule</span>
+                      )}
+                    </div>
                     {lead.phone && <div className="text-xs text-neutral-400 mt-0.5">{lead.phone}</div>}
                   </td>
                   <td className="px-4 py-3">
@@ -764,7 +774,12 @@ export default function LeadsPage() {
           return (
             <div key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)} className="px-4 py-3.5 border-b border-neutral-100 last:border-0 cursor-pointer active:bg-neutral-50">
               <div className="flex items-start justify-between gap-2 mb-1.5">
-                <div className="font-medium text-neutral-900 text-sm">{fullName(lead)}</div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-medium text-neutral-900 text-sm truncate">{fullName(lead)}</span>
+                  {pendingScheduleIds.has(lead.id) && (
+                    <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-medium shrink-0">📅</span>
+                  )}
+                </div>
                 <StatusBadge lead={lead} onChange={status => updateStatus(lead, status)} />
               </div>
               {lead.phone && (

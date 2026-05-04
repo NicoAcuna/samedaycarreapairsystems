@@ -840,7 +840,8 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   if (BOT_CONVERSATION_ENABLED && isDirect && senderPhone && contactJid) {
     const conv = await getActiveConversation(contactJid)
     if (conv) {
-      await handleConversationMessage({ conv, contactPhone: senderPhone, text })
+      handleConversationMessage({ conv, contactPhone: senderPhone, text })
+        .catch(e => console.error('[webhook] handleConversationMessage error:', e.message))
       return NextResponse.json({ ok: true, conversation: 'continued' })
     }
   }
@@ -860,14 +861,14 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     sendPushNotification({ senderName, message: text, groupName, leadId: lead.id, priority }),
   ])
 
-  if (BOT_CONVERSATION_ENABLED && isDirect && senderPhone && contactJid) {
-    await startConversation({
+  if (BOT_CONVERSATION_ENABLED && senderPhone && contactJid) {
+    startConversation({
       leadId: lead.id,
       contactJid,
       contactPhone: senderPhone,
       senderName,
       originalMessage: text,
-    })
+    }).catch(e => console.error('[webhook] startConversation error:', e.message))
   }
 
   return NextResponse.json({ ok: true })
