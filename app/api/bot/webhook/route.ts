@@ -827,13 +827,21 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     contactJid = remoteJid.replace(/:\d+$/, '')
   } else {
     // Evolution v2 uses LID addressing in groups: participant is @lid, real phone is in participantAlt
-    const senderJid = msg.key?.participantAlt || msg.key?.participant || msg.participant || ''
+    const participantRaw = msg.key?.participant || msg.participant || ''
+    const participantAlt = msg.key?.participantAlt || ''
+    const senderJid = participantAlt || participantRaw
+    console.log(`[webhook] group participant raw="${participantRaw}" alt="${participantAlt}"`)
     if (senderJid.endsWith('@s.whatsapp.net')) {
       senderPhone = senderJid.replace(/@s\.whatsapp\.net$/, '').replace(/:\d+$/, '')
       contactJid = `${senderPhone}@s.whatsapp.net`
+    } else if (participantRaw.endsWith('@lid')) {
+      // LID format — phone number is the numeric part before @lid
+      const lidNum = participantRaw.replace(/@lid$/, '').replace(/:\d+$/, '')
+      console.log(`[webhook] LID detected: ${participantRaw}, lidNum=${lidNum}`)
+      // Can't reliably DM a LID — need participantAlt to have the phone
     }
     groupName = await getGroupSubject(remoteJid)
-    console.log(`[webhook] group lookup for ${remoteJid}: "${groupName}"`)
+    console.log(`[webhook] group "${groupName}" senderPhone=${senderPhone}`)
   }
 
   // DMs: continue active bot conversation without creating a new lead
