@@ -31,8 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const lang = conv.language || 'es'
   const clientMsg = lang === 'en'
-    ? `Hey! Nico is free ${body.when} — does that work for you?`
-    : `Hola! Nico puede ${body.when}, te viene bien?`
+    ? `Hey! I'm free ${body.when} — does that work for you?`
+    : `Hola! puedo ${body.when}, te viene bien?`
 
   try {
     await sendText(conv.contact_phone, clientMsg)
