@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendText, getGroupSubject } from '@/lib/evolution'
+import { createAppointmentEvent } from '@/lib/google-calendar'
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const SUPABASE_USER_ID    = process.env.SUPABASE_USER_ID!
@@ -527,7 +528,7 @@ async function setLeadStatus(leadId: string, status: string) {
   await getSupabase().from('leads').update({ status }).eq('id', leadId)
 }
 
-async function handleConfirmAppointment(conv: any) {
+async function handleConfirmAppointment(conv: any, confirmedTime?: string) {
   await getSupabase().from('bot_conversations').update({
     status: 'scheduled',
     scheduled_at: new Date().toISOString(),
@@ -535,6 +536,19 @@ async function handleConfirmAppointment(conv: any) {
   }).eq('id', conv.id)
   if (conv.lead_id) {
     await setLeadStage(conv.lead_id, 'activation')
+  }
+  if (confirmedTime) {
+    const vehicleStr = conv.vehicle
+      ? `${conv.vehicle.year || ''} ${conv.vehicle.make || ''} ${conv.vehicle.model || ''}`.trim()
+      : null
+    createAppointmentEvent({
+      clientName: conv.contact_name || 'Cliente',
+      vehicle: vehicleStr,
+      suburb: conv.suburb || null,
+      jobType: conv.job_type || null,
+      jobDescription: conv.job_description || null,
+      confirmedTime,
+    }).catch((e: any) => console.error('[calendar] createAppointmentEvent error:', e.message))
   }
   console.log(`[webhook] ✅ Appointment confirmed for conv ${conv.id}`)
 }
@@ -634,7 +648,7 @@ async function handleConversationMessage(args: {
       })
       if (leadId) args.conv = { ...args.conv, lead_id: leadId }
     }
-    await handleConfirmAppointment(args.conv)
+    await handleConfirmAppointment(args.conv, response.data.confirmed_time)
   }
 
   await sleep(REPLY_DELAY_MS)
