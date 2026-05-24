@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
 
 type Mechanic = {
@@ -86,6 +87,7 @@ function NewMechanicModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 }
 
 export default function MechanicsPage() {
+  const router = useRouter()
   const [mechanics, setMechanics] = useState<Mechanic[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -173,7 +175,8 @@ export default function MechanicsPage() {
                 {search ? 'No mechanics match your search' : 'No mechanics yet — add your first one'}
               </td></tr>
             ) : filtered.map(m => (
-              <tr key={m.id} className="border-b border-neutral-100 last:border-0">
+              <tr key={m.id} onClick={() => router.push(`/mechanics/${m.id}`)}
+                className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50 cursor-pointer">
                 <td className="px-4 py-3 font-medium text-neutral-900">{m.name}</td>
                 <td className="px-4 py-3 text-neutral-500">{m.email}</td>
                 <td className="px-4 py-3 text-neutral-500">{m.phone || '—'}</td>
@@ -199,7 +202,8 @@ export default function MechanicsPage() {
             {search ? 'No mechanics match your search' : 'No mechanics yet — add your first one'}
           </div>
         ) : filtered.map(m => (
-          <div key={m.id} className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 last:border-0">
+          <div key={m.id} onClick={() => router.push(`/mechanics/${m.id}`)}
+            className="flex items-center gap-3 px-4 py-3.5 border-b border-neutral-100 last:border-0 cursor-pointer active:bg-neutral-50">
             <div className="w-9 h-9 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
               {initials(m.name)}
             </div>
@@ -216,6 +220,7 @@ export default function MechanicsPage() {
                 </span>
               </div>
             </div>
+            <span className="text-neutral-300 text-sm flex-shrink-0">›</span>
           </div>
         ))}
       </div>

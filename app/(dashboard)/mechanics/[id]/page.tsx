@@ -1,0 +1,233 @@
+'use client'
+
+import { use, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '../../../../lib/supabase/client'
+
+type Mechanic = {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  status: string
+  user_id: string | null
+  created_at: string
+}
+
+function initials(name: string) {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'
+}
+
+function EditModal({ mechanic, onClose, onSaved }: { mechanic: Mechanic; onClose: () => void; onSaved: (m: Mechanic) => void }) {
+  const [form, setForm] = useState({ name: mechanic.name, phone: mechanic.phone || '' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  function set(field: string, val: string) {
+    setForm(prev => ({ ...prev, [field]: val }))
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { setError('Name is required'); return }
+    setSaving(true); setError('')
+    const supabase = createClient()
+    const { data, error: err } = await supabase
+      .from('mechanics')
+      .update({ name: form.name.trim(), phone: form.phone.trim() || null })
+      .eq('id', mechanic.id)
+      .select()
+      .single()
+    setSaving(false)
+    if (err) { setError(err.message); return }
+    onSaved(data as Mechanic)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
+          <div>
+            <div className="font-semibold text-neutral-900">Edit mechanic</div>
+            <div className="text-xs text-neutral-400 mt-0.5">Update profile details</div>
+          </div>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-2xl leading-none w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Full name <span className="text-red-400">*</span></label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="John Smith"
+              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Email</label>
+            <input value={mechanic.email} readOnly
+              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 bg-neutral-100 text-neutral-400 focus:outline-none" />
+            <p className="text-xs text-neutral-400 mt-1">Email cannot be changed — it&apos;s linked to their login account.</p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-neutral-500 mb-1.5 block">Phone</label>
+            <input type="tel" inputMode="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+61 400 000 000"
+              className="w-full text-base border border-neutral-200 rounded-xl px-3 py-3 focus:outline-none focus:border-neutral-400 bg-neutral-50" />
+          </div>
+          {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">{error}</div>}
+        </div>
+
+        <div className="flex gap-3 px-5 pb-5 pt-3 border-t border-neutral-100">
+          <button onClick={onClose} className="flex-1 text-sm py-3 border border-neutral-200 rounded-xl hover:bg-neutral-50 text-neutral-600 font-medium">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 text-sm py-3 bg-neutral-900 text-white rounded-xl hover:bg-neutral-700 disabled:opacity-50 font-medium">
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function MechanicDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter()
+  const { id } = use(params)
+
+  const [mechanic, setMechanic] = useState<Mechanic | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    Promise.all([
+      supabase.from('mechanics').select('*').eq('id', id).single(),
+      supabase.auth.getUser(),
+    ]).then(async ([{ data: m }, { data: { user } }]) => {
+      setMechanic(m as Mechanic)
+      if (user) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        setIsSuperAdmin(userData?.role === 'super_admin')
+      }
+      setLoading(false)
+    })
+  }, [id])
+
+  async function handleDelete() {
+    if (!mechanic) return
+    setDeleting(true); setDeleteError('')
+    const res = await fetch('/api/delete-mechanic', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mechanic_id: mechanic.id, user_id: mechanic.user_id }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setDeleteError(data.error || 'Failed to delete')
+      setDeleting(false)
+      return
+    }
+    router.push('/mechanics')
+  }
+
+  if (loading) return <div className="p-6 text-sm text-neutral-400">Loading…</div>
+  if (!mechanic) return <div className="p-6 text-sm text-neutral-400">Mechanic not found.</div>
+
+  const joinedLabel = new Date(mechanic.created_at).toLocaleDateString('en-AU', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  })
+
+  return (
+    <div className="p-4 md:p-6 max-w-2xl">
+      {showEdit && (
+        <EditModal
+          mechanic={mechanic}
+          onClose={() => setShowEdit(false)}
+          onSaved={m => { setMechanic(m); setShowEdit(false) }}
+        />
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={() => router.push('/mechanics')} className="text-sm text-neutral-500 hover:text-neutral-700">
+          ← Back to mechanics
+        </button>
+        {isSuperAdmin && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowEdit(true)}
+              className="text-sm px-4 py-2 border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">
+              Edit
+            </button>
+            <button onClick={() => { setDeleteError(''); setShowDelete(true) }}
+              className="text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600">
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Profile card */}
+      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
+        <div className="bg-neutral-900 px-6 py-5 flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-neutral-700 text-white flex items-center justify-center text-xl font-bold flex-shrink-0">
+            {initials(mechanic.name)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xl font-bold text-white">{mechanic.name}</div>
+            <div className="text-sm text-neutral-400 mt-0.5">{mechanic.email}</div>
+          </div>
+          <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${
+            mechanic.status === 'active' ? 'bg-green-500/20 text-green-300' : 'bg-amber-500/20 text-amber-300'
+          }`}>
+            {mechanic.status === 'active' ? 'Active' : 'Pending invite'}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 divide-x divide-neutral-100 border-t border-neutral-100">
+          {[
+            { label: 'Phone', value: mechanic.phone || '—' },
+            { label: 'Status', value: mechanic.status === 'active' ? 'Active' : 'Pending invite' },
+            { label: 'Added', value: joinedLabel },
+          ].map(d => (
+            <div key={d.label} className="p-4">
+              <div className="text-xs text-neutral-400 mb-0.5">{d.label}</div>
+              <div className="text-sm font-medium text-neutral-900">{d.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Delete confirmation */}
+      {showDelete && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-20 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">⚠️</div>
+            <h2 className="text-base font-semibold text-neutral-900 mb-2">Delete this mechanic?</h2>
+            <p className="text-sm text-neutral-500 mb-4">
+              {mechanic.user_id
+                ? 'Their profile and login access will be removed. This cannot be undone.'
+                : 'This will remove the pending invitation. This cannot be undone.'}
+            </p>
+            {deleteError && (
+              <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4 text-left">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setShowDelete(false)}
+                className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600">
+                Cancel
+              </button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex-1 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50">
+                {deleting ? 'Deleting…' : 'Yes, delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
