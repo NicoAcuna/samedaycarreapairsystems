@@ -11,13 +11,15 @@ const navItems = [
   { label: 'Jobs',      href: '/jobs' },
   { label: 'Clients',   href: '/clients' },
   { label: 'Vehicles',  href: '/vehicles' },
+  { label: 'Mechanics', href: '/mechanics' },
 ]
 
 const icons: Record<string, string> = {
-  '/leads':    '📋',
-  '/jobs':     '🔧',
-  '/clients':  '👤',
-  '/vehicles': '🚗',
+  '/leads':     '📋',
+  '/jobs':      '🔧',
+  '/clients':   '👤',
+  '/vehicles':  '🚗',
+  '/mechanics': '👷',
 }
 
 function Logo() {
