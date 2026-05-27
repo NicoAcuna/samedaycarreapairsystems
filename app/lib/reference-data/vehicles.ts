@@ -19,7 +19,7 @@ export const VEHICLE_CATALOG: VehicleCatalogOption[] = [
   { make: 'GWM', models: ['Cannon', 'Haval H6', 'Haval Jolion', 'Ora', 'Tank 300'] },
   { make: 'Holden', models: ['Astra', 'Barina', 'Captiva', 'Colorado', 'Commodore', 'Cruze', 'Equinox', 'Spark', 'Trailblazer', 'Trax'] },
   { make: 'Honda', models: ['Accord', 'City', 'Civic', 'CR-V', 'HR-V', 'Jazz', 'Legend', 'Odyssey', 'Pilot', 'ZR-V'] },
-  { make: 'Hyundai', models: ['Accent', 'Elantra', 'Getz', 'i20', 'i30', 'i40', 'i45', 'IONIQ 5', 'IONIQ 6', 'ix35', 'Kona', 'Santa Cruz', 'Santa Fe', 'Sonata', 'Staria', 'Tucson', 'Venue'] },
+  { make: 'Hyundai', models: ['Accent', 'Elantra', 'Getz', 'i20', 'i30', 'i40', 'i45', 'iLoad', 'IONIQ 5', 'IONIQ 6', 'ix35', 'Kona', 'Santa Cruz', 'Santa Fe', 'Sonata', 'Staria', 'Tucson', 'Venue'] },
   { make: 'Infiniti', models: ['Q50', 'Q60', 'QX50', 'QX60', 'QX80'] },
   { make: 'Isuzu', models: ['D-MAX', 'MU-X'] },
   { make: 'Jaguar', models: ['E-Pace', 'F-Pace', 'F-Type', 'I-Pace', 'XE', 'XF', 'XJ'] },

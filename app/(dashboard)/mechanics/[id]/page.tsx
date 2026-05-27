@@ -110,7 +110,7 @@ export default function MechanicDetailPage({ params }: { params: Promise<{ id: s
           .select('role')
           .eq('id', user.id)
           .single()
-        setIsSuperAdmin(userData?.role === 'super_admin')
+        setIsSuperAdmin(userData?.role !== 'mechanic')
       }
       setLoading(false)
     })

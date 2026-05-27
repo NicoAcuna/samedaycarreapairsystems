@@ -105,7 +105,7 @@ export default function MechanicsPage() {
         .eq('id', user.id)
         .single()
 
-      setIsSuperAdmin(userData?.role === 'super_admin')
+      setIsSuperAdmin(userData?.role !== 'mechanic')
 
       const companyId = userData?.active_company_id || userData?.company_id
       if (!companyId) { setLoading(false); return }
