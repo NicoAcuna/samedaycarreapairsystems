@@ -13,7 +13,10 @@ const NOTIFY_WA_NUMBER    = process.env.NOTIFY_WA_NUMBER
 const APP_URL             = process.env.APP_URL || 'https://samedaycarreapairsystems.vercel.app'
 const WEBHOOK_SECRET      = process.env.EVOLUTION_WEBHOOK_SECRET
 const OPENAI_API_KEY      = process.env.OPENAI_API_KEY
-const BOT_CONVERSATION_ENABLED = process.env.BOT_CONVERSATION_ENABLED === 'true'
+// 🔒 BOT DESHABILITADO MANUALMENTE — no se envía ninguna respuesta escrita al cliente.
+// Los leads y las notificaciones (WhatsApp/email/push) siguen funcionando igual.
+// Para reactivar el bot: borrá este `false &&` y dejá solo la condición del env var.
+const BOT_CONVERSATION_ENABLED = false && process.env.BOT_CONVERSATION_ENABLED === 'true'
 const REPLY_DELAY_MS = 5000
 
 // Lazy to avoid build-time crash when env vars aren't present
