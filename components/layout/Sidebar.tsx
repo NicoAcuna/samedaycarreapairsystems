@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Clients',   href: '/clients' },
   { label: 'Vehicles',  href: '/vehicles' },
   { label: 'Mechanics', href: '/mechanics' },
+  { label: 'Settings',  href: '/settings' },
 ]
 
 const icons: Record<string, string> = {
@@ -20,6 +21,7 @@ const icons: Record<string, string> = {
   '/clients':   '👤',
   '/vehicles':  '🚗',
   '/mechanics': '👷',
+  '/settings':  '⚙️',
 }
 
 function Logo() {

@@ -729,6 +729,57 @@ function detectPriority(text: string): 'high' | 'medium' | 'normal' {
   return 'normal'
 }
 
+// ── USER-DEFINED CRITERIA (from the /settings panel) ──────────────────────────
+type Criteria = { trigger: string[]; exclude: string[]; high_priority: string[]; medium_priority: string[] }
+
+// Load active criteria for a channel. Returns null on error → caller falls back to defaults.
+async function loadCriteria(channel: string): Promise<Criteria | null> {
+  try {
+    const { data, error } = await getSupabase()
+      .from('lead_criteria')
+      .select('term, kind, channels')
+      .eq('company_id', SUPABASE_COMPANY_ID)
+      .eq('active', true)
+    if (error || !data) return null
+    const crit: Criteria = { trigger: [], exclude: [], high_priority: [], medium_priority: [] }
+    for (const row of data as Array<{ term: string; kind: keyof Criteria; channels: string[] }>) {
+      if (Array.isArray(row.channels) && !row.channels.includes(channel)) continue
+      if (crit[row.kind]) crit[row.kind].push((row.term || '').toLowerCase())
+    }
+    return crit
+  } catch (e: any) {
+    console.error('[webhook] loadCriteria error:', e.message)
+    return null
+  }
+}
+
+function normalizeForMatch(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
+// Word-ish, accent-insensitive match of a plain-text term inside the message.
+function containsTerm(text: string, term: string) {
+  const t = normalizeForMatch(term).trim()
+  if (!t) return false
+  const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`, 'i').test(normalizeForMatch(text))
+}
+
+const matchTerms = (text: string, terms: string[]) => terms.some(t => containsTerm(text, t))
+
+function shouldTriggerWith(text: string, crit: Criteria): boolean {
+  if (!text || text.length < 3) return false
+  if (isCarListing(text)) return false
+  if (matchTerms(text, crit.exclude)) return false
+  return matchTerms(text, crit.trigger)
+}
+
+function detectPriorityWith(text: string, crit: Criteria): 'high' | 'medium' | 'normal' {
+  if (matchTerms(text, crit.high_priority)) return 'high'
+  if (matchTerms(text, crit.medium_priority)) return 'medium'
+  return 'normal'
+}
+
 const PRIORITY_LABEL = { high: '🔴 Alta', medium: '🟡 Media', normal: '⚪ Normal' }
 
 function normalizeEventName(value: string | null | undefined) {
@@ -908,10 +959,15 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
     }
   }
 
-  if (!shouldTrigger(text)) return NextResponse.json({ ok: true })
+  // User-defined criteria from /settings override the hardcoded defaults once set.
+  const crit = await loadCriteria('whatsapp')
+  const useDb = !!crit && crit.trigger.length > 0
+
+  const triggered = useDb ? shouldTriggerWith(text, crit!) : shouldTrigger(text)
+  if (!triggered) return NextResponse.json({ ok: true })
 
   const source   = isGroup ? 'whatsapp_group' : 'whatsapp_direct'
-  const priority = detectPriority(text)
+  const priority = useDb ? detectPriorityWith(text, crit!) : detectPriority(text)
   console.log(`[webhook] 🎯 Trigger [${priority}] ${isGroup ? `"${groupName}"` : '(direct)'}: ${senderName} — "${text.slice(0, 80)}"`)
 
   const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
