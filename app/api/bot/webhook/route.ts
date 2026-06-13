@@ -780,6 +780,38 @@ function detectPriorityWith(text: string, crit: Criteria): 'high' | 'medium' | '
   return 'normal'
 }
 
+// ── GROUP DISCOVERY + FILTER (managed from the /groups panel) ──────────────────
+// Record every group we see so the user can pick which ones to monitor.
+async function upsertGroup(args: { instance: string | null; groupJid: string; groupName: string | null }) {
+  try {
+    const row: Record<string, any> = {
+      company_id: SUPABASE_COMPANY_ID,
+      instance: args.instance,
+      group_jid: args.groupJid,
+      last_seen: new Date().toISOString(),
+    }
+    if (args.groupName) row.group_name = args.groupName  // never null out a known name
+    await getSupabase().from('whatsapp_groups').upsert(row, { onConflict: 'company_id,group_jid' })
+  } catch (e: any) {
+    console.error('[webhook] upsertGroup error:', e.message)
+  }
+}
+
+// A group is monitored unless it has an explicit active=false row (and unknown groups default to on).
+async function isGroupActive(groupJid: string): Promise<boolean> {
+  try {
+    const { data } = await getSupabase()
+      .from('whatsapp_groups')
+      .select('active')
+      .eq('company_id', SUPABASE_COMPANY_ID)
+      .eq('group_jid', groupJid)
+      .maybeSingle()
+    return !data || data.active !== false
+  } catch {
+    return true
+  }
+}
+
 const PRIORITY_LABEL = { high: '🔴 Alta', medium: '🟡 Media', normal: '⚪ Normal' }
 
 function normalizeEventName(value: string | null | undefined) {
@@ -910,6 +942,9 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
   const msg = body.data
   if (!msg || msg.key?.fromMe) return NextResponse.json({ ok: true })
 
+  // Which WhatsApp (Evolution instance) this message came from
+  const instance = typeof body.instance === 'string' ? body.instance : null
+
   const remoteJid = msg.key?.remoteJid || ''
   const isGroup   = remoteJid.endsWith('@g.us')
   const isDirect  = remoteJid.endsWith('@s.whatsapp.net')
@@ -956,6 +991,14 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
       after(handleConversationMessage({ conv, contactPhone: senderPhone, text })
         .catch(e => console.error('[webhook] handleConversationMessage error:', e.message)))
       return NextResponse.json({ ok: true, conversation: 'continued' })
+    }
+  }
+
+  // Discover the group and respect the on/off selection from the /groups panel.
+  if (isGroup && remoteJid) {
+    await upsertGroup({ instance, groupJid: remoteJid, groupName })
+    if (!(await isGroupActive(remoteJid))) {
+      return NextResponse.json({ ok: true, skipped: 'group_off' })
     }
   }
 

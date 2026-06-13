@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Clients',   href: '/clients' },
   { label: 'Vehicles',  href: '/vehicles' },
   { label: 'Mechanics', href: '/mechanics' },
+  { label: 'Groups',    href: '/groups' },
   { label: 'Settings',  href: '/settings' },
 ]
 
@@ -21,6 +22,7 @@ const icons: Record<string, string> = {
   '/clients':   '👤',
   '/vehicles':  '🚗',
   '/mechanics': '👷',
+  '/groups':    '💬',
   '/settings':  '⚙️',
 }
 
