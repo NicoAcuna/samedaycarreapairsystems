@@ -27,6 +27,18 @@ const CHANNELS: { value: Channel; label: string; icon: string }[] = [
   { value: 'airtasker', label: 'Airtasker', icon: '🔨' },
 ]
 
+// Compact colored channel tags shown on each row (work on mobile too).
+const CH_TAG: Record<Channel, { label: string; cls: string }> = {
+  whatsapp:  { label: 'WA', cls: 'bg-green-100 text-green-700' },
+  facebook:  { label: 'FB', cls: 'bg-blue-100 text-blue-700' },
+  airtasker: { label: 'AT', cls: 'bg-orange-100 text-orange-700' },
+}
+
+const pill = (active: boolean) =>
+  `px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+    active ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-500 hover:border-neutral-300'
+  }`
+
 // Seeded when the user taps "Cargar palabras por defecto" — mirrors what the bot used before.
 const DEFAULTS: { term: string; kind: Kind }[] = [
   ...['mecánico', 'mechanic', 'car repair', 'auto repair', 'car service', 'pink slip',
@@ -53,6 +65,11 @@ export default function SettingsPage() {
   const [channels, setChannels] = useState<Channel[]>(['whatsapp', 'facebook', 'airtasker'])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Filters for navigating the list
+  const [search, setSearch] = useState('')
+  const [kindFilter, setKindFilter] = useState<Kind | 'all'>('all')
+  const [channelFilter, setChannelFilter] = useState<Channel | 'all'>('all')
 
   useEffect(() => {
     const supabase = createClient()
@@ -204,42 +221,87 @@ export default function SettingsPage() {
             Cargar palabras por defecto
           </button>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {items.map(it => {
-            const meta = kindMeta(it.kind)
-            return (
-              <div
-                key={it.id}
-                className={`flex items-center gap-3 bg-white border border-neutral-200 rounded-xl px-4 py-3 ${it.active ? '' : 'opacity-50'}`}
-              >
-                <span className={`text-xs px-2 py-0.5 rounded-md border ${meta.tone} flex-shrink-0`}>{meta.label}</span>
-                <span className="flex-1 text-sm text-neutral-900 truncate">{it.term}</span>
-                <div className="hidden sm:flex gap-1 flex-shrink-0">
-                  {it.channels.map(ch => {
-                    const c = CHANNELS.find(x => x.value === ch)
-                    return c ? <span key={ch} title={c.label}>{c.icon}</span> : null
-                  })}
-                </div>
-                <button
-                  onClick={() => toggleActive(it)}
-                  className="text-xs text-neutral-400 hover:text-neutral-700 flex-shrink-0"
-                  title={it.active ? 'Desactivar' : 'Activar'}
-                >
-                  {it.active ? 'On' : 'Off'}
-                </button>
-                <button
-                  onClick={() => remove(it)}
-                  className="text-neutral-300 hover:text-red-500 flex-shrink-0"
-                  title="Eliminar"
-                >
-                  ✕
-                </button>
+      ) : (() => {
+        const filtered = items.filter(it => {
+          if (kindFilter !== 'all' && it.kind !== kindFilter) return false
+          if (channelFilter !== 'all' && !it.channels.includes(channelFilter)) return false
+          if (search.trim() && !it.term.toLowerCase().includes(search.trim().toLowerCase())) return false
+          return true
+        })
+        const kindCount = (k: Kind) => items.filter(i => i.kind === k).length
+        const chanCount = (c: Channel) => items.filter(i => i.channels.includes(c)).length
+        return (
+          <>
+            {/* Filters */}
+            <div className="space-y-2 mb-4">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar palabra…"
+                className="w-full text-sm border border-neutral-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-neutral-400 bg-white"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => setKindFilter('all')} className={pill(kindFilter === 'all')}>Todos {items.length}</button>
+                {KINDS.map(k => (
+                  <button key={k.value} onClick={() => setKindFilter(k.value)} className={pill(kindFilter === k.value)}>
+                    {k.label} {kindCount(k.value)}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => setChannelFilter('all')} className={pill(channelFilter === 'all')}>Todos los canales</button>
+                {CHANNELS.map(c => (
+                  <button key={c.value} onClick={() => setChannelFilter(c.value)} className={pill(channelFilter === c.value)}>
+                    {c.icon} {c.label} {chanCount(c.value)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-400 mb-2">Mostrando {filtered.length} de {items.length}</p>
+
+            {filtered.length === 0 ? (
+              <p className="text-sm text-neutral-400 text-center py-8">No hay criterios que coincidan con el filtro.</p>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map(it => {
+                  const meta = kindMeta(it.kind)
+                  return (
+                    <div
+                      key={it.id}
+                      className={`flex items-center gap-2.5 bg-white border border-neutral-200 rounded-xl px-3 py-2.5 ${it.active ? '' : 'opacity-50'}`}
+                    >
+                      <span className={`text-xs px-2 py-0.5 rounded-md border ${meta.tone} flex-shrink-0`}>{meta.label}</span>
+                      <span className="flex-1 text-sm text-neutral-900 truncate">{it.term}</span>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {it.channels.map(ch => {
+                          const t = CH_TAG[ch]
+                          return t ? <span key={ch} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${t.cls}`}>{t.label}</span> : null
+                        })}
+                      </div>
+                      <button
+                        onClick={() => toggleActive(it)}
+                        className="text-xs text-neutral-400 hover:text-neutral-700 flex-shrink-0 w-7 text-center"
+                        title={it.active ? 'Desactivar' : 'Activar'}
+                      >
+                        {it.active ? 'On' : 'Off'}
+                      </button>
+                      <button
+                        onClick={() => remove(it)}
+                        className="text-neutral-300 hover:text-red-500 flex-shrink-0"
+                        title="Eliminar"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             )
-          })}
-        </div>
-      )}
+            }
+          </>
+        )
+      })()}
     </div>
   )
 }
