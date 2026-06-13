@@ -919,6 +919,59 @@ async function sendPushNotification(args: {
   else console.error('[webhook] Push error:', await res.text())
 }
 
+// Alert Nico (push + email) when the WhatsApp instance disconnects. WhatsApp is
+// the channel that's down, so we don't try to send a WA message here.
+async function notifyDisconnected(instance: string | null) {
+  // Dedupe: Evolution can fire 'close' repeatedly while reconnecting — alert at most once per 30 min.
+  try {
+    const since = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    const { data: recent } = await getSupabase()
+      .from('notifications')
+      .select('id')
+      .eq('company_id', SUPABASE_COMPANY_ID)
+      .eq('type', 'whatsapp_disconnected')
+      .gte('created_at', since)
+      .limit(1)
+    if (recent && recent.length) return
+  } catch { /* if the check fails, fall through and alert anyway */ }
+
+  const bodyText = `La conexión de WhatsApp${instance ? ` (${instance})` : ''} se cayó. Entrá al Manager de Evolution y re-escaneá el QR para no perder leads.`
+
+  if (NOTIFY_SECRET) {
+    try {
+      await fetch(`${APP_URL}/api/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-notify-secret': NOTIFY_SECRET },
+        body: JSON.stringify({
+          companyId: SUPABASE_COMPANY_ID,
+          type: 'whatsapp_disconnected',
+          payload: { title: '⚠️ WhatsApp desconectado', body: bodyText, url: '/groups' },
+        }),
+      })
+      console.log('[webhook] ⚠️ Disconnect alert sent')
+    } catch (e: any) {
+      console.error('[webhook] disconnect push error:', e.message)
+    }
+  }
+
+  if (RESEND_API_KEY && NOTIFY_EMAIL) {
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'SDCR Alerts <leads@samedaycarrepair.com.au>',
+          to: [NOTIFY_EMAIL],
+          subject: '⚠️ Tu WhatsApp (bot) se desconectó',
+          html: `<div style="font-family:sans-serif;max-width:480px"><h2>⚠️ WhatsApp desconectado</h2><p style="font-size:14px;color:#444">${bodyText}</p></div>`,
+        }),
+      })
+    } catch (e: any) {
+      console.error('[webhook] disconnect email error:', e.message)
+    }
+  }
+}
+
 // ── WEBHOOK HANDLER ───────────────────────────────────────────────────────────
 export async function handleWebhookPost(req: NextRequest, routeEvent?: string | null) {
   // Validate webhook secret (Evolution API sends apikey header)
@@ -934,6 +987,18 @@ export async function handleWebhookPost(req: NextRequest, routeEvent?: string | 
 
   // Evolution can send the event name in the payload or in the URL suffix.
   const eventName = normalizeEventName(body.event) ?? normalizeEventName(routeEvent)
+
+  // Alert when the WhatsApp connection drops, so Nico can re-scan the QR fast.
+  if (eventName === 'CONNECTION_UPDATE') {
+    const state = body.data?.state
+    console.log(`[webhook] connection.update → ${state} (${body.instance || '?'})`)
+    if (state === 'close') {
+      after(notifyDisconnected(typeof body.instance === 'string' ? body.instance : null)
+        .catch(e => console.error('[webhook] notifyDisconnected error:', e.message)))
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   if (eventName !== 'MESSAGES_UPSERT') {
     console.log(`[webhook] Ignored event: ${eventName || 'unknown'} via ${routeEvent || 'root'}`)
     return NextResponse.json({ ok: true })
