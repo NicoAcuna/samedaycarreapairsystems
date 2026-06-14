@@ -83,7 +83,42 @@ const posts = await page.$$eval('[role="article"]', (arts) => {
   return out
 })
 
+// The feed hides group names — resolve them reliably from each group's page title.
+const groupIds = [...new Set(posts.map((p) => p.groupId).filter(Boolean))]
+const nameById = {}
+for (const gid of groupIds) {
+  try {
+    await page.goto(`https://www.facebook.com/groups/${gid}`, { waitUntil: 'domcontentloaded' })
+    await sleep(rand(2000, 4000))
+    const name = await page.evaluate(() => {
+      const og = document.querySelector('meta[property="og:title"]')?.content
+      return (og || document.title || '').replace(/\s*\|\s*Facebook\s*$/i, '').trim()
+    })
+    if (name) { nameById[gid] = name; console.log(`[fb] grupo ${gid} → ${name}`) }
+  } catch (e) {
+    console.error(`[fb] no pude resolver nombre de ${gid}`)
+  }
+}
+for (const p of posts) if (p.groupId && nameById[p.groupId]) p.group = nameById[p.groupId]
+
 await browser.close()
+
+// Upsert the (real) groups seen this run with their resolved names, so the panel
+// shows them named even if their posts were already processed before.
+const discovered = Object.entries(nameById).map(([groupId, group]) => ({ groupId, group }))
+if (discovered.length) {
+  try {
+    await fetch(CAPTURE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-facebook-secret': SECRET },
+      body: JSON.stringify({ groups: discovered }),
+      signal: AbortSignal.timeout(30000),
+    })
+    console.log(`[fb] grupos actualizados: ${discovered.length}`)
+  } catch (e) {
+    console.error('[fb] envío de grupos falló:', e.message)
+  }
+}
 
 const fresh = posts.filter((p) => p.text && (!p.url || !seen.has(p.url)))
 console.log(`[fb] posts leídos: ${posts.length} · nuevos: ${fresh.length}`)
