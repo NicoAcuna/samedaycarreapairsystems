@@ -83,48 +83,7 @@ const posts = await page.$$eval('[role="article"]', (arts) => {
   return out
 })
 
-// Discover ALL joined groups (not just ones with recent posts in the feed)
-let joined = []
-try {
-  console.log('[fb] leyendo tu lista de grupos…')
-  await page.goto('https://www.facebook.com/groups/joins/', { waitUntil: 'domcontentloaded' })
-  await sleep(rand(3000, 5000))
-  for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, rand(800, 1500)); await sleep(rand(1200, 2500)) }
-  joined = await page.$$eval('a[href*="/groups/"]', (links) => {
-    const clean = (s) => { s = (s || '').replace(/\s+/g, ' ').trim(); const h = s.length / 2; if (s.length % 2 === 0 && s.slice(0, h) === s.slice(h)) s = s.slice(0, h); return s }
-    const map = {}
-    for (const l of links) {
-      const h = l.href || ''
-      const m = h.match(/\/groups\/(\d+|[\w.]+)(?:\/|\?|$)/)
-      if (!m) continue
-      if (/\/(posts|permalink|user|members|media|events|about|search|feed|joins|discover|category|create)\b/.test(h)) continue
-      const id = m[1]
-      const name = clean(l.textContent || '')
-      if (name && name.length > 1 && name.length < 100 && !name.includes('\n')) {
-        if (!map[id] || map[id].length < name.length) map[id] = name
-      }
-    }
-    return Object.entries(map).map(([groupId, group]) => ({ groupId, group }))
-  })
-} catch (e) {
-  console.error('[fb] no pude leer la lista de grupos:', e.message)
-}
-
 await browser.close()
-
-if (joined.length) {
-  console.log(`[fb] grupos en tu lista: ${joined.length}`)
-  try {
-    await fetch(CAPTURE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-facebook-secret': SECRET },
-      body: JSON.stringify({ groups: joined }),
-      signal: AbortSignal.timeout(30000),
-    })
-  } catch (e) {
-    console.error('[fb] envío de grupos falló:', e.message)
-  }
-}
 
 const fresh = posts.filter((p) => p.text && (!p.url || !seen.has(p.url)))
 console.log(`[fb] posts leídos: ${posts.length} · nuevos: ${fresh.length}`)
