@@ -98,8 +98,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const body = (await req.json().catch(() => null)) as { posts?: Post[] } | Post | null
+  const body = (await req.json().catch(() => null)) as { posts?: Post[]; groups?: Array<{ groupId?: string; group?: string }> } | Post | null
   if (!body) return NextResponse.json({ error: 'Bad body' }, { status: 400 })
+
+  // Pure group discovery (no leads) — from the user's joined-groups list.
+  if (Array.isArray((body as any).groups)) {
+    const supabase = getSupabase()
+    let discovered = 0
+    for (const g of (body as any).groups as Array<{ groupId?: string; group?: string }>) {
+      if (g?.groupId) { await upsertGroup(supabase, String(g.groupId), g.group || null); discovered++ }
+    }
+    return NextResponse.json({ ok: true, discovered })
+  }
   const posts: Post[] = Array.isArray((body as any).posts)
     ? (body as any).posts
     : (body as Post).text ? [body as Post] : []
