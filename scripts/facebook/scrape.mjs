@@ -73,11 +73,27 @@ if (!fresh.length) {
   process.exit(0)
 }
 
-const res = await fetch(CAPTURE_URL, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json', 'x-facebook-secret': SECRET },
-  body: JSON.stringify({ posts: fresh.map((p) => ({ url: p.url, author: p.author, text: p.text })) }),
-})
+const payload = JSON.stringify({ posts: fresh.map((p) => ({ url: p.url, author: p.author, text: p.text })) })
+
+async function postWithRetry(tries = 4) {
+  for (let i = 1; i <= tries; i++) {
+    try {
+      return await fetch(CAPTURE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-facebook-secret': SECRET },
+        body: payload,
+        signal: AbortSignal.timeout(30000),
+      })
+    } catch (e) {
+      const reason = e?.cause?.code || e?.message || 'error'
+      console.error(`[fb] envío intento ${i}/${tries} falló (${reason})`)
+      if (i < tries) await sleep(rand(3000, 7000))
+    }
+  }
+  throw new Error('No se pudo conectar al endpoint tras varios intentos (revisá tu conexión a internet)')
+}
+
+const res = await postWithRetry()
 const body = await res.json().catch(() => ({}))
 console.log('[fb] capture →', res.status, JSON.stringify(body))
 
