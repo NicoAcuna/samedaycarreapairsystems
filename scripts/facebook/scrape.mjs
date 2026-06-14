@@ -44,6 +44,13 @@ for (let i = 0; i < MAX_SCROLLS; i++) {
 }
 
 const posts = await page.$$eval('[role="article"]', (arts) => {
+  // FB often duplicates link text (visible + aria-hidden) → "NameName". Halve it.
+  const clean = (s) => {
+    s = (s || '').replace(/\s+/g, ' ').trim()
+    const h = s.length / 2
+    if (s.length % 2 === 0 && s.slice(0, h) === s.slice(h)) s = s.slice(0, h)
+    return s
+  }
   const out = []
   for (const a of arts) {
     const text = (a.innerText || '').trim()
@@ -57,19 +64,20 @@ const posts = await page.$$eval('[role="article"]', (arts) => {
       const h = l.href || ''
       if (!url && /\/groups\/[^/]+\/(posts|permalink)\//.test(h)) url = h.split('?')[0]
       if (!author) {
-        const t = (l.innerText || '').trim()
+        const t = clean(l.textContent || '')
         if (t && t.length > 1 && t.length < 60 && !t.includes('\n')) author = t
       }
-      // Bare group link = the group itself (its text is the group name)
-      if (!groupName) {
-        const gm = h.match(/\/groups\/([^/?]+)\/?(?:\?|$)/)
-        if (gm && !/\/(posts|permalink|user|members)\//.test(h)) {
-          const t = (l.innerText || '').trim()
-          if (t && t.length > 1 && t.length < 80 && !t.includes('\n')) { groupName = t; groupId = gm[1] }
-        }
-      }
     }
-    if (!groupId && url) { const m = url.match(/\/groups\/([^/]+)\//); if (m) groupId = m[1] }
+    if (url) { const m = url.match(/\/groups\/([^/]+)\//); if (m) groupId = m[1] }
+    // Group name: the link pointing at this group that has visible text
+    for (const l of links) {
+      const h = l.href || ''
+      if (!/\/groups\/\d+|\/groups\/[\w.]+/.test(h)) continue
+      if (/\/(posts|permalink|user|members|media|events|about|search)\b/.test(h)) continue
+      if (groupId && !h.includes(`/groups/${groupId}`)) continue
+      const t = clean(l.textContent || '')
+      if (t && t.length > 1 && t.length < 100 && !t.includes('\n')) { groupName = t; break }
+    }
     out.push({ url, author, text, group: groupName, groupId })
   }
   return out
