@@ -12,18 +12,20 @@ const navItems = [
   { label: 'Clients',   href: '/clients' },
   { label: 'Vehicles',  href: '/vehicles' },
   { label: 'Mechanics', href: '/mechanics' },
-  { label: 'Groups',    href: '/groups' },
+  { label: 'WA Groups', href: '/groups' },
+  { label: 'FB Groups', href: '/facebook-groups' },
   { label: 'Settings',  href: '/settings' },
 ]
 
 const icons: Record<string, string> = {
-  '/leads':     '📋',
-  '/jobs':      '🔧',
-  '/clients':   '👤',
-  '/vehicles':  '🚗',
-  '/mechanics': '👷',
-  '/groups':    '💬',
-  '/settings':  '⚙️',
+  '/leads':           '📋',
+  '/jobs':            '🔧',
+  '/clients':         '👤',
+  '/vehicles':        '🚗',
+  '/mechanics':       '👷',
+  '/groups':          '💬',
+  '/facebook-groups': '👥',
+  '/settings':        '⚙️',
 }
 
 function Logo() {

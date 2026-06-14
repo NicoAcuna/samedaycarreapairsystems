@@ -50,6 +50,8 @@ const posts = await page.$$eval('[role="article"]', (arts) => {
     if (!text || text.length < 15) continue
     let url = null
     let author = ''
+    let groupId = null
+    let groupName = ''
     const links = a.querySelectorAll('a[href]')
     for (const l of links) {
       const h = l.href || ''
@@ -58,8 +60,17 @@ const posts = await page.$$eval('[role="article"]', (arts) => {
         const t = (l.innerText || '').trim()
         if (t && t.length > 1 && t.length < 60 && !t.includes('\n')) author = t
       }
+      // Bare group link = the group itself (its text is the group name)
+      if (!groupName) {
+        const gm = h.match(/\/groups\/([^/?]+)\/?(?:\?|$)/)
+        if (gm && !/\/(posts|permalink|user|members)\//.test(h)) {
+          const t = (l.innerText || '').trim()
+          if (t && t.length > 1 && t.length < 80 && !t.includes('\n')) { groupName = t; groupId = gm[1] }
+        }
+      }
     }
-    out.push({ url, author, text })
+    if (!groupId && url) { const m = url.match(/\/groups\/([^/]+)\//); if (m) groupId = m[1] }
+    out.push({ url, author, text, group: groupName, groupId })
   }
   return out
 })
@@ -73,7 +84,7 @@ if (!fresh.length) {
   process.exit(0)
 }
 
-const payload = JSON.stringify({ posts: fresh.map((p) => ({ url: p.url, author: p.author, text: p.text })) })
+const payload = JSON.stringify({ posts: fresh.map((p) => ({ url: p.url, author: p.author, text: p.text, group: p.group, groupId: p.groupId })) })
 
 async function postWithRetry(tries = 4) {
   for (let i = 1; i <= tries; i++) {

@@ -22,7 +22,40 @@ function getSupabase() {
 
 const PRIORITY_LABEL = { high: '🔴 Alta', medium: '🟡 Media', normal: '⚪ Normal' }
 
-type Post = { url?: string; author?: string; group?: string; text?: string }
+type Post = { url?: string; author?: string; group?: string; groupId?: string; text?: string }
+
+type SB = ReturnType<typeof getSupabase>
+
+// Record every group a post comes from so the user can pick which ones to monitor.
+async function upsertGroup(supabase: SB, groupId: string, groupName: string | null) {
+  try {
+    const row: Record<string, any> = {
+      company_id: SUPABASE_COMPANY_ID,
+      group_id: groupId,
+      group_url: `https://www.facebook.com/groups/${groupId}`,
+      last_seen: new Date().toISOString(),
+    }
+    if (groupName) row.group_name = groupName
+    await supabase.from('facebook_groups').upsert(row, { onConflict: 'company_id,group_id' })
+  } catch (e: any) {
+    console.error('[facebook] upsertGroup error:', e.message)
+  }
+}
+
+// Monitored unless an explicit active=false row exists (unknown groups default on).
+async function isGroupActive(supabase: SB, groupId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('facebook_groups')
+      .select('active')
+      .eq('company_id', SUPABASE_COMPANY_ID)
+      .eq('group_id', groupId)
+      .maybeSingle()
+    return !data || data.active !== false
+  } catch {
+    return true
+  }
+}
 
 async function alertLead(args: { name: string; text: string; group: string | null; leadId: string; priority: string; url: string | null }) {
   const label = PRIORITY_LABEL[args.priority as keyof typeof PRIORITY_LABEL] || PRIORITY_LABEL.normal
@@ -84,7 +117,16 @@ export async function POST(req: NextRequest) {
 
   for (const p of posts) {
     const text = (p.text || '').trim()
-    if (!text || !shouldTriggerWith(text, crit)) { skipped++; continue }
+    if (!text) { skipped++; continue }
+
+    // Discover the group (even if this post doesn't match) so it shows in the panel,
+    // then skip posts from groups the user turned off.
+    if (p.groupId) {
+      await upsertGroup(supabase, p.groupId, p.group || null)
+      if (!(await isGroupActive(supabase, p.groupId))) { skipped++; continue }
+    }
+
+    if (!shouldTriggerWith(text, crit)) { skipped++; continue }
 
     // Dedupe by post URL so re-runs don't create duplicates.
     if (p.url) {
