@@ -12,6 +12,11 @@ function getSupabase() {
 const FOLLOW_UP_ES = 'Hola! soy Nico el mecánico 🔧 te escribí ayer — ¿seguís necesitando ayuda con el auto?'
 const FOLLOW_UP_EN = 'Hey! Nico the mechanic here 🔧 I reached out yesterday — do you still need help with your car?'
 
+// 🔒 Seguimiento automático DESHABILITADO — Nico no quiere NINGÚN mensaje automático
+// a clientes por ahora. El cron sigue corriendo pero NO envía nada (solo marca lost).
+// Para reactivar: poné FOLLOW_UP_ENABLED = true.
+const FOLLOW_UP_ENABLED = false
+
 export async function GET(req: NextRequest) {
   // Protect cron endpoint
   const auth = req.headers.get('authorization')
@@ -35,7 +40,7 @@ export async function GET(req: NextRequest) {
   let followed = 0
   let lost = 0
 
-  for (const conv of stuck || []) {
+  for (const conv of (FOLLOW_UP_ENABLED ? stuck : []) || []) {
     const msgs: Array<{ role: string }> = conv.messages || []
     const lastMsg = msgs[msgs.length - 1]
 
