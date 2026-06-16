@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { name, email, phone } = body
+  const { name, email, phone, company_id: bodyCompanyId } = body
 
   if (!name?.trim() || !email?.trim()) {
     return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
@@ -36,7 +36,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only super admins can invite mechanics' }, { status: 403 })
   }
 
-  const companyId = userData.active_company_id || userData.company_id
+  // Allow overriding company_id if the user belongs to that company
+  let companyId = userData.active_company_id || userData.company_id
+  if (bodyCompanyId && bodyCompanyId !== companyId) {
+    const { data: membership } = await supabase
+      .from('user_companies')
+      .select('company_id')
+      .eq('user_id', user.id)
+      .eq('company_id', bodyCompanyId)
+      .single()
+    if (!membership) return NextResponse.json({ error: 'Access denied to that base' }, { status: 403 })
+    companyId = bodyCompanyId
+  }
   if (!companyId) return NextResponse.json({ error: 'No active company' }, { status: 400 })
 
   const admin = createServiceClient(
