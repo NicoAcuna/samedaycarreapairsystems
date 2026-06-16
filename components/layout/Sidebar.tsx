@@ -10,6 +10,7 @@ type NavItem = {
   label: string
   href: string
   permKey: string
+  superAdminOnly?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -21,6 +22,7 @@ const navItems: NavItem[] = [
   { label: 'WA Groups', href: '/groups',           permKey: 'groups' },
   { label: 'FB Groups', href: '/facebook-groups',  permKey: 'facebook_groups' },
   { label: 'Settings',  href: '/settings',         permKey: 'settings' },
+  { label: 'Bases',     href: '/bases',            permKey: 'bases', superAdminOnly: true },
 ]
 
 const icons: Record<string, string> = {
@@ -32,6 +34,7 @@ const icons: Record<string, string> = {
   '/groups':          '💬',
   '/facebook-groups': '👥',
   '/settings':        '⚙️',
+  '/bases':           '🏢',
 }
 
 const ALL_KEYS = new Set(navItems.map(i => i.permKey))
@@ -62,6 +65,7 @@ export default function Sidebar() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [showSwitcher, setShowSwitcher] = useState(false)
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(ALL_KEYS)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -99,6 +103,9 @@ export default function Sidebar() {
 
       setCompanies(list)
       setActiveCompany(list.find(c => c.id === activeId) || list[0] || null)
+
+      const superAdmin = userData?.role !== 'mechanic'
+      setIsSuperAdmin(superAdmin)
 
       // Resolve nav visibility based on role / mechanic permissions
       if (userData?.role === 'mechanic') {
@@ -156,7 +163,9 @@ export default function Sidebar() {
     router.push('/login')
   }
 
-  const visibleNavItems = navItems.filter(item => visibleKeys.has(item.permKey))
+  const visibleNavItems = navItems.filter(item =>
+    visibleKeys.has(item.permKey) && (!item.superAdminOnly || isSuperAdmin)
+  )
 
   return (
     <>
