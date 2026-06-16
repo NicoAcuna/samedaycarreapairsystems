@@ -7,6 +7,14 @@ import { createClient } from '../../../../lib/supabase/client'
 type Permission = { view: boolean; edit: boolean; create: boolean }
 type Permissions = Record<string, Permission>
 
+type Role = {
+  id: string
+  name: string
+  label: string
+  default_permissions: Permissions
+  is_system: boolean
+}
+
 type Mechanic = {
   id: string
   name: string
@@ -15,34 +23,24 @@ type Mechanic = {
   status: string
   user_id: string | null
   created_at: string
-  profile: 'admin' | 'mechanic'
+  role_id: string | null
   permissions: Permissions | null
 }
 
 const TABS = [
-  { key: 'leads',          label: 'Leads' },
-  { key: 'jobs',           label: 'Jobs' },
-  { key: 'clients',        label: 'Clients' },
-  { key: 'vehicles',       label: 'Vehicles' },
-  { key: 'mechanics',      label: 'Mechanics' },
-  { key: 'groups',         label: 'WA Groups' },
-  { key: 'facebook_groups',label: 'FB Groups' },
-  { key: 'settings',       label: 'Settings' },
+  { key: 'leads',           label: 'Leads' },
+  { key: 'jobs',            label: 'Jobs' },
+  { key: 'clients',         label: 'Clients' },
+  { key: 'vehicles',        label: 'Vehicles' },
+  { key: 'mechanics',       label: 'Mechanics' },
+  { key: 'groups',          label: 'WA Groups' },
+  { key: 'facebook_groups', label: 'FB Groups' },
+  { key: 'settings',        label: 'Settings' },
 ]
 
-const PROFILE_DEFAULTS: Record<string, Permissions> = {
-  admin: Object.fromEntries(TABS.map(t => [t.key, { view: true, edit: true, create: true }])),
-  mechanic: {
-    leads:           { view: false, edit: false, create: false },
-    jobs:            { view: true,  edit: true,  create: false },
-    clients:         { view: true,  edit: false, create: false },
-    vehicles:        { view: true,  edit: true,  create: false },
-    mechanics:       { view: false, edit: false, create: false },
-    groups:          { view: false, edit: false, create: false },
-    facebook_groups: { view: false, edit: false, create: false },
-    settings:        { view: false, edit: false, create: false },
-  },
-}
+const EMPTY_PERMISSIONS: Permissions = Object.fromEntries(
+  TABS.map(t => [t.key, { view: false, edit: false, create: false }])
+)
 
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'
@@ -116,17 +114,29 @@ function EditModal({ mechanic, onClose, onSaved }: { mechanic: Mechanic; onClose
 }
 
 function AccessSection({ mechanic, onSaved }: { mechanic: Mechanic; onSaved: (m: Mechanic) => void }) {
-  const [profile, setProfile] = useState<'admin' | 'mechanic'>(mechanic.profile || 'mechanic')
-  const [permissions, setPermissions] = useState<Permissions>(
-    mechanic.permissions || PROFILE_DEFAULTS.mechanic
-  )
+  const [roles, setRoles] = useState<Role[]>([])
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(mechanic.role_id)
+  const [permissions, setPermissions] = useState<Permissions>(mechanic.permissions || EMPTY_PERMISSIONS)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
-  function handleProfileChange(newProfile: 'admin' | 'mechanic') {
-    setProfile(newProfile)
-    setPermissions(PROFILE_DEFAULTS[newProfile])
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('roles')
+      .select('id, name, label, default_permissions, is_system')
+      .order('is_system', { ascending: false })
+      .order('name')
+      .then(({ data }) => setRoles((data as Role[]) || []))
+  }, [])
+
+  function handleRoleChange(roleId: string) {
+    setSelectedRoleId(roleId)
+    const role = roles.find(r => r.id === roleId)
+    if (role?.default_permissions) {
+      setPermissions(role.default_permissions)
+    }
   }
 
   function togglePerm(tabKey: string, action: 'view' | 'edit' | 'create') {
@@ -141,7 +151,7 @@ function AccessSection({ mechanic, onSaved }: { mechanic: Mechanic; onSaved: (m:
     const supabase = createClient()
     const { data, error: err } = await supabase
       .from('mechanics')
-      .update({ profile, permissions })
+      .update({ role_id: selectedRoleId, permissions })
       .eq('id', mechanic.id)
       .select()
       .single()
@@ -152,6 +162,9 @@ function AccessSection({ mechanic, onSaved }: { mechanic: Mechanic; onSaved: (m:
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const selectedRole = roles.find(r => r.id === selectedRoleId)
+  const isFullAccess = selectedRole?.name === 'admin' || selectedRole?.name === 'super_admin'
+
   return (
     <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
       <div className="px-5 py-4 border-b border-neutral-100">
@@ -159,27 +172,32 @@ function AccessSection({ mechanic, onSaved }: { mechanic: Mechanic; onSaved: (m:
         <div className="text-xs text-neutral-400 mt-0.5">Control what this mechanic can see and do</div>
       </div>
 
-      {/* Profile selector */}
+      {/* Role selector */}
       <div className="px-5 py-4 border-b border-neutral-100">
-        <label className="text-xs font-medium text-neutral-500 mb-2 block">Profile</label>
-        <div className="flex gap-2">
-          {(['mechanic', 'admin'] as const).map(p => (
-            <button
-              key={p}
-              onClick={() => handleProfileChange(p)}
-              className={`px-4 py-2 text-sm rounded-lg border font-medium transition-colors ${
-                profile === p
-                  ? 'bg-neutral-900 text-white border-neutral-900'
-                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              {p === 'admin' ? 'Admin' : 'Mechanic'}
-            </button>
-          ))}
-        </div>
-        {profile === 'admin' && (
+        <label className="text-xs font-medium text-neutral-500 mb-2 block">Role</label>
+        {roles.length === 0 ? (
+          <div className="text-xs text-neutral-400">Loading roles…</div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {roles.map(role => (
+              <button
+                key={role.id}
+                onClick={() => handleRoleChange(role.id)}
+                className={`px-4 py-2 text-sm rounded-lg border font-medium transition-colors ${
+                  selectedRoleId === role.id
+                    ? 'bg-neutral-900 text-white border-neutral-900'
+                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                }`}
+              >
+                {role.label}
+                {!role.is_system && <span className="ml-1.5 text-xs opacity-60">custom</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        {isFullAccess && (
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3">
-            Admin profile grants full access to all sections. Individual permissions below will be overridden.
+            This role has full access to all sections. The permission matrix below is pre-filled but can still be customized.
           </p>
         )}
       </div>
@@ -352,7 +370,7 @@ export default function MechanicDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      {/* Access & Permissions — only admins can manage this */}
+      {/* Access & Permissions — only visible to super admins */}
       {isSuperAdmin && (
         <AccessSection
           mechanic={mechanic}
