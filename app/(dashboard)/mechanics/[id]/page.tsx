@@ -4,6 +4,9 @@ import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
 
+type Permission = { view: boolean; edit: boolean; create: boolean }
+type Permissions = Record<string, Permission>
+
 type Mechanic = {
   id: string
   name: string
@@ -12,6 +15,33 @@ type Mechanic = {
   status: string
   user_id: string | null
   created_at: string
+  profile: 'admin' | 'mechanic'
+  permissions: Permissions | null
+}
+
+const TABS = [
+  { key: 'leads',          label: 'Leads' },
+  { key: 'jobs',           label: 'Jobs' },
+  { key: 'clients',        label: 'Clients' },
+  { key: 'vehicles',       label: 'Vehicles' },
+  { key: 'mechanics',      label: 'Mechanics' },
+  { key: 'groups',         label: 'WA Groups' },
+  { key: 'facebook_groups',label: 'FB Groups' },
+  { key: 'settings',       label: 'Settings' },
+]
+
+const PROFILE_DEFAULTS: Record<string, Permissions> = {
+  admin: Object.fromEntries(TABS.map(t => [t.key, { view: true, edit: true, create: true }])),
+  mechanic: {
+    leads:           { view: false, edit: false, create: false },
+    jobs:            { view: true,  edit: true,  create: false },
+    clients:         { view: true,  edit: false, create: false },
+    vehicles:        { view: true,  edit: true,  create: false },
+    mechanics:       { view: false, edit: false, create: false },
+    groups:          { view: false, edit: false, create: false },
+    facebook_groups: { view: false, edit: false, create: false },
+    settings:        { view: false, edit: false, create: false },
+  },
 }
 
 function initials(name: string) {
@@ -78,6 +108,129 @@ function EditModal({ mechanic, onClose, onSaved }: { mechanic: Mechanic; onClose
           <button onClick={handleSave} disabled={saving}
             className="flex-1 text-sm py-3 bg-neutral-900 text-white rounded-xl hover:bg-neutral-700 disabled:opacity-50 font-medium">
             {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AccessSection({ mechanic, onSaved }: { mechanic: Mechanic; onSaved: (m: Mechanic) => void }) {
+  const [profile, setProfile] = useState<'admin' | 'mechanic'>(mechanic.profile || 'mechanic')
+  const [permissions, setPermissions] = useState<Permissions>(
+    mechanic.permissions || PROFILE_DEFAULTS.mechanic
+  )
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  function handleProfileChange(newProfile: 'admin' | 'mechanic') {
+    setProfile(newProfile)
+    setPermissions(PROFILE_DEFAULTS[newProfile])
+  }
+
+  function togglePerm(tabKey: string, action: 'view' | 'edit' | 'create') {
+    setPermissions(prev => ({
+      ...prev,
+      [tabKey]: { ...prev[tabKey], [action]: !prev[tabKey]?.[action] },
+    }))
+  }
+
+  async function handleSave() {
+    setSaving(true); setError(''); setSaved(false)
+    const supabase = createClient()
+    const { data, error: err } = await supabase
+      .from('mechanics')
+      .update({ profile, permissions })
+      .eq('id', mechanic.id)
+      .select()
+      .single()
+    setSaving(false)
+    if (err) { setError(err.message); return }
+    setSaved(true)
+    onSaved(data as Mechanic)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
+      <div className="px-5 py-4 border-b border-neutral-100">
+        <div className="font-semibold text-neutral-900 text-sm">Access & Permissions</div>
+        <div className="text-xs text-neutral-400 mt-0.5">Control what this mechanic can see and do</div>
+      </div>
+
+      {/* Profile selector */}
+      <div className="px-5 py-4 border-b border-neutral-100">
+        <label className="text-xs font-medium text-neutral-500 mb-2 block">Profile</label>
+        <div className="flex gap-2">
+          {(['mechanic', 'admin'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => handleProfileChange(p)}
+              className={`px-4 py-2 text-sm rounded-lg border font-medium transition-colors ${
+                profile === p
+                  ? 'bg-neutral-900 text-white border-neutral-900'
+                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              {p === 'admin' ? 'Admin' : 'Mechanic'}
+            </button>
+          ))}
+        </div>
+        {profile === 'admin' && (
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3">
+            Admin profile grants full access to all sections. Individual permissions below will be overridden.
+          </p>
+        )}
+      </div>
+
+      {/* Permissions matrix */}
+      <div className="px-5 py-4">
+        <label className="text-xs font-medium text-neutral-500 mb-3 block">Permissions</label>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left text-xs text-neutral-400 font-medium pb-3">Section</th>
+                <th className="text-center text-xs text-neutral-400 font-medium pb-3 w-16">View</th>
+                <th className="text-center text-xs text-neutral-400 font-medium pb-3 w-16">Edit</th>
+                <th className="text-center text-xs text-neutral-400 font-medium pb-3 w-16">Create</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-50">
+              {TABS.map(tab => (
+                <tr key={tab.key}>
+                  <td className="py-2.5 text-xs font-medium text-neutral-700">{tab.label}</td>
+                  {(['view', 'edit', 'create'] as const).map(action => (
+                    <td key={action} className="py-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={permissions[tab.key]?.[action] ?? false}
+                        onChange={() => togglePerm(tab.key, action)}
+                        className="w-4 h-4 rounded border-neutral-300 accent-neutral-900 cursor-pointer"
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {error && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mt-3">
+            {error}
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-neutral-100">
+          {saved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="text-sm px-4 py-2 bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 disabled:opacity-50 font-medium"
+          >
+            {saving ? 'Saving…' : 'Save access'}
           </button>
         </div>
       </div>
@@ -198,6 +351,14 @@ export default function MechanicDetailPage({ params }: { params: Promise<{ id: s
           ))}
         </div>
       </div>
+
+      {/* Access & Permissions — only admins can manage this */}
+      {isSuperAdmin && (
+        <AccessSection
+          mechanic={mechanic}
+          onSaved={m => setMechanic(m)}
+        />
+      )}
 
       {/* Delete confirmation */}
       {showDelete && (
