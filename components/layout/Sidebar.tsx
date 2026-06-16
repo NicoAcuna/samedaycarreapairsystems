@@ -104,12 +104,14 @@ export default function Sidebar() {
       if (userData?.role === 'mechanic') {
         const { data: mechanicData } = await supabase
           .from('mechanics')
-          .select('profile, permissions')
+          .select('permissions, roles(name)')
           .eq('user_id', user.id)
           .eq('company_id', activeId)
           .single()
 
-        if (!mechanicData || mechanicData.profile === 'admin') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const roleName = (mechanicData?.roles as any)?.name
+        if (!mechanicData || roleName === 'admin' || roleName === 'super_admin') {
           setVisibleKeys(ALL_KEYS)
         } else if (mechanicData.permissions) {
           const visible = new Set<string>()
@@ -120,7 +122,6 @@ export default function Sidebar() {
           })
           setVisibleKeys(visible)
         } else {
-          // Fallback for mechanics without permissions set yet
           setVisibleKeys(new Set(['jobs', 'vehicles', 'clients']))
         }
       }
