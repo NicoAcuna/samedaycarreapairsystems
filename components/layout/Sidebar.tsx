@@ -6,15 +6,21 @@ import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, useRef } from 'react'
 import PushPermission from '@/components/PushPermission'
 
-const navItems = [
-  { label: 'Leads',     href: '/leads' },
-  { label: 'Jobs',      href: '/jobs' },
-  { label: 'Clients',   href: '/clients' },
-  { label: 'Vehicles',  href: '/vehicles' },
-  { label: 'Mechanics', href: '/mechanics' },
-  { label: 'WA Groups', href: '/groups' },
-  { label: 'FB Groups', href: '/facebook-groups' },
-  { label: 'Settings',  href: '/settings' },
+type NavItem = {
+  label: string
+  href: string
+  permKey: string
+}
+
+const navItems: NavItem[] = [
+  { label: 'Leads',     href: '/leads',           permKey: 'leads' },
+  { label: 'Jobs',      href: '/jobs',             permKey: 'jobs' },
+  { label: 'Clients',   href: '/clients',          permKey: 'clients' },
+  { label: 'Vehicles',  href: '/vehicles',         permKey: 'vehicles' },
+  { label: 'Mechanics', href: '/mechanics',        permKey: 'mechanics' },
+  { label: 'WA Groups', href: '/groups',           permKey: 'groups' },
+  { label: 'FB Groups', href: '/facebook-groups',  permKey: 'facebook_groups' },
+  { label: 'Settings',  href: '/settings',         permKey: 'settings' },
 ]
 
 const icons: Record<string, string> = {
@@ -27,6 +33,8 @@ const icons: Record<string, string> = {
   '/facebook-groups': '👥',
   '/settings':        '⚙️',
 }
+
+const ALL_KEYS = new Set(navItems.map(i => i.permKey))
 
 function Logo() {
   return (
@@ -53,6 +61,7 @@ export default function Sidebar() {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [showSwitcher, setShowSwitcher] = useState(false)
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(ALL_KEYS)
 
   useEffect(() => {
     const supabase = createClient()
@@ -60,7 +69,7 @@ export default function Sidebar() {
       if (!user) return
       const { data: userData } = await supabase
         .from('users')
-        .select('active_company_id, company_id')
+        .select('active_company_id, company_id, role')
         .eq('id', user.id)
         .single()
 
@@ -90,6 +99,32 @@ export default function Sidebar() {
 
       setCompanies(list)
       setActiveCompany(list.find(c => c.id === activeId) || list[0] || null)
+
+      // Resolve nav visibility based on role / mechanic permissions
+      if (userData?.role === 'mechanic') {
+        const { data: mechanicData } = await supabase
+          .from('mechanics')
+          .select('profile, permissions')
+          .eq('user_id', user.id)
+          .eq('company_id', activeId)
+          .single()
+
+        if (!mechanicData || mechanicData.profile === 'admin') {
+          setVisibleKeys(ALL_KEYS)
+        } else if (mechanicData.permissions) {
+          const visible = new Set<string>()
+          navItems.forEach(item => {
+            if (mechanicData.permissions[item.permKey]?.view) {
+              visible.add(item.permKey)
+            }
+          })
+          setVisibleKeys(visible)
+        } else {
+          // Fallback for mechanics without permissions set yet
+          setVisibleKeys(new Set(['jobs', 'vehicles', 'clients']))
+        }
+      }
+      // super_admin / owner: visibleKeys stays as ALL_KEYS (default)
     })
   }, [])
 
@@ -119,6 +154,8 @@ export default function Sidebar() {
     await supabase.auth.signOut()
     router.push('/login')
   }
+
+  const visibleNavItems = navItems.filter(item => visibleKeys.has(item.permKey))
 
   return (
     <>
@@ -161,7 +198,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex-1 py-3">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             return (
               <Link
@@ -195,7 +232,7 @@ export default function Sidebar() {
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (
             <Link
