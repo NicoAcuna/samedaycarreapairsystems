@@ -86,12 +86,17 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  if (inviteErr || !linkData?.properties?.action_link) {
+  if (inviteErr || !linkData?.properties?.hashed_token) {
     await admin.from('mechanics').delete().eq('id', mechanic.id)
     return NextResponse.json({ error: inviteErr?.message || 'Could not generate invite link' }, { status: 500 })
   }
 
-  const sendErr = await sendInviteEmail(email.trim().toLowerCase(), name.trim(), linkData.properties.action_link)
+  // Use our own token_hash confirm route (verifyOtp, server-side cookies)
+  // instead of Supabase's /verify link, which returns the session in a URL
+  // fragment that a server route handler can't read.
+  const inviteUrl = `${appUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=invite&next=/join`
+
+  const sendErr = await sendInviteEmail(email.trim().toLowerCase(), name.trim(), inviteUrl)
   if (sendErr) {
     await admin.from('mechanics').delete().eq('id', mechanic.id)
     await admin.auth.admin.deleteUser(linkData.user.id).catch(() => {})
