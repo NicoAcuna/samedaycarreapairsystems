@@ -93,6 +93,24 @@ export default function MechanicsPage() {
   const [search, setSearch] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Mechanic | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true); setDeleteError('')
+    const res = await fetch('/api/delete-mechanic', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mechanic_id: deleteTarget.id }),
+    })
+    const data = await res.json()
+    setDeleting(false)
+    if (!res.ok) { setDeleteError(data.error || 'Failed to delete'); return }
+    setMechanics(prev => prev.filter(m => m.id !== deleteTarget.id))
+    setDeleteTarget(null)
+  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -165,13 +183,14 @@ export default function MechanicsPage() {
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Email</th>
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Phone</th>
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Status</th>
+              {isSuperAdmin && <th className="px-4 py-3 w-12"></th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
+              <tr><td colSpan={isSuperAdmin ? 5 : 4} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-10 text-center text-sm text-neutral-400">
+              <tr><td colSpan={isSuperAdmin ? 5 : 4} className="px-4 py-10 text-center text-sm text-neutral-400">
                 {search ? 'No mechanics match your search' : 'No mechanics yet — add your first one'}
               </td></tr>
             ) : filtered.map(m => (
@@ -187,6 +206,16 @@ export default function MechanicsPage() {
                     {m.status === 'active' ? 'Active' : 'Pending invite'}
                   </span>
                 </td>
+                {isSuperAdmin && (
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteError(''); setDeleteTarget(m) }}
+                      title="Delete mechanic"
+                      className="text-neutral-300 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50">
+                      🗑️
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -220,10 +249,46 @@ export default function MechanicsPage() {
                 </span>
               </div>
             </div>
+            {isSuperAdmin && (
+              <button
+                onClick={e => { e.stopPropagation(); setDeleteError(''); setDeleteTarget(m) }}
+                title="Delete mechanic"
+                className="text-neutral-300 hover:text-red-600 p-1.5 flex-shrink-0">
+                🗑️
+              </button>
+            )}
             <span className="text-neutral-300 text-sm flex-shrink-0">›</span>
           </div>
         ))}
       </div>
+
+      {/* Delete confirmation */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-20 px-4" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">⚠️</div>
+            <h2 className="text-base font-semibold text-neutral-900 mb-2">Delete {deleteTarget.name}?</h2>
+            <p className="text-sm text-neutral-500 mb-4">
+              Their profile and login account will be removed, freeing up the email to be invited again. This cannot be undone.
+            </p>
+            {deleteError && (
+              <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4 text-left">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting}
+                className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50 text-neutral-600 disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex-1 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50">
+                {deleting ? 'Deleting…' : 'Yes, delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
