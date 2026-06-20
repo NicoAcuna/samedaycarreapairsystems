@@ -55,51 +55,67 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
+  const cleanEmail = email.trim().toLowerCase()
+  const host = req.headers.get('host') || 'localhost:3000'
+  const protocol = host.includes('localhost') ? 'http' : 'https'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`
+
+  // 1. Create the auth user + invite token FIRST, so the mechanic record can be
+  //    linked firmly by user_id (no fragile email matching on accept). We don't
+  //    send Supabase's default email — we deliver a branded one via Resend below.
+  const { data: linkData, error: inviteErr } = await admin.auth.admin.generateLink({
+    type: 'invite',
+    email: cleanEmail,
+    options: {
+      redirectTo: `${appUrl}/auth/confirm?next=/join`,
+      data: { full_name: name.trim() },
+    },
+  })
+
+  if (inviteErr || !linkData?.properties?.hashed_token) {
+    // 422 "already registered" → the email already has an account. Surface it
+    // clearly instead of a generic 500.
+    const already = /already|registered|exists/i.test(inviteErr?.message || '')
+    return NextResponse.json(
+      { error: already ? 'This email already has an account. Delete it first to re-invite.' : (inviteErr?.message || 'Could not generate invite link') },
+      { status: already ? 409 : 500 },
+    )
+  }
+
+  const authUserId = linkData.user.id
+
+  // 2. Insert the mechanic linked to that auth user.
   const { data: mechanic, error: mechanicErr } = await admin
     .from('mechanics')
     .insert([{
       company_id: companyId,
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      email: cleanEmail,
       phone: phone?.trim() || null,
       status: 'pending',
+      user_id: authUserId,
     }])
     .select()
     .single()
 
   if (mechanicErr) {
-    return NextResponse.json({ error: mechanicErr.message }, { status: 500 })
+    await admin.auth.admin.deleteUser(authUserId).catch(() => {})
+    const dup = mechanicErr.code === '23505'
+    return NextResponse.json(
+      { error: dup ? 'This email has already been invited to this base.' : mechanicErr.message },
+      { status: dup ? 409 : 500 },
+    )
   }
 
-  const host = req.headers.get('host') || 'localhost:3000'
-  const protocol = host.includes('localhost') ? 'http' : 'https'
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`
-
-  // Generate the invite link without sending Supabase's default email, so we can
-  // deliver a branded message from our own domain via Resend (same as reports).
-  const { data: linkData, error: inviteErr } = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email: email.trim().toLowerCase(),
-    options: {
-      redirectTo: `${appUrl}/auth/callback?next=/join`,
-      data: { full_name: name.trim(), mechanic_id: mechanic.id, company_id: companyId },
-    },
-  })
-
-  if (inviteErr || !linkData?.properties?.hashed_token) {
-    await admin.from('mechanics').delete().eq('id', mechanic.id)
-    return NextResponse.json({ error: inviteErr?.message || 'Could not generate invite link' }, { status: 500 })
-  }
-
-  // Use our own token_hash confirm route (verifyOtp, server-side cookies)
-  // instead of Supabase's /verify link, which returns the session in a URL
-  // fragment that a server route handler can't read.
+  // 3. Send the branded invite email. The link points to our token_hash confirm
+  //    route (verifyOtp, server-side cookies) rather than Supabase's /verify link,
+  //    which returns the session in a URL fragment a server route can't read.
   const inviteUrl = `${appUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=invite&next=/join`
 
-  const sendErr = await sendInviteEmail(email.trim().toLowerCase(), name.trim(), inviteUrl)
+  const sendErr = await sendInviteEmail(cleanEmail, name.trim(), inviteUrl)
   if (sendErr) {
     await admin.from('mechanics').delete().eq('id', mechanic.id)
-    await admin.auth.admin.deleteUser(linkData.user.id).catch(() => {})
+    await admin.auth.admin.deleteUser(authUserId).catch(() => {})
     return NextResponse.json({ error: sendErr }, { status: 500 })
   }
 

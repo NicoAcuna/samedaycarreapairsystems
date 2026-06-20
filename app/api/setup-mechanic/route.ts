@@ -24,16 +24,29 @@ export async function POST() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data: mechanic } = await admin
+  // Firm link: the mechanic was created with user_id = this auth user at invite
+  // time. Fall back to an unlinked email match only for legacy invites.
+  let { data: mechanic } = await admin
     .from('mechanics')
     .select('*')
-    .eq('email', user.email!.toLowerCase())
-    .order('created_at', { ascending: false })
+    .eq('user_id', user.id)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (!mechanic) {
-    return NextResponse.json({ error: 'No mechanic invitation found for this email' }, { status: 404 })
+    const { data: legacy } = await admin
+      .from('mechanics')
+      .select('*')
+      .eq('email', user.email!.toLowerCase())
+      .is('user_id', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    mechanic = legacy
+  }
+
+  if (!mechanic) {
+    return NextResponse.json({ error: 'No mechanic invitation found for this account' }, { status: 404 })
   }
 
   await admin.from('users').upsert({
