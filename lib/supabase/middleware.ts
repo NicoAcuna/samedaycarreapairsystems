@@ -10,6 +10,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/api/') ||
     path.startsWith('/onboarding') ||
     path.startsWith('/join') ||
+    path.startsWith('/set-password') ||
     path.startsWith('/auth/') ||
     path === '/favicon.ico' ||
     path.startsWith('/_next')

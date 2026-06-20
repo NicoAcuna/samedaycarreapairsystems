@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(
     email.trim().toLowerCase(),
     {
-      redirectTo: `${appUrl}/auth/callback?next=/join`,
+      redirectTo: `${appUrl}/auth/callback?next=/set-password`,
       data: { full_name: name.trim(), mechanic_id: mechanic.id, company_id: companyId },
     }
   )
