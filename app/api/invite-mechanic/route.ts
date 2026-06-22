@@ -2,6 +2,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -60,31 +61,31 @@ export async function POST(req: NextRequest) {
   const protocol = host.includes('localhost') ? 'http' : 'https'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`
 
-  // 1. Create the auth user + invite token FIRST, so the mechanic record can be
-  //    linked firmly by user_id (no fragile email matching on accept). We don't
-  //    send Supabase's default email — we deliver a branded one via Resend below.
-  const { data: linkData, error: inviteErr } = await admin.auth.admin.generateLink({
-    type: 'invite',
+  // 1. Create the auth account up front (Supabase sends NO email here). We own
+  //    the whole accept flow with our own token, so we never rely on Supabase
+  //    magic-links / OTP — those break inside in-app browsers (Gmail, etc.) and
+  //    get pre-consumed by email security scanners, which was causing the invite
+  //    link to spin forever and never show the password screen.
+  const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email: cleanEmail,
-    options: {
-      redirectTo: `${appUrl}/auth/confirm?next=/join`,
-      data: { full_name: name.trim() },
-    },
+    email_confirm: true,
+    user_metadata: { full_name: name.trim() },
   })
 
-  if (inviteErr || !linkData?.properties?.hashed_token) {
-    // 422 "already registered" → the email already has an account. Surface it
-    // clearly instead of a generic 500.
-    const already = /already|registered|exists/i.test(inviteErr?.message || '')
+  if (createErr || !created?.user) {
+    const already = /already|registered|exists/i.test(createErr?.message || '')
     return NextResponse.json(
-      { error: already ? 'This email already has an account. Delete it first to re-invite.' : (inviteErr?.message || 'Could not generate invite link') },
+      { error: already ? 'This email already has an account. Delete it first to re-invite.' : (createErr?.message || 'Could not create the account') },
       { status: already ? 409 : 500 },
     )
   }
 
-  const authUserId = linkData.user.id
+  const authUserId = created.user.id
+  const inviteToken = randomBytes(32).toString('hex')
+  const inviteExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // valid 1 day
 
-  // 2. Insert the mechanic linked to that auth user.
+  // 2. Insert the mechanic, firmly linked to the auth user and carrying the
+  //    invite token + expiry.
   const { data: mechanic, error: mechanicErr } = await admin
     .from('mechanics')
     .insert([{
@@ -94,6 +95,8 @@ export async function POST(req: NextRequest) {
       phone: phone?.trim() || null,
       status: 'pending',
       user_id: authUserId,
+      invite_token: inviteToken,
+      invite_expires_at: inviteExpiresAt,
     }])
     .select()
     .single()
@@ -107,10 +110,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // 3. Send the branded invite email. The link points to our token_hash confirm
-  //    route (verifyOtp, server-side cookies) rather than Supabase's /verify link,
-  //    which returns the session in a URL fragment a server route can't read.
-  const inviteUrl = `${appUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=invite&next=/join`
+  // 3. Send our branded invite email pointing at /join?token=... (a normal page,
+  //    no OTP). Valid for 1 day.
+  const inviteUrl = `${appUrl}/join?token=${inviteToken}`
 
   const sendErr = await sendInviteEmail(cleanEmail, name.trim(), inviteUrl)
   if (sendErr) {
@@ -135,7 +137,7 @@ async function sendInviteEmail(to: string, name: string, inviteUrl: string): Pro
       </div>
       <div style="border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
         <p style="color: #404040; font-size: 15px; margin: 0 0 16px;">Hi ${name},</p>
-        <p style="color: #737373; font-size: 14px; margin: 0 0 24px;">You've been invited to join Same Day Car Repair. Click the button below to set up your account and get started.</p>
+        <p style="color: #737373; font-size: 14px; margin: 0 0 24px;">You've been invited to join Same Day Car Repair. Click the button below to set your password and get started. This link is valid for 24 hours.</p>
         <a href="${inviteUrl}"
            style="display: inline-block; background: #171717; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;">
           Accept Invite →
