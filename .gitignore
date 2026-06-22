@@ -38,6 +38,9 @@ yarn-error.log*
 
 # scraper session/state (never commit — contains a logged-in Facebook session)
 /credentials
+/bot/auth_info
+/facebook-bot/storage-state.json
+/facebook-bot/seen-posts.json
 
 # typescript
 *.tsbuildinfo
