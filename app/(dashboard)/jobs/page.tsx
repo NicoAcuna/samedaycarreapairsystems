@@ -11,6 +11,7 @@ type Job = {
   scheduled_at: string | null
   odometer_km: number | null
   created_at: string
+  assigned_mechanic_id?: string | null
   checklist_data?: {
     serviceFee?: string
     inspectionFee?: string
@@ -19,7 +20,10 @@ type Job = {
   } | null
   clients?: { first_name: string; last_name: string } | null
   vehicles?: { make: string; model: string; year: string; plate: string } | null
+  mechanics?: { name: string } | null
 }
+
+type MechanicOption = { id: string; name: string }
 
 function parseMoney(v: string | number | null | undefined) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
@@ -108,23 +112,74 @@ export default function JobsPage() {
   const [metricFilter, setMetricFilter] = useState<MetricFilter>('all')
   const [showModal, setShowModal] = useState(false)
 
+  // Role-aware scoping: mechanics only see (and total) their own assigned jobs;
+  // admins see everything and can isolate one mechanic via the filter below.
+  const [isMechanic, setIsMechanic] = useState(false)
+  const [mechanicOptions, setMechanicOptions] = useState<MechanicOption[]>([])
+  const [mechanicFilter, setMechanicFilter] = useState<string>('all') // 'all' | 'unassigned' | mechanicId
+
   useEffect(() => {
     const supabase = createClient()
-    supabase
-      .from('jobs')
-      .select('*, checklist_data, clients(first_name, last_name), vehicles(make, model, year, plate)')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setLoading(false); return }
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role, active_company_id, company_id')
+        .eq('id', user.id)
+        .single()
+
+      const mechanic = userData?.role === 'mechanic'
+      setIsMechanic(mechanic)
+      const companyId = userData?.active_company_id || userData?.company_id
+
+      const baseSelect = '*, checklist_data, clients(first_name, last_name), vehicles(make, model, year, plate), mechanics(name)'
+
+      if (mechanic) {
+        // Find this user's mechanic row, then show only jobs assigned to them.
+        const { data: me } = await supabase
+          .from('mechanics')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('company_id', companyId)
+          .maybeSingle()
+
+        if (!me) { setJobs([]); setLoading(false); return }
+
+        const { data } = await supabase
+          .from('jobs')
+          .select(baseSelect)
+          .eq('assigned_mechanic_id', me.id)
+          .order('created_at', { ascending: false })
         setJobs((data as Job[]) || [])
         setLoading(false)
-      })
+        return
+      }
+
+      // Admin: load all jobs + the company's mechanics for the filter.
+      const [{ data }, { data: mechs }] = await Promise.all([
+        supabase.from('jobs').select(baseSelect).order('created_at', { ascending: false }),
+        supabase.from('mechanics').select('id, name').eq('company_id', companyId).order('name'),
+      ])
+      setJobs((data as Job[]) || [])
+      setMechanicOptions((mechs as MechanicOption[]) || [])
+      setLoading(false)
+    })
   }, [])
 
+  // Apply the admin's "filter by mechanic" before computing metrics, so the
+  // totals reflect exactly the selected mechanic's work.
+  const scopedJobs = jobs.filter(j =>
+    mechanicFilter === 'all' ? true :
+    mechanicFilter === 'unassigned' ? !j.assigned_mechanic_id :
+    j.assigned_mechanic_id === mechanicFilter
+  )
+
   // Metrics
-  const todayJobs      = jobs.filter(j => isToday(j.scheduled_at ?? j.created_at))
-  const weekJobs       = jobs.filter(j => isThisWeek(j.scheduled_at ?? j.created_at))
-  const inProgressJobs = jobs.filter(j => j.status === 'in_progress' || j.status === 'pending')
-  const overdueJobs    = jobs.filter(j => isOverdue(j))
+  const todayJobs      = scopedJobs.filter(j => isToday(j.scheduled_at ?? j.created_at))
+  const weekJobs       = scopedJobs.filter(j => isThisWeek(j.scheduled_at ?? j.created_at))
+  const inProgressJobs = scopedJobs.filter(j => j.status === 'in_progress' || j.status === 'pending')
+  const overdueJobs    = scopedJobs.filter(j => isOverdue(j))
   const metrics = [
     { key: 'today',       label: "Today",       value: loading ? '…' : fmt(todayJobs.reduce((s, j) => s + getJobValue(j), 0)),       sub: `${todayJobs.length} jobs today`,        dark: true,  red: false },
     { key: 'in_progress', label: 'In Progress', value: loading ? '…' : fmt(inProgressJobs.reduce((s, j) => s + getJobValue(j), 0)), sub: `${inProgressJobs.length} active`,       dark: false, red: false },
@@ -135,7 +190,7 @@ export default function JobsPage() {
   const today = new Date().toISOString().slice(0, 10)
   const isTodo = (j: Job) => j.status === 'pending' && !!j.scheduled_at && j.scheduled_at.slice(0, 10) > today
 
-  const filtered = jobs.filter(j => {
+  const filtered = scopedJobs.filter(j => {
     const matchType   = typeFilter === 'All' || j.type === typeFilter
     const matchStatus =
       statusFilter === 'All'         ? true :
@@ -200,6 +255,23 @@ export default function JobsPage() {
             ))}
           </div>
         </div>
+        {/* Mechanic — admin only, isolates one mechanic's jobs + totals */}
+        {!isMechanic && mechanicOptions.length > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-neutral-400 flex-shrink-0">Mechanic</span>
+            <select
+              value={mechanicFilter}
+              onChange={e => setMechanicFilter(e.target.value)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-neutral-200 text-neutral-700 bg-white focus:outline-none focus:border-neutral-400"
+            >
+              <option value="all">All mechanics</option>
+              <option value="unassigned">Unassigned</option>
+              {mechanicOptions.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {/* Type — pills */}
         <div className="flex items-center gap-3">
           <span className="text-xs text-neutral-400 flex-shrink-0">Type</span>
@@ -223,6 +295,7 @@ export default function JobsPage() {
             <tr className="bg-neutral-50 border-b border-neutral-200">
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Job</th>
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Client</th>
+              {!isMechanic && <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Mechanic</th>}
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Date</th>
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Type</th>
               <th className="text-left text-xs font-medium text-neutral-500 px-4 py-3">Status</th>
@@ -231,10 +304,10 @@ export default function JobsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
+              <tr><td colSpan={isMechanic ? 6 : 7} className="px-4 py-10 text-center text-sm text-neutral-400">Loading…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-400">
-                {typeFilter !== 'All' ? 'No jobs match this filter' : 'No jobs yet — create your first one'}
+              <tr><td colSpan={isMechanic ? 6 : 7} className="px-4 py-10 text-center text-sm text-neutral-400">
+                {typeFilter !== 'All' || mechanicFilter !== 'all' ? 'No jobs match this filter' : 'No jobs yet — create your first one'}
               </td></tr>
             ) : filtered.map((job) => {
               const t = TYPE_STYLES[job.type] || { bg: 'bg-neutral-100', text: 'text-neutral-600', label: job.type }
@@ -248,6 +321,11 @@ export default function JobsPage() {
                 <tr key={job.id} onClick={() => router.push(`/jobs/${job.id}`)} className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer last:border-b-0">
                   <td className="px-4 py-3"><div className="font-medium text-neutral-900">{t.label}</div><div className="text-xs text-neutral-400 mt-0.5">{vehicleLabel}</div></td>
                   <td className="px-4 py-3 text-neutral-600">{clientLabel}</td>
+                  {!isMechanic && (
+                    <td className="px-4 py-3 text-neutral-600">
+                      {job.mechanics?.name || <span className="text-neutral-300">Unassigned</span>}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-neutral-600">{dateLabel}</td>
                   <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full ${t.bg} ${t.text}`}>{t.label}</span></td>
                   <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 w-fit ${s.bg} ${s.text}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>{s.label}</span></td>
