@@ -12,6 +12,7 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
   const clientId = searchParams.get('client') || ''
   const vehicleId = searchParams.get('vehicle') || ''
   const subtype = searchParams.get('subtype') || ''
+  const assignedMechanicId = searchParams.get('assigned') || ''
   const scheduledDate = searchParams.get('date') || new Date().toISOString().slice(0, 10)
   // `fresh=1` is added by the new-job page when navigating here intentionally
   const isFresh = searchParams.get('fresh') === '1'
@@ -53,6 +54,7 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
           scheduled_at: scheduledDate,
           client_id: clientId || null,
           vehicle_id: vehicleId || null,
+          assigned_mechanic_id: assignedMechanicId || null,
           user_id: user.id,
           company_id: userData?.active_company_id || userData?.company_id,
           checklist_data: flowData,
@@ -66,7 +68,7 @@ function NewJobFlowPageInner({ params }: { params: Promise<{ type: string }> }) 
     } catch (e) {
       console.error('Auto-save failed:', e)
     }
-  }, [type, clientId, vehicleId])
+  }, [type, clientId, vehicleId, assignedMechanicId, scheduledDate])
 
   return (
     <JobFlow

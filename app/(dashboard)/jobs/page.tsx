@@ -180,11 +180,14 @@ export default function JobsPage() {
   const weekJobs       = scopedJobs.filter(j => isThisWeek(j.scheduled_at ?? j.created_at))
   const inProgressJobs = scopedJobs.filter(j => j.status === 'in_progress' || j.status === 'pending')
   const overdueJobs    = scopedJobs.filter(j => isOverdue(j))
+  // Mechanics don't see money — their metric value is the job count instead.
+  const metricValue = (rows: Job[]) =>
+    loading ? '…' : isMechanic ? String(rows.length) : fmt(rows.reduce((s, j) => s + getJobValue(j), 0))
   const metrics = [
-    { key: 'today',       label: "Today",       value: loading ? '…' : fmt(todayJobs.reduce((s, j) => s + getJobValue(j), 0)),       sub: `${todayJobs.length} jobs today`,        dark: true,  red: false },
-    { key: 'in_progress', label: 'In Progress', value: loading ? '…' : fmt(inProgressJobs.reduce((s, j) => s + getJobValue(j), 0)), sub: `${inProgressJobs.length} active`,       dark: false, red: false },
-    { key: 'all',         label: 'This Week',   value: loading ? '…' : fmt(weekJobs.reduce((s, j) => s + getJobValue(j), 0)),        sub: `${weekJobs.length} jobs this week`,     dark: false, red: false },
-    { key: 'overdue',     label: 'Overdue',     value: loading ? '…' : fmt(overdueJobs.reduce((s, j) => s + getJobValue(j), 0)),     sub: `${overdueJobs.length} overdue`,         dark: false, red: true  },
+    { key: 'today',       label: "Today",       value: metricValue(todayJobs),      sub: `${todayJobs.length} jobs today`,        dark: true,  red: false },
+    { key: 'in_progress', label: 'In Progress', value: metricValue(inProgressJobs), sub: `${inProgressJobs.length} active`,       dark: false, red: false },
+    { key: 'all',         label: 'This Week',   value: metricValue(weekJobs),       sub: `${weekJobs.length} jobs this week`,     dark: false, red: false },
+    { key: 'overdue',     label: 'Overdue',     value: metricValue(overdueJobs),    sub: `${overdueJobs.length} overdue`,         dark: false, red: true  },
   ]
 
   const today = new Date().toISOString().slice(0, 10)
