@@ -26,9 +26,12 @@ type Job = {
   } | null
   client_id?: string | null
   vehicle_id?: string | null
+  assigned_mechanic_id?: string | null
   clients?: { id: string; first_name: string; last_name: string; phone: string; email: string } | null
   vehicles?: { id: string; make: string; model: string; year: string; plate: string; odometer_km: number | null } | null
 }
+
+type MechanicOption = { id: string; name: string }
 
 const TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pre_purchase: { bg: 'bg-blue-50',   text: 'text-blue-700',   label: 'Pre-Purchase' },
@@ -91,6 +94,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [savingQuote, setSavingQuote] = useState(false)
   const [quoteCopied, setQuoteCopied] = useState(false)
 
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [mechanics, setMechanics] = useState<MechanicOption[]>([])
+  const [assignedId, setAssignedId] = useState<string | null>(null)
+  const [savingAssignment, setSavingAssignment] = useState(false)
+
   useEffect(() => {
     const supabase = createClient()
     supabase
@@ -102,10 +110,40 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         if (data) {
           setJob(data as unknown as Job)
           setStatus((data as Job).status)
+          setAssignedId((data as Job).assigned_mechanic_id ?? null)
         }
         setLoading(false)
       })
+
+    // Resolve role + the company's mechanics so admins can assign the job.
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role, active_company_id, company_id')
+        .eq('id', user.id)
+        .single()
+      setIsSuperAdmin(userData?.role !== 'mechanic')
+      const companyId = userData?.active_company_id || userData?.company_id
+      if (companyId) {
+        const { data: mechs } = await supabase
+          .from('mechanics')
+          .select('id, name')
+          .eq('company_id', companyId)
+          .order('name')
+        setMechanics((mechs as MechanicOption[]) || [])
+      }
+    })
   }, [id])
+
+  async function handleAssign(mechanicId: string | null) {
+    setSavingAssignment(true)
+    const supabase = createClient()
+    await supabase.from('jobs').update({ assigned_mechanic_id: mechanicId }).eq('id', id)
+    setAssignedId(mechanicId)
+    setJob(prev => prev ? { ...prev, assigned_mechanic_id: mechanicId } : prev)
+    setSavingAssignment(false)
+  }
 
   async function handleToggleStatus() {
     const newStatus = status === 'completed' ? 'pending' : 'completed'
@@ -251,6 +289,32 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Assigned mechanic */}
+      <div className="bg-white border border-neutral-200 rounded-xl p-5 mb-4">
+        <div className="text-xs text-neutral-400 mb-2">Assigned mechanic</div>
+        {isSuperAdmin ? (
+          <div className="flex items-center gap-2">
+            <select
+              value={assignedId ?? ''}
+              onChange={e => handleAssign(e.target.value || null)}
+              disabled={savingAssignment}
+              className="flex-1 text-sm border border-neutral-200 rounded-lg px-3 py-2.5 bg-neutral-50 focus:outline-none focus:border-neutral-400 disabled:opacity-50"
+            >
+              <option value="">Unassigned</option>
+              {mechanics.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+            {savingAssignment && <span className="text-xs text-neutral-400">Saving…</span>}
+          </div>
+        ) : (
+          <div className="text-sm font-medium text-neutral-900">
+            {mechanics.find(m => m.id === assignedId)?.name
+              ?? (assignedId ? 'Assigned' : 'Unassigned')}
+          </div>
+        )}
       </div>
 
       {/* Status banner */}

@@ -46,6 +46,74 @@ function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'
 }
 
+type JobRow = { status: string; type: string; checklist_data: Record<string, unknown> | null }
+
+function parseMoney(v: unknown) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  if (typeof v !== 'string') return 0
+  const n = Number(v.replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+function jobValue(job: JobRow) {
+  const d = job.checklist_data as {
+    serviceFee?: string; inspectionFee?: string; diagFee?: string; estimates?: { estCost?: string }[]
+  } | null
+  if (!d) return 0
+  if (job.type === 'repair')       return (d.estimates || []).reduce((s, e) => s + parseMoney(e.estCost), 0)
+  if (job.type === 'service')      return parseMoney(d.serviceFee)
+  if (job.type === 'pre_purchase') return parseMoney(d.inspectionFee)
+  if (job.type === 'diagnosis')    return parseMoney(d.diagFee)
+  return 0
+}
+
+function fmtMoney(n: number) {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(n)
+}
+
+function WorkSummary({ mechanicId }: { mechanicId: string }) {
+  const [stats, setStats] = useState<{ total: number; completed: number; revenue: number } | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('jobs')
+      .select('status, type, checklist_data')
+      .eq('assigned_mechanic_id', mechanicId)
+      .then(({ data }) => {
+        const jobs = (data as JobRow[]) || []
+        setStats({
+          total: jobs.length,
+          completed: jobs.filter(j => j.status === 'completed').length,
+          revenue: jobs.reduce((s, j) => s + jobValue(j), 0),
+        })
+      })
+  }, [mechanicId])
+
+  const cards = [
+    { label: 'Jobs assigned', value: stats ? String(stats.total) : '…' },
+    { label: 'Completed', value: stats ? String(stats.completed) : '…' },
+    { label: 'Revenue billed', value: stats ? fmtMoney(stats.revenue) : '…' },
+  ]
+
+  return (
+    <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden mb-5">
+      <div className="px-5 py-4 border-b border-neutral-100">
+        <div className="font-semibold text-neutral-900 text-sm">Work summary</div>
+        <div className="text-xs text-neutral-400 mt-0.5">Jobs assigned to this mechanic and what they billed</div>
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-neutral-100">
+        {cards.map(c => (
+          <div key={c.label} className="p-4">
+            <div className="text-xs text-neutral-400 mb-0.5">{c.label}</div>
+            <div className="text-lg font-semibold text-neutral-900">{c.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function EditModal({ mechanic, onClose, onSaved }: { mechanic: Mechanic; onClose: () => void; onSaved: (m: Mechanic) => void }) {
   const [form, setForm] = useState({ name: mechanic.name, phone: mechanic.phone || '' })
   const [saving, setSaving] = useState(false)
@@ -370,7 +438,8 @@ export default function MechanicDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      {/* Access & Permissions — only visible to super admins */}
+      {/* Work summary + Access — only visible to super admins */}
+      {isSuperAdmin && <WorkSummary mechanicId={mechanic.id} />}
       {isSuperAdmin && (
         <AccessSection
           mechanic={mechanic}
