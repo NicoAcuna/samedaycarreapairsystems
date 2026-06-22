@@ -14,6 +14,7 @@ type Job = {
   scheduled_at: string | null
   odometer_km: number | null
   created_at: string
+  completed_at?: string | null
   quote_token?: string | null
   quote_data?: QuoteData | null
   checklist_data?: {
@@ -146,11 +147,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   }
 
   async function handleToggleStatus() {
-    const newStatus = status === 'completed' ? 'pending' : 'completed'
+    const completing = status !== 'completed'
+    const newStatus = completing ? 'completed' : 'pending'
+    const completedAt = completing ? new Date().toISOString() : null
     setTogglingStatus(true)
     const supabase = createClient()
-    await supabase.from('jobs').update({ status: newStatus }).eq('id', id)
+    await supabase.from('jobs').update({ status: newStatus, completed_at: completedAt }).eq('id', id)
     setStatus(newStatus)
+    setJob(prev => prev ? { ...prev, status: newStatus, completed_at: completedAt } : prev)
     setTogglingStatus(false)
     setShowStatusConfirm(false)
   }
@@ -224,6 +228,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   const isCompleted = status === 'completed'
 
+  // Mechanics can reopen their own completed jobs only within this window; after
+  // that, only an admin can reopen. Admins can always reopen.
+  const REOPEN_WINDOW_HOURS = 24
+  const withinReopenWindow = job.completed_at
+    ? (Date.now() - new Date(job.completed_at).getTime()) < REOPEN_WINDOW_HOURS * 60 * 60 * 1000
+    : true
+  const canReopen = isSuperAdmin || withinReopenWindow
+
   return (
     <div className="p-4 md:p-6 max-w-3xl">
       <button onClick={() => router.back()} className="text-sm text-neutral-500 hover:text-neutral-700 mb-6 flex items-center gap-1">
@@ -280,7 +292,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           {[
             { label: 'Plate',    value: plate },
             { label: 'Date',     value: dateLabel },
-            { label: 'Amount',   value: amountLabel },
+            // Mechanics don't see money figures.
+            ...(isSuperAdmin ? [{ label: 'Amount', value: amountLabel }] : []),
             { label: 'Odometer', value: odometerLabel },
           ].map((row) => (
             <div key={row.label}>
@@ -341,7 +354,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div className="text-sm text-green-700 font-medium">Job completed</div>
             <div className="text-xs text-green-600 mt-0.5">Report generated and sent to client.</div>
           </div>
-          <button onClick={() => setShowStatusConfirm(true)} className="text-sm px-4 py-2 border border-neutral-200 bg-white rounded-lg hover:bg-neutral-50 text-neutral-600 flex-shrink-0">Mark as pending</button>
+          {canReopen ? (
+            <button onClick={() => setShowStatusConfirm(true)} className="text-sm px-4 py-2 border border-neutral-200 bg-white rounded-lg hover:bg-neutral-50 text-neutral-600 flex-shrink-0">Mark as pending</button>
+          ) : (
+            <span className="text-xs text-neutral-400 flex-shrink-0 text-right max-w-[8rem]">Reopen window passed — ask an admin</span>
+          )}
         </div>
       )}
 

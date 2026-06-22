@@ -12,6 +12,8 @@ const AU_STATES = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'ACT', 'NT']
 
 type Vehicle = { id: string; make: string; model: string; year: string | number | null; plate: string; rego_state: string | null; odometer_km: number | null; client_id: string | null; clients?: { first_name: string; last_name: string } | null }
 
+type MechanicOption = { id: string; name: string }
+
 const JOB_TYPES = [
   { key: 'pre_purchase', label: 'Pre-Purchase', desc: 'Full vehicle inspection' },
   { key: 'service',      label: 'Service',      desc: 'Oil change & maintenance' },
@@ -61,6 +63,10 @@ function NewJobPageInner() {
   const todayStr = new Date().toISOString().slice(0, 10)
   const [scheduledDate, setScheduledDate] = useState(todayStr)
 
+  // Assigned mechanic (admin assigns; defaults to the creator if they are one)
+  const [mechanics, setMechanics] = useState<MechanicOption[]>([])
+  const [assignedMechanicId, setAssignedMechanicId] = useState('')
+
   // Modals
   const [showNewClient, setShowNewClient] = useState(false)
   const [showNewVehicle, setShowNewVehicle] = useState(false)
@@ -89,6 +95,25 @@ function NewJobPageInner() {
         }
       })
   }, [preselectedClientId])
+
+  // Load the company's mechanics for the assignment selector, and pre-select the
+  // current user if they themselves are a mechanic in this company.
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: userData } = await supabase
+        .from('users').select('active_company_id, company_id').eq('id', user.id).single()
+      const companyId = userData?.active_company_id || userData?.company_id
+      if (!companyId) return
+      const { data } = await supabase
+        .from('mechanics').select('id, name, user_id').eq('company_id', companyId).order('name')
+      const list = (data as (MechanicOption & { user_id: string | null })[]) || []
+      setMechanics(list.map(m => ({ id: m.id, name: m.name })))
+      const own = list.find(m => m.user_id === user.id)
+      if (own) setAssignedMechanicId(own.id)
+    })
+  }, [])
 
   // Load ALL vehicles when client is selected (not just their own)
   useEffect(() => {
@@ -228,7 +253,8 @@ function NewJobPageInner() {
     const subtype = selectedType === 'service' && selectedServiceSubtype
       ? `&subtype=${encodeURIComponent(selectedServiceSubtype)}`
       : ''
-    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}${subtype}&date=${scheduledDate}&fresh=1`)
+    const assigned = assignedMechanicId ? `&assigned=${assignedMechanicId}` : ''
+    router.push(`/jobs/new/${selectedType}?client=${selectedClient.id}&vehicle=${selectedVehicle.id}${subtype}&date=${scheduledDate}${assigned}&fresh=1`)
   }
 
   function setNcf(field: string, val: string) { setNewClientForm(prev => ({ ...prev, [field]: val })) }
@@ -449,6 +475,22 @@ function NewJobPageInner() {
               <p className="text-xs text-blue-600 mt-1.5">Job will be created as <strong>To do</strong> until that date</p>
             )}
           </div>
+
+          {mechanics.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Assigned mechanic</div>
+              <select
+                value={assignedMechanicId}
+                onChange={e => setAssignedMechanicId(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-400 bg-neutral-50"
+              >
+                <option value="">Unassigned</option>
+                {mechanics.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {selectedType === 'service' && (
             <div className="mt-4">
