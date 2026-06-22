@@ -123,9 +123,23 @@ async function runOnce(context) {
   }
 }
 
+// One-time bootstrap for hosts with no easy way to upload a file (e.g. Railway):
+// paste the base64 of storage-state.json into FB_STORAGE_STATE_B64 and the bot
+// writes it to disk itself on first boot. Once the volume has the file, the
+// env var is no longer read.
+function bootstrapStorageState() {
+  if (fs.existsSync(STORAGE_STATE_PATH)) return
+  const b64 = process.env.FB_STORAGE_STATE_B64
+  if (!b64) return
+  fs.writeFileSync(STORAGE_STATE_PATH, Buffer.from(b64, 'base64'))
+  console.log(`📥 Wrote ${STORAGE_STATE_PATH} from FB_STORAGE_STATE_B64`)
+}
+
 async function main() {
+  bootstrapStorageState()
+
   if (!fs.existsSync(STORAGE_STATE_PATH)) {
-    console.error(`❌ ${STORAGE_STATE_PATH} not found — run "npm run login" locally first and copy the file here.`)
+    console.error(`❌ ${STORAGE_STATE_PATH} not found — run "npm run login" locally first, base64 it, and set FB_STORAGE_STATE_B64.`)
     process.exit(1)
   }
 
