@@ -111,10 +111,14 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    const { data: userData } = await supabase
+      .from('users').select('active_company_id, company_id').eq('id', user?.id).single()
+    const companyId = userData?.active_company_id || userData?.company_id
     const { data, error: err } = await supabase
       .from('clients')
       .insert([{
         user_id: user?.id,
+        company_id: companyId,
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         phone: form.phone.trim(),
