@@ -333,6 +333,10 @@ async function handleRequestQuote(conv, data, contactName) {
 
 // ── QUOTE APPROVAL (realtime) ─────────────────────────────────────────────────
 function subscribeToQuoteApprovals(sock) {
+  // Each reconnect calls startBot() again, which re-subscribes. Without removing
+  // the previous channel, approvals would fire N times after N reconnects and
+  // the customer would receive duplicate quotes.
+  supabase.removeAllChannels()
   supabase
     .channel('bot_quote_approvals')
     .on(
@@ -441,7 +445,7 @@ async function startBot() {
       const code = lastDisconnect?.error?.output?.statusCode
       const shouldReconnect = code !== DisconnectReason.loggedOut
       console.log(`⚠️  Connection closed (code ${code}). Reconnecting: ${shouldReconnect}`)
-      if (shouldReconnect) startBot()
+      if (shouldReconnect) startBot().catch(e => console.error('❌ reconnect failed:', e?.message || e))
     }
   })
 
@@ -449,6 +453,7 @@ async function startBot() {
     if (type !== 'notify') return
 
     for (const msg of messages) {
+     try {
       if (msg.key.fromMe) continue
 
       const remoteJid = msg.key.remoteJid || ''
@@ -524,9 +529,22 @@ async function startBot() {
       if (convEnabled && contactJid) {
         await startConversation(sock, { lead, contactJid, senderName, senderPhone, originalMessage: text })
       }
+     } catch (e) {
+       // Never let one bad message take down the whole handler / process.
+       console.error('❌ message handler error:', e?.message || e)
+     }
     }
   })
 }
+
+// Last-resort guards so a stray rejection/exception doesn't silently kill the
+// bot process (which would stop lead capture with no alert).
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  Unhandled rejection:', reason?.message || reason)
+})
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  Uncaught exception:', err?.message || err)
+})
 
 startBot().catch(err => {
   console.error('Fatal error:', err)

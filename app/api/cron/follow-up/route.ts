@@ -18,9 +18,10 @@ const FOLLOW_UP_EN = 'Hey! Nico the mechanic here ðŸ”§ I reached out yesterday â
 const FOLLOW_UP_ENABLED = false
 
 export async function GET(req: NextRequest) {
-  // Protect cron endpoint
+  // Protect cron endpoint. Fail closed: if CRON_SECRET is unset, reject rather
+  // than accepting "Bearer undefined" from any caller.
   const auth = req.headers.get('authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
