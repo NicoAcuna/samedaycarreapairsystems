@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
+import { jobValue, formatAUD } from '../../../lib/money'
 
 type Job = {
   id: string
@@ -24,27 +25,6 @@ type Job = {
 }
 
 type MechanicOption = { id: string; name: string }
-
-function parseMoney(v: string | number | null | undefined) {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
-  if (typeof v !== 'string') return 0
-  const n = Number(v.replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(n) ? n : 0
-}
-
-function getJobValue(job: Job) {
-  const d = job.checklist_data
-  if (!d) return 0
-  if (job.type === 'repair')       return (d.estimates || []).reduce((s, e) => s + parseMoney(e.estCost), 0)
-  if (job.type === 'service')      return parseMoney(d.serviceFee)
-  if (job.type === 'pre_purchase') return parseMoney(d.inspectionFee)
-  if (job.type === 'diagnosis')    return parseMoney(d.diagFee)
-  return 0
-}
-
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(n)
-}
 
 function isToday(d: string | null) {
   if (!d) return false
@@ -190,7 +170,7 @@ export default function JobsPage() {
   const overdueJobs    = scopedJobs.filter(j => isOverdue(j))
   // Mechanics don't see money — their metric value is the job count instead.
   const metricValue = (rows: Job[]) =>
-    loading ? '…' : isMechanic ? String(rows.length) : fmt(rows.reduce((s, j) => s + getJobValue(j), 0))
+    loading ? '…' : isMechanic ? String(rows.length) : formatAUD(rows.reduce((s, j) => s + jobValue(j), 0))
   const metrics = [
     { key: 'today',       label: "Today",       value: metricValue(todayJobs),      sub: `${todayJobs.length} jobs today`,        dark: true,  red: false },
     { key: 'in_progress', label: 'In Progress', value: metricValue(inProgressJobs), sub: `${inProgressJobs.length} active`,       dark: false, red: false },
