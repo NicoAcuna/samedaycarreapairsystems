@@ -339,7 +339,9 @@ export default function MechanicDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('mechanics').select('*').eq('id', id).single(),
+      supabase.from('mechanics')
+        .select('id, name, email, phone, status, user_id, created_at, role_id, permissions')
+        .eq('id', id).single(),
       supabase.auth.getUser(),
     ]).then(async ([{ data: m }, { data: { user } }]) => {
       setMechanic(m as Mechanic)

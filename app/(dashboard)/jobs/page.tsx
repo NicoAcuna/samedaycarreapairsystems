@@ -133,7 +133,10 @@ export default function JobsPage() {
       setIsMechanic(mechanic)
       const companyId = userData?.active_company_id || userData?.company_id
 
-      const baseSelect = '*, checklist_data, clients(first_name, last_name), vehicles(make, model, year, plate), mechanics(name)'
+      // `*` already includes checklist_data — no need to list it twice.
+      const baseSelect = '*, clients(first_name, last_name), vehicles(make, model, year, plate), mechanics(name)'
+      // Bound the payload so it can't grow without limit; newest first.
+      const PAGE = 500
 
       if (mechanic) {
         // Find this user's mechanic row, then show only jobs assigned to them.
@@ -151,14 +154,19 @@ export default function JobsPage() {
           .select(baseSelect)
           .eq('assigned_mechanic_id', me.id)
           .order('created_at', { ascending: false })
+          .limit(PAGE)
         setJobs((data as Job[]) || [])
         setLoading(false)
         return
       }
 
       // Admin: load all jobs + the company's mechanics for the filter.
+      // Explicit company filter for parity/defense-in-depth (not just RLS).
       const [{ data }, { data: mechs }] = await Promise.all([
-        supabase.from('jobs').select(baseSelect).order('created_at', { ascending: false }),
+        supabase.from('jobs').select(baseSelect)
+          .eq('company_id', companyId)
+          .order('created_at', { ascending: false })
+          .limit(PAGE),
         supabase.from('mechanics').select('id, name').eq('company_id', companyId).order('name'),
       ])
       setJobs((data as Job[]) || [])

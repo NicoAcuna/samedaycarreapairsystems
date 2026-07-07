@@ -248,12 +248,15 @@ export default function ClientsPage() {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('clients').select('*').order('created_at', { ascending: false }),
+      supabase.from('clients').select('*').order('created_at', { ascending: false }).limit(1000),
+      // Newest NPS first + bounded — buildLatestNpsMap only keeps the latest per
+      // client, so an unbounded pull was fetching rows it immediately discards.
       supabase
         .from('client_interactions')
         .select('client_id, nps_score, created_at')
         .eq('interaction_type', 'nps')
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(2000),
     ]).then(([{ data: clientData }, { data: interactionData }]) => {
       setClients((clientData as Client[]) || [])
       setNpsByClient(buildLatestNpsMap((interactionData as ClientInteraction[]) || []))
