@@ -34,7 +34,7 @@ export const VEHICLE_CATALOG: VehicleCatalogOption[] = [
   { make: 'MG', models: ['3', 'HS', 'MG4', 'ZS', 'ZST'] },
   { make: 'Mini', models: ['Clubman', 'Convertible', 'Cooper', 'Countryman', 'Paceman'] },
   { make: 'Mitsubishi', models: ['ASX', 'Eclipse Cross', 'Express', 'Lancer', 'Outlander', 'Pajero', 'Pajero Sport', 'Triton'] },
-  { make: 'Nissan', models: ['370Z', 'Juke', 'Leaf', 'Navara', 'Pathfinder', 'Patrol', 'Pulsar', 'Qashqai', 'X-TRAIL'] },
+  { make: 'Nissan', models: ['370Z', 'Juke', 'Leaf', 'Maxima', 'Navara', 'Pathfinder', 'Patrol', 'Pulsar', 'Qashqai', 'X-TRAIL'] },
   { make: 'Peugeot', models: ['107', '206', '207', '208', '2008', '301', '306', '307', '308', '3008', '406', '407', '4008', '5008', '508'] },
   { make: 'Porsche', models: ['718', '911', 'Cayenne', 'Macan', 'Panamera', 'Taycan'] },
   { make: 'RAM', models: ['1500', '2500', '3500'] },
