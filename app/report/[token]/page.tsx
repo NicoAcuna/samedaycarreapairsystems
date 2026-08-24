@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
+import { BUSINESS_NAME, BUSINESS_PHONE } from '@/lib/business'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Photo = { url: string; name: string }
@@ -43,6 +44,48 @@ const REC_STYLES: Record<string, string> = {
   IMMEDIATE: 'bg-red-50 text-red-700 border border-red-200',
   MONITOR:   'bg-amber-50 text-amber-700 border border-amber-200',
   ADVISORY:  'bg-blue-50 text-blue-700 border border-blue-200',
+}
+
+// ── Review + referral CTA ─────────────────────────────────────────────────────
+// This is the one moment the customer is looking at proof of a job well done, so
+// it is the only moment worth asking. Screen-only (`no-print`) — it has no place
+// in the PDF the customer keeps.
+const GOOGLE_REVIEW_URL = process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL || ''
+
+function ReviewCTA({ businessPhone }: { businessPhone: string | null }) {
+  const phone = businessPhone || BUSINESS_PHONE
+  const shareText =
+    `Just had my car sorted by ${BUSINESS_NAME} — mobile mechanic, came to me and fixed it same day. ` +
+    `Nico: ${phone}`
+
+  return (
+    <div className="no-print mt-4 bg-white border border-neutral-200 rounded-xl px-5 py-5">
+      <div className="font-semibold text-neutral-900">Happy with the job?</div>
+      <p className="text-sm text-neutral-500 mt-1">
+        Reviews and word of mouth are how most people find us. It takes about a minute.
+      </p>
+      <div className="flex flex-wrap gap-2 mt-4">
+        {GOOGLE_REVIEW_URL && (
+          <a
+            href={GOOGLE_REVIEW_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium px-4 py-2.5 rounded-lg bg-neutral-900 text-white hover:bg-neutral-700"
+          >
+            Leave a Google review
+          </a>
+        )}
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium px-4 py-2.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+        >
+          Share with a friend
+        </a>
+      </div>
+    </div>
+  )
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -379,7 +422,7 @@ function InlineVideos({ videos }: { videos: Video[] }) {
   )
 }
 
-function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: FlowData; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]> }) {
+function DiagnosisBody({ flowData, photoMap, videoMap, jobType }: { flowData: FlowData; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]>; jobType: string }) {
   const urgencyStyles: Record<string, string> = {
     immediate:  'bg-red-50 text-red-700 border border-red-200',
     next_month: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -434,7 +477,7 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: FlowData; p
       )}
       {recommendation && (
         <div className="border-t border-neutral-100">
-          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Done</span></div>
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">{jobType === 'repair' ? 'Repair Done' : 'Repair Recommendation'}</span></div>
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed">{recommendation}</p></div>
         </div>
       )}
@@ -541,7 +584,7 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
               {jobType === 'service' ? 'SERVICE REPORT' : jobType === 'diagnosis' ? 'DIAGNOSIS REPORT' : jobType === 'repair' ? 'REPAIR REPORT' : 'INSPECTION REPORT'}
             </div>
             <div className="text-xl font-bold text-white">{titleLabel}</div>
-            <div className="text-xs text-neutral-400 mt-1">Same Day Car Repair · Mobile Mechanic · 0439 269 598</div>
+            <div className="text-xs text-neutral-400 mt-1">{job.company?.name || BUSINESS_NAME} · Mobile Mechanic · {job.company?.phone || BUSINESS_PHONE}</div>
           </div>
 
           {/* Meta bar */}
@@ -597,20 +640,19 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
               videoMap={videoMap}
             />
           )}
-          {jobType === 'diagnosis' && (
-            <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
-          )}
-          {jobType === 'repair' && (
-            <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
+          {(jobType === 'diagnosis' || jobType === 'repair') && (
+            <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} jobType={jobType} />
           )}
 
           {/* Disclaimer */}
           <div className="border-t border-neutral-100 px-5 py-4">
             <p className="text-xs text-neutral-400 leading-relaxed">
-              DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle&apos;s condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection.
+              DISCLAIMER: This report is based on a visual and functional inspection performed at that time. It is provided for informational purposes only and does not constitute a guarantee of history or future performance. Same Day Car Repair accepts no liability for any issues that may arise afterward.
             </p>
           </div>
         </div>
+
+        <ReviewCTA businessPhone={job.company?.phone || null} />
       </div>
     </div>
   )
