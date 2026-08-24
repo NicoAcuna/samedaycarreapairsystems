@@ -639,7 +639,7 @@ function ReportShell({ id, title, subtitle, data, snapshot, company, children }:
         {children}
         <div className="border-t border-neutral-100 px-5 py-4">
           <p className="text-xs text-neutral-400 leading-relaxed">
-            DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle&apos;s condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection.
+            DISCLAIMER: This report is based on a visual and functional inspection performed at that time. It is provided for informational purposes only and does not constitute a guarantee of history or future performance. Same Day Car Repair accepts no liability for any issues that may arise afterward.
           </p>
         </div>
       </div>
@@ -943,7 +943,7 @@ function InlineVideos({ videos }: { videos: Video[] }) {
   )
 }
 
-function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: Record<string, unknown>; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]> }) {
+function DiagnosisBody({ flowData, photoMap, videoMap, jobType }: { flowData: Record<string, unknown>; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]>; jobType: string }) {
   const urgencyStyles: Record<string, string> = {
     immediate:  'bg-red-50 text-red-700 border border-red-200',
     next_month: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -991,10 +991,10 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: Record<stri
         </div>
       )}
 
-      {/* Repair Recommendation */}
+      {/* Repair Done / Repair Recommendation */}
       {recommendation && (
         <div className="border-t border-neutral-100">
-          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Recommendation</span></div>
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">{jobType === 'repair' ? 'Repair Done' : 'Repair Recommendation'}</span></div>
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{recommendation}</p></div>
         </div>
       )}
@@ -1124,7 +1124,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   if (jobType === 'diagnosis') {
     return (
       <ReportShell id={id} title="Diagnosis" subtitle="Diagnosis Report" data={reportData} snapshot={flowData} company={company}>
-        <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
+        <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} jobType={jobType} />
       </ReportShell>
     )
   }
@@ -1132,7 +1132,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   if (jobType === 'repair') {
     return (
       <ReportShell id={id} title="Repair" subtitle="Repair Report" data={reportData} snapshot={flowData} company={company}>
-        <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} />
+        <DiagnosisBody flowData={flowData} photoMap={photoMap} videoMap={videoMap} jobType={jobType} />
       </ReportShell>
     )
   }
