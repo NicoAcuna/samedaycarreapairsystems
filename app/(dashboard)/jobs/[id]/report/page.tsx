@@ -639,7 +639,7 @@ function ReportShell({ id, title, subtitle, data, snapshot, company, children }:
         {children}
         <div className="border-t border-neutral-100 px-5 py-4">
           <p className="text-xs text-neutral-400 leading-relaxed">
-            DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle&apos;s condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection.
+            DISCLAIMER: This report is based on a visual and functional inspection performed at that time. It is provided for informational purposes only and does not constitute a guarantee of history or future performance. Same Day Car Repair accepts no liability for any issues that may arise afterward.
           </p>
         </div>
       </div>
@@ -991,10 +991,10 @@ function DiagnosisBody({ flowData, photoMap, videoMap }: { flowData: Record<stri
         </div>
       )}
 
-      {/* Repair Recommendation */}
+      {/* Repair Done */}
       {recommendation && (
         <div className="border-t border-neutral-100">
-          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Recommendation</span></div>
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Repair Done</span></div>
           <div className="px-5 py-4"><p className="text-sm text-neutral-700 leading-relaxed whitespace-pre-wrap">{recommendation}</p></div>
         </div>
       )}

@@ -607,7 +607,7 @@ export default function PublicReportPage({ params }: { params: Promise<{ token: 
           {/* Disclaimer */}
           <div className="border-t border-neutral-100 px-5 py-4">
             <p className="text-xs text-neutral-400 leading-relaxed">
-              DISCLAIMER: This report is based on a visual and functional inspection performed at the time of service. It is provided for informational purposes only and does not constitute a guarantee of the vehicle&apos;s condition, past history, or future performance. Same Day Car Repair accepts no liability for any issues that may arise after the inspection.
+              DISCLAIMER: This report is based on a visual and functional inspection performed at that time. It is provided for informational purposes only and does not constitute a guarantee of history or future performance. Same Day Car Repair accepts no liability for any issues that may arise afterward.
             </p>
           </div>
         </div>
