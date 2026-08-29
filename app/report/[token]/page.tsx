@@ -113,20 +113,52 @@ function getVideosForItem(videoMap: Record<string, Video[]>, itemName: string) {
   return matched?.[1] || []
 }
 
+const PRE_PURCHASE_DEFS = [
+  { key: 'body',         label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
+  { key: 'engine',       label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
+  { key: 'transmission', label: 'Transmission / Drivetrain', items: ['Gear shifting','Transmission fluid','Transmission leaks','Clutch operation','Drive shaft / uni joints','CV boots / axle shafts','Transfer case & diffs'] },
+  { key: 'brakes',       label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
+  { key: 'suspension',   label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
+  { key: 'tyres',        label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
+  { key: 'obd',          label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
+  { key: 'test_drive',   label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
+  { key: 'services',     label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
+]
+
+// Report recommendations are captured per checklist item in the flow.
+const REC_URGENCY_ORDER = ['IMMEDIATE', 'MONITOR', 'ADVISORY']
+
+function urgencyRank(type: string) {
+  const i = REC_URGENCY_ORDER.indexOf(type)
+  return i === -1 ? REC_URGENCY_ORDER.length : i
+}
+
+function collectRecommendations(flowData: FlowData, groups: { key: string; items: string[] }[]) {
+  const recs = (flowData.itemRecommendations as Record<string, Record<string, { urgency?: string; text?: string }>>) || {}
+  return groups
+    .flatMap(g => {
+      // Names the section no longer lists (custom tasks, renamed items) still carry their recommendation.
+      const extra = Object.keys(recs[g.key] || {}).filter(n => !g.items.includes(n))
+      return [...g.items, ...extra].flatMap(name => {
+        const text = recs[g.key]?.[name]?.text?.trim()
+        return text ? [{ type: recs[g.key]?.[name]?.urgency || 'ADVISORY', text: `${name} — ${text}` }] : []
+      })
+    })
+    .sort((a, b) => urgencyRank(a.type) - urgencyRank(b.type))
+}
+
+function buildPrePurchaseRecommendations(flowData: FlowData) {
+  return collectRecommendations(flowData, PRE_PURCHASE_DEFS)
+}
+
+function buildServiceRecommendations(flowData: FlowData) {
+  return collectRecommendations(flowData, serviceItemGroups(flowData))
+}
+
 function buildPrePurchaseSections(flowData: FlowData): Section[] {
-  const DEFS = [
-    { key: 'body',       label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
-    { key: 'engine',     label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
-    { key: 'brakes',     label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
-    { key: 'suspension', label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
-    { key: 'tyres',      label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
-    { key: 'obd',        label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
-    { key: 'test_drive', label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
-    { key: 'services',   label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
-  ]
   const sel = (flowData.selections as Record<string, Record<string, string>>) || {}
   const com = (flowData.comments  as Record<string, Record<string, string>>) || {}
-  return DEFS.map(d => ({
+  return PRE_PURCHASE_DEFS.map(d => ({
     label: d.label,
     items: d.items
       .map(name => ({ name, result: sel[d.key]?.[name] || '', comment: com[d.key]?.[name] || '' }))
@@ -134,10 +166,9 @@ function buildPrePurchaseSections(flowData: FlowData): Section[] {
   })).filter(s => s.items.length > 0)
 }
 
-function buildServiceSections(flowData: FlowData): Section[] {
+function serviceItemGroups(flowData: FlowData) {
   const stype = (flowData.serviceType as string) || ''
   const sel = (flowData.selections as Record<string, Record<string, string>>) || {}
-  const com = (flowData.comments  as Record<string, Record<string, string>>) || {}
   const taskItems: string[] =
     stype === 'Minor Service'     ? ['Oil change','Oil filter','Oil plug washer'] :
     stype === 'Major Service'     ? ['Oil change','Oil filter','Oil plug washer','Cabin filter','Air filter','Spark plugs'] :
@@ -148,8 +179,19 @@ function buildServiceSections(flowData: FlowData): Section[] {
     Object.keys(sel['tasks'] || {})
 
   return [
-    { label: 'Tasks Done',       items: taskItems.map(n => ({ name: n, result: sel['tasks']?.[n] || '', comment: com['tasks']?.[n] || '' })).filter(i => i.result !== '') },
-    { label: 'General Checking', items: ['Tyre condition','Brake pads','Coolant level','Oil level','Other'].map(n => ({ name: n, result: sel['checking']?.[n] || '', comment: com['checking']?.[n] || '' })).filter(i => i.result !== '') },
+    { key: 'tasks',    items: taskItems },
+    { key: 'checking', items: ['Tyre condition','Brake pads','Coolant level','Oil level','Other'] },
+  ]
+}
+
+function buildServiceSections(flowData: FlowData): Section[] {
+  const sel = (flowData.selections as Record<string, Record<string, string>>) || {}
+  const com = (flowData.comments  as Record<string, Record<string, string>>) || {}
+  const [taskGroup, checkGroup] = serviceItemGroups(flowData)
+
+  return [
+    { label: 'Tasks Done',       items: taskGroup.items.map(n => ({ name: n, result: sel['tasks']?.[n] || '', comment: com['tasks']?.[n] || '' })).filter(i => i.result !== '') },
+    { label: 'General Checking', items: checkGroup.items.map(n => ({ name: n, result: sel['checking']?.[n] || '', comment: com['checking']?.[n] || '' })).filter(i => i.result !== '') },
   ]
 }
 
@@ -217,7 +259,7 @@ function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
     problem: 'Problem Description', diag_notes: "Mechanic's Diagnosis", result: 'Final Notes',
   }
   const SEC_LABELS: Record<string, string> = {
-    body: 'Body / Exterior', engine: 'Engine / Under Hood', brakes: 'Brakes',
+    body: 'Body / Exterior', engine: 'Engine / Under Hood', transmission: 'Transmission / Drivetrain', brakes: 'Brakes',
     suspension: 'Suspension / Steering', tyres: 'Tyres', obd: 'OBD Diagnostic', test_drive: 'Test Drive',
     tasks: 'Tasks Done', checking: 'General Checking',
   }
@@ -270,7 +312,7 @@ function PrePurchaseBody({ sections, flowData, photoMap, videoMap }: { sections:
   const verdict = getVerdict(sections)
   const counts  = countResults(sections)
   const additionalNotes = (flowData.finalNotes as string) || ''
-  const recs = [] as { type: string; text: string }[]
+  const recs = buildPrePurchaseRecommendations(flowData)
 
   return (
     <>
@@ -340,6 +382,7 @@ function ServiceBody({ sections, nextService, flowData, photoMap, videoMap }: { 
   const done = allItems.filter(i => i.result === 'Done').length
   const attention = allItems.filter(i => ['Poor','Fair','Failed','Codes found'].includes(i.result)).length
   const additionalNotes = (flowData.observations as string) || ''
+  const serviceRecs = buildServiceRecommendations(flowData)
 
   return (
     <>
@@ -372,6 +415,19 @@ function ServiceBody({ sections, nextService, flowData, photoMap, videoMap }: { 
 	          </div>
         </div>
       ))}
+      {serviceRecs.length > 0 && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Recommendations</span></div>
+          <div className="divide-y divide-neutral-100">
+            {serviceRecs.map((rec, i) => (
+              <div key={i} className="flex items-start gap-4 px-5 py-3">
+                <span className={`text-xs font-bold px-2 py-1 rounded flex-shrink-0 ${REC_STYLES[rec.type] || 'bg-neutral-100 text-neutral-600'}`}>{rec.type}</span>
+                <span className="text-sm text-neutral-700">{rec.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {nextService.length > 0 && (
         <div className="border-t border-neutral-100">
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Next Service Recommendations</span></div>

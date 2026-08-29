@@ -316,14 +316,15 @@ export const FLOW_CONFIG = {
   pre_purchase: {
     title: 'Pre-Purchase Inspection',
     sections: [
-      { key: 'body',       label: 'Body / Exterior',       items: [{ name: 'Paint condition', options: ['Good','Fair','Poor'] }, { name: 'Body panels / dents', options: ['Good','Fair','Poor'] }, { name: 'Windscreen / glass', options: ['Good','Fair','Poor'] }] },
-      { key: 'engine',     label: 'Engine / Under Hood',   items: [{ name: 'Oil leaks', options: ['Good','Fair','Poor'] }, { name: 'Fluids (coolant, oil, brakes)', options: ['Good','Fair','Poor'] }, { name: 'Auxiliary / serpentine belt', options: ['Good','Fair','Poor'] }, { name: 'Engine & transmission noises', options: ['Good','Fair','Poor'] }, { name: 'Coolant hoses', options: ['Good','Fair','Poor'] }] },
-      { key: 'brakes',     label: 'Brakes',                items: [{ name: 'Front brake pads / rotors', options: ['Good','Fair','Poor'] }, { name: 'Rear brake pads / rotors', options: ['Good','Fair','Poor'] }] },
-      { key: 'suspension', label: 'Suspension / Steering', items: [{ name: 'Front suspension', options: ['Good','Fair','Poor'] }, { name: 'Rear suspension', options: ['Good','Fair','Poor'] }, { name: 'Steering', options: ['Good','Fair','Poor'] }] },
-      { key: 'tyres',      label: 'Tyres',                 items: [{ name: 'Front tyres', options: ['Good','Fair','Poor'] }, { name: 'Rear tyres', options: ['Good','Fair','Poor'] }] },
-      { key: 'obd',        label: 'OBD Diagnostic',        items: [{ name: 'Fault codes', options: ['None','Codes found'] }, { name: 'CO2 test', options: ['Passed','Failed'] }] },
-      { key: 'test_drive', label: 'Test Drive',            items: [{ name: 'Overall behaviour', options: ['Good','Fair','Poor'] }, { name: 'Noises / vibrations', options: ['None','Minor','Notable'] }] },
-      { key: 'services',   label: 'Services Up to Date',   items: [{ name: 'Engine oil', options: ['Up to date','Overdue','Unknown'] }, { name: 'Gearbox oil', options: ['Up to date','Overdue','Unknown'] }] },
+      { key: 'body',         label: 'Body / Exterior',       items: [{ name: 'Paint condition', options: ['Good','Fair','Poor'] }, { name: 'Body panels / dents', options: ['Good','Fair','Poor'] }, { name: 'Windscreen / glass', options: ['Good','Fair','Poor'] }] },
+      { key: 'engine',       label: 'Engine / Under Hood',   items: [{ name: 'Oil leaks', options: ['Good','Fair','Poor'] }, { name: 'Fluids (coolant, oil, brakes)', options: ['Good','Fair','Poor'] }, { name: 'Auxiliary / serpentine belt', options: ['Good','Fair','Poor'] }, { name: 'Engine & transmission noises', options: ['Good','Fair','Poor'] }, { name: 'Coolant hoses', options: ['Good','Fair','Poor'] }] },
+      { key: 'transmission', label: 'Transmission / Drivetrain', items: [{ name: 'Gear shifting', options: ['Good','Fair','Poor'] }, { name: 'Transmission fluid', options: ['Good','Fair','Poor'] }, { name: 'Transmission leaks', options: ['Good','Fair','Poor'] }, { name: 'Clutch operation', options: ['Good','Fair','Poor','N/A'] }, { name: 'Drive shaft / uni joints', options: ['Good','Fair','Poor'] }, { name: 'CV boots / axle shafts', options: ['Good','Fair','Poor','N/A'] }, { name: 'Transfer case & diffs', options: ['Good','Fair','Poor','N/A'] }] },
+      { key: 'brakes',       label: 'Brakes',                items: [{ name: 'Front brake pads / rotors', options: ['Good','Fair','Poor'] }, { name: 'Rear brake pads / rotors', options: ['Good','Fair','Poor'] }] },
+      { key: 'suspension',   label: 'Suspension / Steering', items: [{ name: 'Front suspension', options: ['Good','Fair','Poor'] }, { name: 'Rear suspension', options: ['Good','Fair','Poor'] }, { name: 'Steering', options: ['Good','Fair','Poor'] }] },
+      { key: 'tyres',        label: 'Tyres',                 items: [{ name: 'Front tyres', options: ['Good','Fair','Poor'] }, { name: 'Rear tyres', options: ['Good','Fair','Poor'] }] },
+      { key: 'obd',          label: 'OBD Diagnostic',        items: [{ name: 'Fault codes', options: ['None','Codes found'] }, { name: 'CO2 test', options: ['Passed','Failed'] }] },
+      { key: 'test_drive',   label: 'Test Drive',            items: [{ name: 'Overall behaviour', options: ['Good','Fair','Poor'] }, { name: 'Noises / vibrations', options: ['None','Minor','Notable'] }] },
+      { key: 'services',     label: 'Services Up to Date',   items: [{ name: 'Engine oil', options: ['Up to date','Overdue','Unknown'] }, { name: 'Gearbox oil', options: ['Up to date','Overdue','Unknown'] }] },
     ],
   },
   service: {
@@ -363,12 +364,28 @@ const OPTION_STYLES: Record<string, string> = {
 }
 
 // ── CHECKLIST ITEM ────────────────────────────────────────────────────────────
-function ChecklistItem({ name, options, selected, comment, onSelect, onComment, photos, onPhotosChange, videos, onVideosChange }: {
+export type ItemRecommendation = { urgency: string; text: string }
+
+// Urgency levels double as the badge labels shown on the customer report.
+const URGENCY_OPTIONS = ['IMMEDIATE', 'MONITOR', 'ADVISORY']
+const URGENCY_STYLES: Record<string, string> = {
+  IMMEDIATE: 'bg-red-50 text-red-700 border-red-300',
+  MONITOR:   'bg-amber-50 text-amber-700 border-amber-300',
+  ADVISORY:  'bg-blue-50 text-blue-700 border-blue-300',
+}
+
+function ChecklistItem({ name, options, selected, comment, onSelect, onComment, photos, onPhotosChange, videos, onVideosChange, recommendation, onRecommendation }: {
   name: string; options: string[]; selected?: string; comment: string
   onSelect: (opt: string) => void; onComment: (val: string) => void
   photos: Photo[]; onPhotosChange: (p: Photo[]) => void
   videos: Video[]; onVideosChange: (v: Video[]) => void
+  recommendation?: ItemRecommendation
+  onRecommendation?: (rec: ItemRecommendation) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const rec = recommendation || { urgency: '', text: '' }
+  // Derived rather than initial state: saved data hydrates after this mounts.
+  const showRecommendation = expanded || !!rec.text || !!rec.urgency
   return (
     <div className="bg-white border border-neutral-200 rounded-xl p-4">
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -391,6 +408,29 @@ function ChecklistItem({ name, options, selected, comment, onSelect, onComment, 
         videos={videos}
         onVideosChange={onVideosChange}
       />
+      {onRecommendation && (showRecommendation ? (
+        <div className="mt-3 border-t border-neutral-100 pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-neutral-500">Recommendation</span>
+            <button onClick={() => { onRecommendation({ urgency: '', text: '' }); setExpanded(false) }}
+              className="text-xs text-neutral-400 hover:text-neutral-700">Remove</button>
+          </div>
+          <div className="flex gap-2 flex-wrap mb-2">
+            {URGENCY_OPTIONS.map(level => (
+              <button key={level} onClick={() => onRecommendation({ ...rec, urgency: rec.urgency === level ? '' : level })}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${rec.urgency === level ? URGENCY_STYLES[level] : 'border-neutral-200 text-neutral-500 hover:border-neutral-400'}`}>
+                {level}
+              </button>
+            ))}
+          </div>
+          <input type="text" value={rec.text} onChange={e => onRecommendation({ ...rec, text: e.target.value })}
+            placeholder="e.g. Replace uni joints — grease leaking"
+            className="w-full text-base px-3 py-2.5 border border-neutral-200 rounded-lg bg-neutral-50 text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400" />
+        </div>
+      ) : (
+        <button onClick={() => setExpanded(true)}
+          className="mt-3 text-xs text-neutral-500 hover:text-neutral-900">+ Recommendation</button>
+      ))}
     </div>
   )
 }
@@ -430,6 +470,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   const [doneSections, setDoneSections] = useState<Set<string>>(computedInitialDone)
   const [selections, setSelections] = useState<Record<string, Record<string, string>>>({})
   const [comments, setComments] = useState<Record<string, Record<string, string>>>({})
+  const [itemRecommendations, setItemRecommendations] = useState<Record<string, Record<string, ItemRecommendation>>>({})
   const [photoMap, setPhotoMap] = useState<Record<string, Photo[]>>({})
   const [videoMap, setVideoMap] = useState<Record<string, Video[]>>({})
   function ph(key: string) { return photoMap[key] || [] }
@@ -490,6 +531,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
       }
       if (s.selections)   setSelections(s.selections)
       if (s.comments)     setComments(s.comments)
+      if (s.itemRecommendations) setItemRecommendations(s.itemRecommendations)
       if (s.photoMap)     setPhotoMap(s.photoMap)
       if (s.videoMap)     setVideoMap(s.videoMap)
       if (s.inspectionFee !== undefined) setInspectionFee(s.inspectionFee)
@@ -567,13 +609,21 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
   function setComment(sectionKey: string, itemName: string, val: string) {
     setComments(prev => ({ ...prev, [sectionKey]: { ...prev[sectionKey], [itemName]: val } }))
   }
+  function setItemRecommendation(sectionKey: string, itemName: string, rec: ItemRecommendation) {
+    setItemRecommendations(prev => {
+      const section = { ...prev[sectionKey] }
+      if (!rec.urgency && !rec.text) delete section[itemName]
+      else section[itemName] = rec
+      return { ...prev, [sectionKey]: section }
+    })
+  }
 
   const buildFlowData = useCallback(() => {
     return {
       type, serviceType, serviceFee, inspectionFee, currentKm, observations,
       alertService, alertBrakes, customTasks, diagFee, complaint, findings, recommendation,
       estimates, repairSource, problem, diagNotes, parts, labour, repairResult,
-      finalNotes, selections, comments,
+      finalNotes, selections, comments, itemRecommendations,
       photoMap: sanitizeMediaMap(photoMap),
       videoMap: sanitizeMediaMap(videoMap),
     }
@@ -601,6 +651,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     finalNotes,
     selections,
     comments,
+    itemRecommendations,
     photoMap,
     videoMap,
   ])
@@ -643,6 +694,7 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
     finalNotes,
     selections,
     comments,
+    itemRecommendations,
     photoMap,
     videoMap,
     onAutoSave,
@@ -820,7 +872,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
               photos={ph(`${key}|${item.name}`)}
               onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
               videos={vid(`${key}|${item.name}`)}
-              onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
+              onVideosChange={vs => setVid(`${key}|${item.name}`, vs)}
+              recommendation={itemRecommendations[key]?.[item.name]}
+              onRecommendation={rec => setItemRecommendation(key, item.name, rec)} />
           ))}
         </div>
       )
@@ -962,7 +1016,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                 photos={ph(`${key}|${item.name}`)}
                 onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
                 videos={vid(`${key}|${item.name}`)}
-                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
+                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)}
+                recommendation={itemRecommendations[key]?.[item.name]}
+                onRecommendation={rec => setItemRecommendation(key, item.name, rec)} />
             ))}
           </div>
         )
@@ -979,7 +1035,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                 photos={ph(`${key}|${item.name}`)}
                 onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
                 videos={vid(`${key}|${item.name}`)}
-                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
+                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)}
+                recommendation={itemRecommendations[key]?.[item.name]}
+                onRecommendation={rec => setItemRecommendation(key, item.name, rec)} />
             ))}
           </div>
         )
