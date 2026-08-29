@@ -42,7 +42,7 @@ export default function JobFlowPage({ params }: { params: Promise<{ id: string }
             // After refresh: sessionStorage is gone but job has saved data —
             // mark all sections as done so user can navigate freely
             const allSections: Record<string, string[]> = {
-              pre_purchase: ['body','engine','brakes','suspension','tyres','obd','test_drive'],
+              pre_purchase: ['body','engine','transmission','brakes','suspension','tyres','obd','test_drive'],
               service:      ['service_type','tasks','checking','observations','alerts'],
               diagnosis:    ['complaint','findings','outcome'],
               repair:       ['outcome'],

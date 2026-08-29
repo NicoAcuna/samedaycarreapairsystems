@@ -115,14 +115,15 @@ function getVideosForItem(videoMap: Record<string, Video[]>, itemName: string) {
 
 function buildPrePurchaseSections(flowData: FlowData): Section[] {
   const DEFS = [
-    { key: 'body',       label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
-    { key: 'engine',     label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
-    { key: 'brakes',     label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
-    { key: 'suspension', label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
-    { key: 'tyres',      label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
-    { key: 'obd',        label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
-    { key: 'test_drive', label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
-    { key: 'services',   label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
+    { key: 'body',         label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
+    { key: 'engine',       label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
+    { key: 'transmission', label: 'Transmission / Drivetrain', items: ['Gear shifting','Transmission fluid','Transmission leaks','Clutch operation','Drive shaft / uni joints','CV boots / axle shafts','Transfer case & diffs'] },
+    { key: 'brakes',       label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
+    { key: 'suspension',   label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
+    { key: 'tyres',        label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
+    { key: 'obd',          label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
+    { key: 'test_drive',   label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
+    { key: 'services',     label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
   ]
   const sel = (flowData.selections as Record<string, Record<string, string>>) || {}
   const com = (flowData.comments  as Record<string, Record<string, string>>) || {}
@@ -217,7 +218,7 @@ function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
     problem: 'Problem Description', diag_notes: "Mechanic's Diagnosis", result: 'Final Notes',
   }
   const SEC_LABELS: Record<string, string> = {
-    body: 'Body / Exterior', engine: 'Engine / Under Hood', brakes: 'Brakes',
+    body: 'Body / Exterior', engine: 'Engine / Under Hood', transmission: 'Transmission / Drivetrain', brakes: 'Brakes',
     suspension: 'Suspension / Steering', tyres: 'Tyres', obd: 'OBD Diagnostic', test_drive: 'Test Drive',
     tasks: 'Tasks Done', checking: 'General Checking',
   }

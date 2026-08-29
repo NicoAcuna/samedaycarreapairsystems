@@ -316,14 +316,15 @@ export const FLOW_CONFIG = {
   pre_purchase: {
     title: 'Pre-Purchase Inspection',
     sections: [
-      { key: 'body',       label: 'Body / Exterior',       items: [{ name: 'Paint condition', options: ['Good','Fair','Poor'] }, { name: 'Body panels / dents', options: ['Good','Fair','Poor'] }, { name: 'Windscreen / glass', options: ['Good','Fair','Poor'] }] },
-      { key: 'engine',     label: 'Engine / Under Hood',   items: [{ name: 'Oil leaks', options: ['Good','Fair','Poor'] }, { name: 'Fluids (coolant, oil, brakes)', options: ['Good','Fair','Poor'] }, { name: 'Auxiliary / serpentine belt', options: ['Good','Fair','Poor'] }, { name: 'Engine & transmission noises', options: ['Good','Fair','Poor'] }, { name: 'Coolant hoses', options: ['Good','Fair','Poor'] }] },
-      { key: 'brakes',     label: 'Brakes',                items: [{ name: 'Front brake pads / rotors', options: ['Good','Fair','Poor'] }, { name: 'Rear brake pads / rotors', options: ['Good','Fair','Poor'] }] },
-      { key: 'suspension', label: 'Suspension / Steering', items: [{ name: 'Front suspension', options: ['Good','Fair','Poor'] }, { name: 'Rear suspension', options: ['Good','Fair','Poor'] }, { name: 'Steering', options: ['Good','Fair','Poor'] }] },
-      { key: 'tyres',      label: 'Tyres',                 items: [{ name: 'Front tyres', options: ['Good','Fair','Poor'] }, { name: 'Rear tyres', options: ['Good','Fair','Poor'] }] },
-      { key: 'obd',        label: 'OBD Diagnostic',        items: [{ name: 'Fault codes', options: ['None','Codes found'] }, { name: 'CO2 test', options: ['Passed','Failed'] }] },
-      { key: 'test_drive', label: 'Test Drive',            items: [{ name: 'Overall behaviour', options: ['Good','Fair','Poor'] }, { name: 'Noises / vibrations', options: ['None','Minor','Notable'] }] },
-      { key: 'services',   label: 'Services Up to Date',   items: [{ name: 'Engine oil', options: ['Up to date','Overdue','Unknown'] }, { name: 'Gearbox oil', options: ['Up to date','Overdue','Unknown'] }] },
+      { key: 'body',         label: 'Body / Exterior',       items: [{ name: 'Paint condition', options: ['Good','Fair','Poor'] }, { name: 'Body panels / dents', options: ['Good','Fair','Poor'] }, { name: 'Windscreen / glass', options: ['Good','Fair','Poor'] }] },
+      { key: 'engine',       label: 'Engine / Under Hood',   items: [{ name: 'Oil leaks', options: ['Good','Fair','Poor'] }, { name: 'Fluids (coolant, oil, brakes)', options: ['Good','Fair','Poor'] }, { name: 'Auxiliary / serpentine belt', options: ['Good','Fair','Poor'] }, { name: 'Engine & transmission noises', options: ['Good','Fair','Poor'] }, { name: 'Coolant hoses', options: ['Good','Fair','Poor'] }] },
+      { key: 'transmission', label: 'Transmission / Drivetrain', items: [{ name: 'Gear shifting', options: ['Good','Fair','Poor'] }, { name: 'Transmission fluid', options: ['Good','Fair','Poor'] }, { name: 'Transmission leaks', options: ['Good','Fair','Poor'] }, { name: 'Clutch operation', options: ['Good','Fair','Poor','N/A'] }, { name: 'Drive shaft / uni joints', options: ['Good','Fair','Poor'] }, { name: 'CV boots / axle shafts', options: ['Good','Fair','Poor','N/A'] }, { name: 'Transfer case & diffs', options: ['Good','Fair','Poor','N/A'] }] },
+      { key: 'brakes',       label: 'Brakes',                items: [{ name: 'Front brake pads / rotors', options: ['Good','Fair','Poor'] }, { name: 'Rear brake pads / rotors', options: ['Good','Fair','Poor'] }] },
+      { key: 'suspension',   label: 'Suspension / Steering', items: [{ name: 'Front suspension', options: ['Good','Fair','Poor'] }, { name: 'Rear suspension', options: ['Good','Fair','Poor'] }, { name: 'Steering', options: ['Good','Fair','Poor'] }] },
+      { key: 'tyres',        label: 'Tyres',                 items: [{ name: 'Front tyres', options: ['Good','Fair','Poor'] }, { name: 'Rear tyres', options: ['Good','Fair','Poor'] }] },
+      { key: 'obd',          label: 'OBD Diagnostic',        items: [{ name: 'Fault codes', options: ['None','Codes found'] }, { name: 'CO2 test', options: ['Passed','Failed'] }] },
+      { key: 'test_drive',   label: 'Test Drive',            items: [{ name: 'Overall behaviour', options: ['Good','Fair','Poor'] }, { name: 'Noises / vibrations', options: ['None','Minor','Notable'] }] },
+      { key: 'services',     label: 'Services Up to Date',   items: [{ name: 'Engine oil', options: ['Up to date','Overdue','Unknown'] }, { name: 'Gearbox oil', options: ['Up to date','Overdue','Unknown'] }] },
     ],
   },
   service: {
