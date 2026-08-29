@@ -550,13 +550,16 @@ export default function LeadsPage() {
       .from('leads')
       .select('*')
       .order('created_at', { ascending: false })
+      .limit(500)
       .then(({ data }) => {
         setLeads((data as Lead[]) || [])
         setLoading(false)
       })
 
     fetchPendingSchedule()
-    const interval = setInterval(fetchPendingSchedule, 10000)
+    // Poll every 30s (was 10s) — this only drives a small "pending schedule"
+    // badge, so a slower cadence is plenty and saves queries/battery.
+    const interval = setInterval(fetchPendingSchedule, 30000)
     return () => clearInterval(interval)
   }, [])
 

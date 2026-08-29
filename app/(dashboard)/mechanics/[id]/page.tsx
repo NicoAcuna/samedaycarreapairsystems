@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
+import { jobValue, formatAUD } from '../../../../lib/money'
 
 type Permission = { view: boolean; edit: boolean; create: boolean }
 type Permissions = Record<string, Permission>
@@ -48,28 +49,6 @@ function initials(name: string) {
 
 type JobRow = { status: string; type: string; checklist_data: Record<string, unknown> | null }
 
-function parseMoney(v: unknown) {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
-  if (typeof v !== 'string') return 0
-  const n = Number(v.replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(n) ? n : 0
-}
-
-function jobValue(job: JobRow) {
-  const d = job.checklist_data as {
-    serviceFee?: string; inspectionFee?: string; diagFee?: string; estimates?: { estCost?: string }[]
-  } | null
-  if (!d) return 0
-  if (job.type === 'repair')       return (d.estimates || []).reduce((s, e) => s + parseMoney(e.estCost), 0)
-  if (job.type === 'service')      return parseMoney(d.serviceFee)
-  if (job.type === 'pre_purchase') return parseMoney(d.inspectionFee)
-  if (job.type === 'diagnosis')    return parseMoney(d.diagFee)
-  return 0
-}
-
-function fmtMoney(n: number) {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(n)
-}
 
 function WorkSummary({ mechanicId }: { mechanicId: string }) {
   const [stats, setStats] = useState<{ total: number; completed: number; revenue: number } | null>(null)
@@ -93,7 +72,7 @@ function WorkSummary({ mechanicId }: { mechanicId: string }) {
   const cards = [
     { label: 'Jobs assigned', value: stats ? String(stats.total) : '…' },
     { label: 'Completed', value: stats ? String(stats.completed) : '…' },
-    { label: 'Revenue billed', value: stats ? fmtMoney(stats.revenue) : '…' },
+    { label: 'Revenue billed', value: stats ? formatAUD(stats.revenue) : '…' },
   ]
 
   return (
@@ -339,7 +318,9 @@ export default function MechanicDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('mechanics').select('*').eq('id', id).single(),
+      supabase.from('mechanics')
+        .select('id, name, email, phone, status, user_id, created_at, role_id, permissions')
+        .eq('id', id).single(),
       supabase.auth.getUser(),
     ]).then(async ([{ data: m }, { data: { user } }]) => {
       setMechanic(m as Mechanic)

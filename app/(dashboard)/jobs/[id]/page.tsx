@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../../../lib/supabase/client'
+import { jobValue, formatAUD } from '../../../../lib/money'
 
 type QuoteItem = { description: string; cost: string }
 type QuoteData = { items: QuoteItem[]; labour: string; notes: string }
@@ -45,37 +46,6 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string; d
   in_progress: { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
   pending:     { label: 'In progress', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-500'  },
   completed:   { label: 'Completed',  bg: 'bg-green-50',    text: 'text-green-700',  dot: 'bg-green-500'   },
-}
-
-function parseMoney(value: string | number | null | undefined) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
-  if (typeof value !== 'string') return 0
-  const normalized = value.replace(/[^0-9.-]/g, '')
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function getJobValue(job: Job) {
-  const data = job.checklist_data
-  if (!data) return 0
-
-  if (job.type === 'repair') {
-    return (data.estimates || []).reduce((sum, estimate) => sum + parseMoney(estimate.estCost), 0)
-  }
-
-  if (job.type === 'service') return parseMoney(data.serviceFee)
-  if (job.type === 'pre_purchase') return parseMoney(data.inspectionFee)
-  if (job.type === 'diagnosis') return parseMoney(data.diagFee)
-
-  return 0
-}
-
-function formatMoney(amount: number) {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -213,7 +183,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const clientName = job.clients ? `${job.clients.first_name} ${job.clients.last_name}` : '—'
   const vehicleLabel = job.vehicles ? `${job.vehicles.make} ${job.vehicles.model} ${job.vehicles.year}` : '—'
   const plate = job.vehicles?.plate || '—'
-  const amountLabel = formatMoney(getJobValue(job))
+  const amountLabel = formatAUD(jobValue(job))
   const odometerLabel = job.odometer_km
     ? `${job.odometer_km.toLocaleString()} km`
     : job.vehicles?.odometer_km
