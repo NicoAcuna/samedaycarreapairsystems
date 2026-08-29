@@ -113,21 +113,40 @@ function getVideosForItem(videoMap: Record<string, Video[]>, itemName: string) {
   return matched?.[1] || []
 }
 
+const PRE_PURCHASE_DEFS = [
+  { key: 'body',         label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
+  { key: 'engine',       label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
+  { key: 'transmission', label: 'Transmission / Drivetrain', items: ['Gear shifting','Transmission fluid','Transmission leaks','Clutch operation','Drive shaft / uni joints','CV boots / axle shafts','Transfer case & diffs'] },
+  { key: 'brakes',       label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
+  { key: 'suspension',   label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
+  { key: 'tyres',        label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
+  { key: 'obd',          label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
+  { key: 'test_drive',   label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
+  { key: 'services',     label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
+]
+
+// Report recommendations are captured per checklist item in the flow.
+const REC_URGENCY_ORDER = ['IMMEDIATE', 'MONITOR', 'ADVISORY']
+
+function urgencyRank(type: string) {
+  const i = REC_URGENCY_ORDER.indexOf(type)
+  return i === -1 ? REC_URGENCY_ORDER.length : i
+}
+
+function buildPrePurchaseRecommendations(flowData: FlowData) {
+  const recs = (flowData.itemRecommendations as Record<string, Record<string, { urgency?: string; text?: string }>>) || {}
+  return PRE_PURCHASE_DEFS
+    .flatMap(d => d.items.flatMap(name => {
+      const text = recs[d.key]?.[name]?.text?.trim()
+      return text ? [{ type: recs[d.key]?.[name]?.urgency || 'ADVISORY', text: `${name} — ${text}` }] : []
+    }))
+    .sort((a, b) => urgencyRank(a.type) - urgencyRank(b.type))
+}
+
 function buildPrePurchaseSections(flowData: FlowData): Section[] {
-  const DEFS = [
-    { key: 'body',         label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
-    { key: 'engine',       label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
-    { key: 'transmission', label: 'Transmission / Drivetrain', items: ['Gear shifting','Transmission fluid','Transmission leaks','Clutch operation','Drive shaft / uni joints','CV boots / axle shafts','Transfer case & diffs'] },
-    { key: 'brakes',       label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
-    { key: 'suspension',   label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
-    { key: 'tyres',        label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
-    { key: 'obd',          label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
-    { key: 'test_drive',   label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
-    { key: 'services',     label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
-  ]
   const sel = (flowData.selections as Record<string, Record<string, string>>) || {}
   const com = (flowData.comments  as Record<string, Record<string, string>>) || {}
-  return DEFS.map(d => ({
+  return PRE_PURCHASE_DEFS.map(d => ({
     label: d.label,
     items: d.items
       .map(name => ({ name, result: sel[d.key]?.[name] || '', comment: com[d.key]?.[name] || '' }))
@@ -271,7 +290,7 @@ function PrePurchaseBody({ sections, flowData, photoMap, videoMap }: { sections:
   const verdict = getVerdict(sections)
   const counts  = countResults(sections)
   const additionalNotes = (flowData.finalNotes as string) || ''
-  const recs = [] as { type: string; text: string }[]
+  const recs = buildPrePurchaseRecommendations(flowData)
 
   return (
     <>

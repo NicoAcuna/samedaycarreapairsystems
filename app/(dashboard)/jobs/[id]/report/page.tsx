@@ -823,21 +823,40 @@ function ServiceBody({ sections, nextService, additionalNotes, photoMap, videoMa
 }
 
 // ── Build sections from flow data ─────────────────────────────────────────────
+const PRE_PURCHASE_DEFS = [
+  { key: 'body',         label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
+  { key: 'engine',       label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
+  { key: 'transmission', label: 'Transmission / Drivetrain', items: ['Gear shifting','Transmission fluid','Transmission leaks','Clutch operation','Drive shaft / uni joints','CV boots / axle shafts','Transfer case & diffs'] },
+  { key: 'brakes',       label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
+  { key: 'suspension',   label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
+  { key: 'tyres',        label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
+  { key: 'obd',          label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
+  { key: 'test_drive',   label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
+  { key: 'services',     label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
+]
+
+// Report recommendations are captured per checklist item in the flow.
+const REC_URGENCY_ORDER = ['IMMEDIATE', 'MONITOR', 'ADVISORY']
+
+function urgencyRank(type: string) {
+  const i = REC_URGENCY_ORDER.indexOf(type)
+  return i === -1 ? REC_URGENCY_ORDER.length : i
+}
+
+function buildPrePurchaseRecommendations(flowData: Record<string, unknown>) {
+  const recs = (flowData.itemRecommendations as Record<string, Record<string, { urgency?: string; text?: string }>>) || {}
+  return PRE_PURCHASE_DEFS
+    .flatMap(d => d.items.flatMap(name => {
+      const text = recs[d.key]?.[name]?.text?.trim()
+      return text ? [{ type: recs[d.key]?.[name]?.urgency || 'ADVISORY', text: `${name} — ${text}` }] : []
+    }))
+    .sort((a, b) => urgencyRank(a.type) - urgencyRank(b.type))
+}
+
 function buildPrePurchaseSections(flowData: Record<string, unknown>) {
-  const SECTION_DEFS = [
-    { key: 'body',         label: 'Body / Exterior',       items: ['Paint condition','Body panels / dents','Windscreen / glass'] },
-    { key: 'engine',       label: 'Engine / Under Hood',   items: ['Oil leaks','Fluids (coolant, oil, brakes)','Auxiliary / serpentine belt','Engine & transmission noises','Coolant hoses'] },
-    { key: 'transmission', label: 'Transmission / Drivetrain', items: ['Gear shifting','Transmission fluid','Transmission leaks','Clutch operation','Drive shaft / uni joints','CV boots / axle shafts','Transfer case & diffs'] },
-    { key: 'brakes',       label: 'Brakes',                items: ['Front brake pads / rotors','Rear brake pads / rotors'] },
-    { key: 'suspension',   label: 'Suspension / Steering', items: ['Front suspension','Rear suspension','Steering'] },
-    { key: 'tyres',        label: 'Tyres',                 items: ['Front tyres','Rear tyres'] },
-    { key: 'obd',          label: 'OBD Diagnostic',        items: ['Fault codes','CO2 test'] },
-    { key: 'test_drive',   label: 'Test Drive',            items: ['Overall behaviour','Noises / vibrations'] },
-    { key: 'services',     label: 'Services Up to Date',   items: ['Engine oil','Gearbox oil'] },
-  ]
   const selections = (flowData.selections as Record<string, Record<string, string>>) || {}
   const comments = (flowData.comments as Record<string, Record<string, string>>) || {}
-  return SECTION_DEFS.map(sec => ({
+  return PRE_PURCHASE_DEFS.map(sec => ({
     label: sec.label,
     items: sec.items
       .map(name => ({ name, result: selections[sec.key]?.[name] || '', comment: comments[sec.key]?.[name] || '' }))
@@ -1155,7 +1174,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const additionalNotes = (flowData.finalNotes as string) || ''
   return (
     <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData} snapshot={flowData} company={company}>
-      <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={[]} photoMap={photoMap} videoMap={videoMap} />
+      <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={buildPrePurchaseRecommendations(flowData)} photoMap={photoMap} videoMap={videoMap} />
     </ReportShell>
   )
 }
