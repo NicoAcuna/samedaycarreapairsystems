@@ -1016,7 +1016,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                 photos={ph(`${key}|${item.name}`)}
                 onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
                 videos={vid(`${key}|${item.name}`)}
-                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
+                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)}
+                recommendation={itemRecommendations[key]?.[item.name]}
+                onRecommendation={rec => setItemRecommendation(key, item.name, rec)} />
             ))}
           </div>
         )
@@ -1033,7 +1035,9 @@ export function JobFlow({ type, jobId, clientId, vehicleId, vehicle, plate, init
                 photos={ph(`${key}|${item.name}`)}
                 onPhotosChange={ps => setPh(`${key}|${item.name}`, ps)}
                 videos={vid(`${key}|${item.name}`)}
-                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)} />
+                onVideosChange={vs => setVid(`${key}|${item.name}`, vs)}
+                recommendation={itemRecommendations[key]?.[item.name]}
+                onRecommendation={rec => setItemRecommendation(key, item.name, rec)} />
             ))}
           </div>
         )

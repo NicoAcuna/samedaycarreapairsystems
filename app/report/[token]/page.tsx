@@ -133,14 +133,26 @@ function urgencyRank(type: string) {
   return i === -1 ? REC_URGENCY_ORDER.length : i
 }
 
-function buildPrePurchaseRecommendations(flowData: FlowData) {
+function collectRecommendations(flowData: FlowData, groups: { key: string; items: string[] }[]) {
   const recs = (flowData.itemRecommendations as Record<string, Record<string, { urgency?: string; text?: string }>>) || {}
-  return PRE_PURCHASE_DEFS
-    .flatMap(d => d.items.flatMap(name => {
-      const text = recs[d.key]?.[name]?.text?.trim()
-      return text ? [{ type: recs[d.key]?.[name]?.urgency || 'ADVISORY', text: `${name} — ${text}` }] : []
-    }))
+  return groups
+    .flatMap(g => {
+      // Names the section no longer lists (custom tasks, renamed items) still carry their recommendation.
+      const extra = Object.keys(recs[g.key] || {}).filter(n => !g.items.includes(n))
+      return [...g.items, ...extra].flatMap(name => {
+        const text = recs[g.key]?.[name]?.text?.trim()
+        return text ? [{ type: recs[g.key]?.[name]?.urgency || 'ADVISORY', text: `${name} — ${text}` }] : []
+      })
+    })
     .sort((a, b) => urgencyRank(a.type) - urgencyRank(b.type))
+}
+
+function buildPrePurchaseRecommendations(flowData: FlowData) {
+  return collectRecommendations(flowData, PRE_PURCHASE_DEFS)
+}
+
+function buildServiceRecommendations(flowData: FlowData) {
+  return collectRecommendations(flowData, serviceItemGroups(flowData))
 }
 
 function buildPrePurchaseSections(flowData: FlowData): Section[] {
@@ -154,10 +166,9 @@ function buildPrePurchaseSections(flowData: FlowData): Section[] {
   })).filter(s => s.items.length > 0)
 }
 
-function buildServiceSections(flowData: FlowData): Section[] {
+function serviceItemGroups(flowData: FlowData) {
   const stype = (flowData.serviceType as string) || ''
   const sel = (flowData.selections as Record<string, Record<string, string>>) || {}
-  const com = (flowData.comments  as Record<string, Record<string, string>>) || {}
   const taskItems: string[] =
     stype === 'Minor Service'     ? ['Oil change','Oil filter','Oil plug washer'] :
     stype === 'Major Service'     ? ['Oil change','Oil filter','Oil plug washer','Cabin filter','Air filter','Spark plugs'] :
@@ -168,8 +179,19 @@ function buildServiceSections(flowData: FlowData): Section[] {
     Object.keys(sel['tasks'] || {})
 
   return [
-    { label: 'Tasks Done',       items: taskItems.map(n => ({ name: n, result: sel['tasks']?.[n] || '', comment: com['tasks']?.[n] || '' })).filter(i => i.result !== '') },
-    { label: 'General Checking', items: ['Tyre condition','Brake pads','Coolant level','Oil level','Other'].map(n => ({ name: n, result: sel['checking']?.[n] || '', comment: com['checking']?.[n] || '' })).filter(i => i.result !== '') },
+    { key: 'tasks',    items: taskItems },
+    { key: 'checking', items: ['Tyre condition','Brake pads','Coolant level','Oil level','Other'] },
+  ]
+}
+
+function buildServiceSections(flowData: FlowData): Section[] {
+  const sel = (flowData.selections as Record<string, Record<string, string>>) || {}
+  const com = (flowData.comments  as Record<string, Record<string, string>>) || {}
+  const [taskGroup, checkGroup] = serviceItemGroups(flowData)
+
+  return [
+    { label: 'Tasks Done',       items: taskGroup.items.map(n => ({ name: n, result: sel['tasks']?.[n] || '', comment: com['tasks']?.[n] || '' })).filter(i => i.result !== '') },
+    { label: 'General Checking', items: checkGroup.items.map(n => ({ name: n, result: sel['checking']?.[n] || '', comment: com['checking']?.[n] || '' })).filter(i => i.result !== '') },
   ]
 }
 
@@ -360,6 +382,7 @@ function ServiceBody({ sections, nextService, flowData, photoMap, videoMap }: { 
   const done = allItems.filter(i => i.result === 'Done').length
   const attention = allItems.filter(i => ['Poor','Fair','Failed','Codes found'].includes(i.result)).length
   const additionalNotes = (flowData.observations as string) || ''
+  const serviceRecs = buildServiceRecommendations(flowData)
 
   return (
     <>
@@ -392,6 +415,19 @@ function ServiceBody({ sections, nextService, flowData, photoMap, videoMap }: { 
 	          </div>
         </div>
       ))}
+      {serviceRecs.length > 0 && (
+        <div className="border-t border-neutral-100">
+          <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Recommendations</span></div>
+          <div className="divide-y divide-neutral-100">
+            {serviceRecs.map((rec, i) => (
+              <div key={i} className="flex items-start gap-4 px-5 py-3">
+                <span className={`text-xs font-bold px-2 py-1 rounded flex-shrink-0 ${REC_STYLES[rec.type] || 'bg-neutral-100 text-neutral-600'}`}>{rec.type}</span>
+                <span className="text-sm text-neutral-700">{rec.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {nextService.length > 0 && (
         <div className="border-t border-neutral-100">
           <div className="bg-neutral-900 px-5 py-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-white">Next Service Recommendations</span></div>
