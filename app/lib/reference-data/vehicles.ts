@@ -43,7 +43,7 @@ export const VEHICLE_CATALOG: VehicleCatalogOption[] = [
   { make: 'Subaru', models: ['BRZ', 'Forester', 'Impreza', 'Liberty', 'Outback', 'Solterra', 'WRX', 'XV'] },
   { make: 'Suzuki', models: ['Baleno', 'Ignis', 'Jimny', 'S-Cross', 'Swift', 'Vitara'] },
   { make: 'Tesla', models: ['Cybertruck', 'Model 3', 'Model S', 'Model X', 'Model Y'] },
-  { make: 'Toyota', models: ['86', 'Camry', 'C-HR', 'Corolla', 'Corolla Cross', 'FJ Cruiser', 'GR Supra', 'HiAce', 'Highlander', 'Hilux', 'Kluger', 'LandCruiser', 'LandCruiser 70', 'LandCruiser 200', 'LandCruiser 300', 'Prado', 'Prius', 'RAV4', 'Tarago', 'Yaris', 'Yaris Cross'] },
+  { make: 'Toyota', models: ['Avensis', '86', 'Camry', 'C-HR', 'Corolla', 'Corolla Cross', 'FJ Cruiser', 'GR Supra', 'HiAce', 'Highlander', 'Hilux', 'Kluger', 'LandCruiser', 'LandCruiser 70', 'LandCruiser 200', 'LandCruiser 300', 'Prado', 'Prius', 'RAV4', 'Tarago', 'Yaris', 'Yaris Cross'] },
   { make: 'Volkswagen', models: ['Amarok', 'Arteon', 'Caddy', 'Golf', 'ID.4', 'Multivan', 'Passat', 'Polo', 'T-Cross', 'T-Roc', 'Tiguan', 'Touareg', 'Transporter'] },
   { make: 'Volvo', models: ['C40', 'S60', 'S90', 'V60', 'V90', 'XC40', 'XC60', 'XC90'] },
 ]
