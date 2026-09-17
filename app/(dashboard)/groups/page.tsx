@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '../../../lib/supabase/client'
+import { useActiveCompany } from '../../../lib/useActiveCompany'
 
 type Group = {
   id: string
@@ -26,24 +27,22 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const { companyId, loading: companyLoading } = useActiveCompany()
 
   useEffect(() => {
+    if (companyLoading) return
+    if (!companyId) { setLoading(false); return }
     const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { setLoading(false); return }
-      const { data: userData } = await supabase
-        .from('users').select('active_company_id, company_id').eq('id', user.id).single()
-      const cid = userData?.active_company_id || userData?.company_id
-      if (!cid) { setLoading(false); return }
-      const { data } = await supabase
-        .from('whatsapp_groups')
-        .select('id, instance, group_jid, group_name, active, last_seen')
-        .eq('company_id', cid)
-        .order('last_seen', { ascending: false })
-      setGroups((data as Group[]) || [])
-      setLoading(false)
-    })
-  }, [])
+    supabase
+      .from('whatsapp_groups')
+      .select('id, instance, group_jid, group_name, active, last_seen')
+      .eq('company_id', companyId)
+      .order('last_seen', { ascending: false })
+      .then(({ data }) => {
+        setGroups((data as Group[]) || [])
+        setLoading(false)
+      })
+  }, [companyId, companyLoading])
 
   async function toggle(g: Group) {
     const supabase = createClient()

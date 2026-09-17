@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function DELETE(req: NextRequest) {
-  const { mechanic_id, user_id } = await req.json()
+  const { mechanic_id } = await req.json()
 
   if (!mechanic_id) {
     return NextResponse.json({ error: 'mechanic_id is required' }, { status: 400 })
@@ -27,13 +27,15 @@ export async function DELETE(req: NextRequest) {
 
   const { data: userData } = await supabase
     .from('users')
-    .select('role')
+    .select('role, active_company_id, company_id')
     .eq('id', user.id)
     .single()
 
   if (userData?.role !== 'super_admin') {
     return NextResponse.json({ error: 'Only super admins can delete mechanics' }, { status: 403 })
   }
+
+  const callerCompanyId = userData?.active_company_id || userData?.company_id
 
   const admin = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,12 +48,24 @@ export async function DELETE(req: NextRequest) {
   // same email fails with "user already registered".
   const { data: mech } = await admin
     .from('mechanics')
-    .select('email, user_id')
+    .select('email, user_id, company_id')
     .eq('id', mechanic_id)
     .single()
 
+  if (!mech) {
+    return NextResponse.json({ error: 'Mechanic not found' }, { status: 404 })
+  }
+
+  // Bind the target to the caller's company — a super_admin must not be able to
+  // delete mechanics (or their auth accounts) belonging to another tenant.
+  if (!callerCompanyId || mech.company_id !== callerCompanyId) {
+    return NextResponse.json({ error: 'Mechanic not in your company' }, { status: 403 })
+  }
+
   const email = mech?.email?.toLowerCase()
-  let authUserId: string | null = user_id || mech?.user_id || null
+  // Resolve the auth user ONLY from the mechanic row (or by its email), never
+  // from a body-supplied user_id, which could target an arbitrary account.
+  let authUserId: string | null = mech?.user_id || null
 
   // Fall back to resolving the auth user by email (pending invites have no
   // mechanics.user_id yet but generateLink already created the auth.users row).

@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'crypto'
 import { sendText } from '@/lib/evolution'
 import { loadCriteria, shouldTriggerWith, detectPriorityWith } from '@/lib/leadCriteria'
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
 
 // Receives Facebook group posts scraped locally, filters them with the user's
 // Facebook criteria, dedupes by post URL, and creates leads + alerts.
@@ -91,11 +99,14 @@ async function alertLead(args: { name: string; text: string; group: string | nul
 }
 
 export async function POST(req: NextRequest) {
-  if (CAPTURE_SECRET) {
-    const incoming = req.headers.get('x-facebook-secret')
-    if (incoming !== CAPTURE_SECRET) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+  // Fail closed: if the secret isn't configured, the endpoint is disabled rather
+  // than open to anonymous lead injection.
+  if (!CAPTURE_SECRET) {
+    return NextResponse.json({ error: 'Capture endpoint not configured' }, { status: 503 })
+  }
+  const incoming = req.headers.get('x-facebook-secret') || ''
+  if (!safeEqual(incoming, CAPTURE_SECRET)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const body = (await req.json().catch(() => null)) as { posts?: Post[]; groups?: Array<{ groupId?: string; group?: string }> } | Post | null

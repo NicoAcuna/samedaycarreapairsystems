@@ -1,6 +1,29 @@
 import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+// Escape user-controlled text before interpolating into the email HTML.
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 export async function POST(req: Request) {
+  // Require an authenticated session — this sends email from the business's
+  // verified domain, so it must never be an open relay.
+  const cookieStore = await cookies()
+  const auth = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+  )
+  const { data: { user } } = await auth.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { to, subject, message, reportUrl } = await req.json()
 
   const apiKey = process.env.RESEND_API_KEY
@@ -9,6 +32,10 @@ export async function POST(req: Request) {
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL!
+  // Only allow a same-site path (e.g. "/report/abc"), never an absolute URL.
+  const safePath = typeof reportUrl === 'string' && /^\/[^/]/.test(reportUrl) ? reportUrl : '/'
+  const safeMessage = escapeHtml(message || '')
+  const safeSubject = escapeHtml(subject || 'Your Report is Ready')
 
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
@@ -18,9 +45,9 @@ export async function POST(req: Request) {
         <div style="color: #a3a3a3; font-size: 12px; margin-top: 4px;">Mobile Mechanic · 0439 269 598</div>
       </div>
       <div style="border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
-        <p style="color: #404040; font-size: 15px; margin: 0 0 16px;">${message}</p>
+        <p style="color: #404040; font-size: 15px; margin: 0 0 16px;">${safeMessage}</p>
         <p style="color: #737373; font-size: 13px; margin: 0 0 24px;">Your full report is available online. Click the button below to view and download it.</p>
-        <a href="${baseUrl}${reportUrl}"
+        <a href="${baseUrl}${safePath}"
            style="display: inline-block; background: #171717; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600;">
           View Report →
         </a>
@@ -45,7 +72,7 @@ export async function POST(req: Request) {
         reply_to: 'samedaycarrepair@gmail.com',
         to: Array.isArray(to) ? to : [to],
         bcc: ['samedaycarrepair@gmail.com'],
-        subject,
+        subject: safeSubject,
         html,
       }),
     })

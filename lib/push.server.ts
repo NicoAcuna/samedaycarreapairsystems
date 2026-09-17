@@ -1,11 +1,30 @@
 import webpush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+// Configure VAPID lazily on first send instead of at module import. Doing it at
+// import time crashed any route that imports this module (e.g. /api/notify) —
+// and broke the build's page-data collection — whenever the VAPID env vars were
+// absent or misconfigured. Returns false if push isn't configured.
+let vapidReady: boolean | null = null
+function ensureVapid(): boolean {
+  if (vapidReady !== null) return vapidReady
+  const email = process.env.VAPID_EMAIL
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const priv = process.env.VAPID_PRIVATE_KEY
+  if (!email || !pub || !priv) {
+    console.warn('[push] VAPID not configured — skipping push sends')
+    vapidReady = false
+    return false
+  }
+  try {
+    webpush.setVapidDetails(email, pub, priv)
+    vapidReady = true
+  } catch (e: any) {
+    console.error('[push] VAPID setup failed:', e?.message)
+    vapidReady = false
+  }
+  return vapidReady
+}
 
 export type PushEventType =
   | 'new_lead'
@@ -21,6 +40,9 @@ export type PushPayload = {
 // Send a push to every device registered for a company.
 // Uses service role so it can read all subscriptions regardless of RLS.
 export async function sendPushToCompany(companyId: string, payload: PushPayload) {
+  // No push config → no-op (the notification row is still written by the caller).
+  if (!ensureVapid()) return { sent: 0, failed: 0 }
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
