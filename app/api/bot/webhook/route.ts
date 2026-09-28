@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'crypto'
 import { sendText, getGroupSubject } from '@/lib/evolution'
 import { createAppointmentEvent } from '@/lib/google-calendar'
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const SUPABASE_USER_ID    = process.env.SUPABASE_USER_ID!
@@ -974,12 +982,14 @@ async function notifyDisconnected(instance: string | null) {
 
 // ── WEBHOOK HANDLER ───────────────────────────────────────────────────────────
 export async function handleWebhookPost(req: NextRequest, routeEvent?: string | null) {
-  // Validate webhook secret (Evolution API sends apikey header)
-  if (WEBHOOK_SECRET) {
-    const incoming = req.headers.get('apikey') ?? req.headers.get('x-webhook-secret')
-    if (incoming !== WEBHOOK_SECRET) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+  // Validate webhook secret (Evolution API sends apikey header). Fail closed:
+  // if the secret isn't configured, reject rather than accepting forged events.
+  if (!WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
+  }
+  const incoming = req.headers.get('apikey') ?? req.headers.get('x-webhook-secret') ?? ''
+  if (!safeEqual(incoming, WEBHOOK_SECRET)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const body = await req.json().catch(() => null)

@@ -61,29 +61,45 @@ async function askClaude(history) {
     return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
   }
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      max_tokens: 400,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        ...history,
-      ],
-    }),
-  })
+  const fallback = { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
 
-  if (!res.ok) {
-    console.error('❌ OpenAI API error:', res.status, await res.text())
-    return { message: 'Gracias por contactarnos, te responderemos a la brevedad.', action: null, data: {} }
+  let res
+  try {
+    res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 400,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...history,
+        ],
+      }),
+      // Don't let a hung socket block the reply forever.
+      signal: AbortSignal.timeout(30000),
+    })
+  } catch (e) {
+    console.error('❌ OpenAI request failed:', e.message)
+    return fallback
   }
 
-  const json = await res.json()
-  const text = json.choices?.[0]?.message?.content || ''
+  if (!res.ok) {
+    console.error('❌ OpenAI API error:', res.status, await res.text().catch(() => ''))
+    return fallback
+  }
+
+  let text = ''
+  try {
+    const json = await res.json()
+    text = json.choices?.[0]?.message?.content || ''
+  } catch (e) {
+    console.error('❌ OpenAI parse failed:', e.message)
+    return fallback
+  }
 
   try {
     return JSON.parse(text)

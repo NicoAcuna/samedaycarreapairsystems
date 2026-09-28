@@ -1,6 +1,7 @@
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys')
 const { createClient } = require('@supabase/supabase-js')
 const { askClaude } = require('./claude')
+const { loadCriteria, shouldTriggerWith, detectPriorityWith } = require('./criteria')
 const pino = require('pino')
 const http = require('http')
 const qrcode = require('qrcode')
@@ -19,6 +20,21 @@ const AUTH_DIR              = process.env.AUTH_DIR || './auth_info'
 const NOTIFY_SECRET         = process.env.NOTIFY_SECRET
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+// DB-driven criteria cache (from /settings). Refreshed periodically so keyword
+// edits take effect without a redeploy. Null → fall back to hardcoded triggers.
+const seenMessageIds = new Set()
+let dbCriteria = null
+async function refreshCriteria() {
+  try {
+    dbCriteria = await loadCriteria(supabase, SUPABASE_COMPANY_ID, 'whatsapp')
+    console.log(dbCriteria
+      ? `🔑 Loaded ${dbCriteria.trigger.length} WhatsApp trigger keywords from DB`
+      : '🔑 No DB criteria — using built-in triggers')
+  } catch (e) {
+    console.error('❌ refreshCriteria error:', e.message)
+  }
+}
 
 // ── KEYWORD DETECTION ─────────────────────────────────────────────────────────
 const TRIGGERS = [
@@ -134,6 +150,7 @@ async function sendEmailNotification({ senderName, message, groupName, leadId, p
   try {
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
@@ -197,6 +214,7 @@ async function sendPushNotification({ senderName, message, groupName, leadId, pr
   try {
     const res = await fetch(`${APP_URL}/api/notify`, {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: {
         'Content-Type': 'application/json',
         'x-notify-secret': NOTIFY_SECRET,
@@ -314,6 +332,7 @@ async function handleRequestQuote(conv, data, contactName) {
   try {
     await fetch(`${APP_URL}/api/notify`, {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json', 'x-notify-secret': NOTIFY_SECRET },
       body: JSON.stringify({
         companyId: SUPABASE_COMPANY_ID,
@@ -333,6 +352,10 @@ async function handleRequestQuote(conv, data, contactName) {
 
 // ── QUOTE APPROVAL (realtime) ─────────────────────────────────────────────────
 function subscribeToQuoteApprovals(sock) {
+  // Each reconnect calls startBot() again, which re-subscribes. Without removing
+  // the previous channel, approvals would fire N times after N reconnects and
+  // the customer would receive duplicate quotes.
+  supabase.removeAllChannels()
   supabase
     .channel('bot_quote_approvals')
     .on(
@@ -441,7 +464,7 @@ async function startBot() {
       const code = lastDisconnect?.error?.output?.statusCode
       const shouldReconnect = code !== DisconnectReason.loggedOut
       console.log(`⚠️  Connection closed (code ${code}). Reconnecting: ${shouldReconnect}`)
-      if (shouldReconnect) startBot()
+      if (shouldReconnect) startBot().catch(e => console.error('❌ reconnect failed:', e?.message || e))
     }
   })
 
@@ -449,7 +472,20 @@ async function startBot() {
     if (type !== 'notify') return
 
     for (const msg of messages) {
+     try {
       if (msg.key.fromMe) continue
+
+      // Dedupe re-delivered messages (Baileys retries on reconnect / key resync)
+      // so the same post can't create two leads.
+      const msgId = msg.key.id
+      if (msgId) {
+        if (seenMessageIds.has(msgId)) continue
+        seenMessageIds.add(msgId)
+        if (seenMessageIds.size > 5000) {
+          const iter = seenMessageIds.values()
+          for (let i = 0; i < 1000; i++) seenMessageIds.delete(iter.next().value)
+        }
+      }
 
       const remoteJid = msg.key.remoteJid || ''
       const isGroup   = remoteJid.endsWith('@g.us')
@@ -505,10 +541,13 @@ async function startBot() {
       }
 
       // ── Keyword trigger → lead + notifications ──────────────────────────────
-      if (!shouldTrigger(text)) continue
+      // Prefer DB criteria (editable from /settings, shared with FB/Airtasker);
+      // fall back to the built-in triggers when none are configured.
+      const triggered = dbCriteria ? shouldTriggerWith(text, dbCriteria) : shouldTrigger(text)
+      if (!triggered) continue
 
       const source   = isGroup ? 'whatsapp_group' : 'whatsapp_direct'
-      const priority = detectPriority(text)
+      const priority = dbCriteria ? detectPriorityWith(text, dbCriteria) : detectPriority(text)
       console.log(`🎯 Trigger [${priority}] ${isGroup ? `in "${groupName}"` : '(direct)'}: ${senderName} — "${text.slice(0, 80)}..."`)
 
       const lead = await createLead({ senderName, senderPhone, message: text, groupName, priority, source })
@@ -524,9 +563,26 @@ async function startBot() {
       if (convEnabled && contactJid) {
         await startConversation(sock, { lead, contactJid, senderName, senderPhone, originalMessage: text })
       }
+     } catch (e) {
+       // Never let one bad message take down the whole handler / process.
+       console.error('❌ message handler error:', e?.message || e)
+     }
     }
   })
 }
+
+// Last-resort guards so a stray rejection/exception doesn't silently kill the
+// bot process (which would stop lead capture with no alert).
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  Unhandled rejection:', reason?.message || reason)
+})
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  Uncaught exception:', err?.message || err)
+})
+
+// Load lead criteria at startup and refresh every 5 minutes.
+refreshCriteria()
+setInterval(refreshCriteria, 5 * 60 * 1000)
 
 startBot().catch(err => {
   console.error('Fatal error:', err)

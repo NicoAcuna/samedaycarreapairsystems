@@ -1,14 +1,25 @@
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { userId, email, workspaceName, phone, address } = body
+    const { workspaceName, phone, address } = body
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
-    }
+    // Identity comes from the authenticated session — NEVER from the body.
+    // Trusting a body-supplied userId let anyone mint themselves a super_admin.
+    const cookieStore = await cookies()
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+    )
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = user.id
+    const email = user.email
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('[setup-workspace] SUPABASE_SERVICE_ROLE_KEY is not set')
