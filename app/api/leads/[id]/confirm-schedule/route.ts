@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { sendText } from '@/lib/evolution'
 
 function getSupabase() {
@@ -16,6 +18,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Missing conversation_id or when' }, { status: 400 })
   }
 
+  // Require an authenticated session — this route sends WhatsApp messages from
+  // the business number, so it must never be callable anonymously.
+  const cookieStore = await cookies()
+  const authClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+  )
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data: caller } = await authClient
+    .from('users').select('active_company_id, company_id').eq('id', user.id).single()
+  const callerCompanyId = caller?.active_company_id || caller?.company_id
+
   const supabase = getSupabase()
 
   const { data: conv, error: convErr } = await supabase
@@ -27,6 +43,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (convErr || !conv) {
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
+  }
+
+  // The conversation must belong to the caller's company.
+  if (!callerCompanyId || conv.company_id !== callerCompanyId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const lang = conv.language || 'es'

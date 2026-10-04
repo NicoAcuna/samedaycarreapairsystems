@@ -8,6 +8,8 @@ export async function sendText(to: string, text: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: API_KEY },
     body: JSON.stringify({ number: to, text }),
+    // Don't let a hung Evolution socket block the request forever.
+    signal: AbortSignal.timeout(15000),
   })
   if (!res.ok) throw new Error(`Evolution sendText ${res.status}: ${await res.text()}`)
   return res.json()
@@ -17,7 +19,7 @@ export async function getGroupSubject(groupJid: string): Promise<string | null> 
   if (!BASE_URL || !API_KEY || !INSTANCE) return null
   try {
     const url = `${BASE_URL}/group/findGroupInfos/${encodeURIComponent(INSTANCE)}?groupJid=${encodeURIComponent(groupJid)}`
-    const res = await fetch(url, { headers: { apikey: API_KEY } })
+    const res = await fetch(url, { headers: { apikey: API_KEY }, signal: AbortSignal.timeout(15000) })
     if (!res.ok) {
       console.error(`[evolution] getGroupSubject ${res.status}: ${await res.text()}`)
       return null
