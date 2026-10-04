@@ -208,12 +208,17 @@ function buildNextService(flowData: FlowData) {
   return []
 }
 
+const CRITICAL_ITEMS = ['CO2 test']
+
 function getVerdict(sections: Section[]) {
   const all = sections.flatMap(s => s.items)
   const poor = all.filter(i => ['Poor','Failed','Codes found'].includes(i.result)).length
-  if (poor >= 3) return { label: 'Not recommended',         sub: `${poor} items require immediate attention.`,                                           color: 'text-red-700',   border: 'border-red-200 bg-red-50'    }
-  if (poor >= 1) return { label: 'Purchase with caution',   risk: 'There are risks associated with this vehicle.', sub: `${poor} item${poor > 1 ? 's' : ''} require${poor === 1 ? 's' : ''} immediate attention.`, color: 'text-amber-700', border: 'border-amber-200 bg-amber-50' }
-  return            { label: 'Recommended for purchase',  sub: 'No critical issues found. Vehicle is in good overall condition.',                     color: 'text-green-700', border: 'border-green-200 bg-green-50' }
+  const critical = all.filter(i => CRITICAL_ITEMS.includes(i.name) && ['Poor','Failed'].includes(i.result))
+
+  if (critical.length > 0) return { label: 'Not recommended', risk: 'Critical issue detected.', sub: `${critical.map(i => i.name).join(', ')} failed. This is a critical finding regardless of the rest of the inspection.`, color: 'text-red-700', border: 'border-red-200 bg-red-50' }
+  if (poor >= 3) return { label: 'Not recommended', sub: `${poor} items require immediate attention.`, color: 'text-red-700', border: 'border-red-200 bg-red-50' }
+  if (poor >= 1) return { label: 'Purchase with caution', risk: 'There are risks associated with this vehicle.', sub: `${poor} item${poor > 1 ? 's' : ''} require${poor === 1 ? 's' : ''} immediate attention.`, color: 'text-amber-700', border: 'border-amber-200 bg-amber-50' }
+  return { label: 'Recommended for purchase', sub: 'No critical issues found. Vehicle is in good overall condition.', color: 'text-green-700', border: 'border-green-200 bg-green-50' }
 }
 
 function countResults(sections: Section[]) {
