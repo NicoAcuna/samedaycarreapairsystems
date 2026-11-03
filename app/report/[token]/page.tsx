@@ -221,6 +221,13 @@ function getVerdict(sections: Section[]) {
   return { label: 'Recommended for purchase', sub: 'No critical issues found. Vehicle is in good overall condition.', color: 'text-green-700', border: 'border-green-200 bg-green-50' }
 }
 
+// Optional per-report wording, stored as flowData.verdictOverride. Never softens a "Not recommended" result.
+function withVerdictOverride<V extends ReturnType<typeof getVerdict>>(verdict: V, flowData: FlowData) {
+  const override = flowData.verdictOverride as { label?: string; sub?: string } | undefined
+  if (!override?.label || verdict.label === 'Not recommended') return verdict
+  return { ...verdict, label: override.label, risk: '', sub: override.sub ?? verdict.sub }
+}
+
 function countResults(sections: Section[]) {
   const all = sections.flatMap(s => s.items)
   return {
@@ -314,7 +321,7 @@ function PhotosSection({ photoMap }: { photoMap: Record<string, Photo[]> }) {
 
 // ── Pre-Purchase Body ──────────────────────────────────────────────────────────
 function PrePurchaseBody({ sections, flowData, photoMap, videoMap }: { sections: Section[]; flowData: FlowData; photoMap: Record<string, Photo[]>; videoMap: Record<string, Video[]> }) {
-  const verdict = getVerdict(sections)
+  const verdict = withVerdictOverride(getVerdict(sections), flowData)
   const counts  = countResults(sections)
   const additionalNotes = (flowData.finalNotes as string) || ''
   const recs = buildPrePurchaseRecommendations(flowData)
