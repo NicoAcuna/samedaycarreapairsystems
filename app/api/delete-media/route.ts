@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 const BUNNY_API_KEY   = process.env.BUNNY_API_KEY!
 const BUNNY_STORAGE   = process.env.BUNNY_STORAGE_ZONE!
@@ -27,6 +29,15 @@ function normalisePath(pathOrUrl: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const cookieStore = await cookies()
+    const auth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } },
+    )
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const body = await req.json()
     const path = normalisePath(body?.path || body?.url || '')
 

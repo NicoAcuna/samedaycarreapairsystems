@@ -9,6 +9,46 @@ function makeOAuthClient(refreshToken: string) {
   return client
 }
 
+const SYDNEY_TZ = 'Australia/Sydney'
+
+// Wall-clock parts of an instant in Sydney (no string round-trip through Date,
+// which was silently swapping day/month for days ≤ 12).
+function sydneyParts(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SYDNEY_TZ, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short',
+  }).formatToParts(date)
+  const get = (t: string) => parts.find(p => p.type === t)?.value || ''
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return {
+    year: Number(get('year')),
+    month: Number(get('month')),
+    day: Number(get('day')),
+    weekday: weekdayMap[get('weekday')] ?? 0,
+  }
+}
+
+// Sydney's UTC offset (minutes) on a given date — handles AEST/AEDT (DST).
+function sydneyOffsetMinutes(y: number, m: number, d: number, hh: number, mm: number): number {
+  const asUTC = Date.UTC(y, m - 1, d, hh, mm, 0)
+  const local = new Date(asUTC)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SYDNEY_TZ, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(local)
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value || 0)
+  const asIfUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'))
+  return Math.round((asIfUTC - asUTC) / 60000)
+}
+
+// Build a Date for the given Sydney wall-clock time, correct across DST.
+function sydneyWallClockToDate(y: number, m: number, d: number, hh: number, mm: number): Date {
+  const offset = sydneyOffsetMinutes(y, m, d, hh, mm)
+  return new Date(Date.UTC(y, m - 1, d, hh, mm, 0) - offset * 60000)
+}
+
 // Parse "viernes a las 4:30pm", "miércoles a las 4pm", "friday at 4pm", etc.
 function parseAppointmentTime(when: string): Date | null {
   const daysEs: Record<string, number> = {
@@ -35,16 +75,17 @@ function parseAppointmentTime(when: string): Date | null {
   if (meridiem === 'am' && hour === 12) hour = 0
   if (!meridiem && hour < 8) hour += 12 // assume pm for ambiguous times
 
-  const now = new Date()
-  const sydney = new Date(now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }))
-
   if (targetDay === null) return null
 
-  const result = new Date(sydney)
-  result.setHours(hour, minute, 0, 0)
-  const daysUntil = (targetDay - sydney.getDay() + 7) % 7 || 7
-  result.setDate(result.getDate() + daysUntil)
-  return result
+  // Resolve "today" in Sydney, then walk forward to the next matching weekday
+  // and build the absolute instant for that Sydney wall-clock time.
+  const today = sydneyParts(new Date())
+  const daysUntil = (targetDay - today.weekday + 7) % 7 || 7
+  const base = Date.UTC(today.year, today.month - 1, today.day) + daysUntil * 86400000
+  const target = new Date(base)
+  return sydneyWallClockToDate(
+    target.getUTCFullYear(), target.getUTCMonth() + 1, target.getUTCDate(), hour, minute,
+  )
 }
 
 export async function createAppointmentEvent(args: {
@@ -94,7 +135,7 @@ export async function createAppointmentEvent(args: {
           end: { dateTime: end.toISOString(), timeZone: 'Australia/Sydney' },
         },
       })
-      console.log('[calendar] ✅ Event created for token ending in', refreshToken.slice(-6))
+      console.log('[calendar] ✅ Event created')
     } catch (e: any) {
       console.error('[calendar] Event creation failed:', e.message)
     }

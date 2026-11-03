@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'crypto'
 import { sendText } from '@/lib/evolution'
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
 
 // Receives an Airtasker task shared from the iOS Shortcut and turns it into a CRM lead.
 // Auth: the Shortcut sends the shared secret in the `x-airtasker-secret` header.
@@ -33,11 +41,13 @@ function extractUrl(s: string | undefined): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  if (CAPTURE_SECRET) {
-    const incoming = req.headers.get('x-airtasker-secret')
-    if (incoming !== CAPTURE_SECRET) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+  // Fail closed: no secret configured → endpoint disabled, not open.
+  if (!CAPTURE_SECRET) {
+    return NextResponse.json({ error: 'Capture endpoint not configured' }, { status: 503 })
+  }
+  const incoming = req.headers.get('x-airtasker-secret') || ''
+  if (!safeEqual(incoming, CAPTURE_SECRET)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const body = (await req.json().catch(() => null)) as CaptureBody | null
@@ -54,7 +64,23 @@ export async function POST(req: NextRequest) {
 
   const message = [rawText || headline, url].filter(Boolean).join('\n\n')
 
-  const { data: lead, error } = await getSupabase()
+  const supabase = getSupabase()
+
+  // Dedupe by task URL so a re-shared / retried Shortcut doesn't create dupes.
+  if (url) {
+    const { data: existing } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('company_id', SUPABASE_COMPANY_ID)
+      .eq('source', 'airtasker')
+      .eq('source_detail', url)
+      .limit(1)
+    if (existing && existing.length) {
+      return NextResponse.json({ ok: true, deduped: true, leadId: existing[0].id })
+    }
+  }
+
+  const { data: lead, error } = await supabase
     .from('leads')
     .insert([{
       user_id:       SUPABASE_USER_ID,

@@ -130,7 +130,7 @@ export default function MechanicsPage() {
 
       const { data } = await supabase
         .from('mechanics')
-        .select('*')
+        .select('id, name, email, phone, status, created_at')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false })
 

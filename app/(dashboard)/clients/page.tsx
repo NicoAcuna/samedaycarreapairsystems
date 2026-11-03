@@ -111,10 +111,14 @@ function NewClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: (c
     setSaving(true); setError('')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    const { data: userData } = await supabase
+      .from('users').select('active_company_id, company_id').eq('id', user?.id).single()
+    const companyId = userData?.active_company_id || userData?.company_id
     const { data, error: err } = await supabase
       .from('clients')
       .insert([{
         user_id: user?.id,
+        company_id: companyId,
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         phone: form.phone.trim(),
@@ -244,12 +248,15 @@ export default function ClientsPage() {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('clients').select('*').order('created_at', { ascending: false }),
+      supabase.from('clients').select('*').order('created_at', { ascending: false }).limit(1000),
+      // Newest NPS first + bounded — buildLatestNpsMap only keeps the latest per
+      // client, so an unbounded pull was fetching rows it immediately discards.
       supabase
         .from('client_interactions')
         .select('client_id, nps_score, created_at')
         .eq('interaction_type', 'nps')
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(2000),
     ]).then(([{ data: clientData }, { data: interactionData }]) => {
       setClients((clientData as Client[]) || [])
       setNpsByClient(buildLatestNpsMap((interactionData as ClientInteraction[]) || []))
