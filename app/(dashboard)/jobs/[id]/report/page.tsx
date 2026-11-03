@@ -457,6 +457,8 @@ const REC_STYLES: Record<string, string> = {
 
 const CRITICAL_ITEMS = ['CO2 test']
 
+type VerdictOverride = { label?: string; sub?: string }
+
 function getVerdict(sections: typeof REPORT.sections) {
   const allItems = sections.flatMap(s => s.items)
   const poor = allItems.filter(i => i.result === 'Poor' || i.result === 'Failed' || i.result === 'Codes found').length
@@ -466,6 +468,12 @@ function getVerdict(sections: typeof REPORT.sections) {
   if (poor >= 3) return { label: 'Not recommended', sub: `${poor} items require immediate attention before purchase.`, color: 'text-red-700', border: 'border-red-200 bg-red-50' }
   if (poor >= 1) return { label: 'Purchase with caution', risk: 'There are risks associated with this vehicle.', sub: `${poor} item${poor > 1 ? 's' : ''} require${poor === 1 ? 's' : ''} immediate attention before or after purchase.`, color: 'text-amber-700', border: 'border-amber-200 bg-amber-50' }
   return { label: 'Recommended for purchase', sub: 'No critical issues found. Vehicle is in good overall condition.', color: 'text-green-700', border: 'border-green-200 bg-green-50' }
+}
+
+// Optional per-report wording, stored as flowData.verdictOverride. Never softens a "Not recommended" result.
+function withVerdictOverride<V extends ReturnType<typeof getVerdict>>(verdict: V, override?: VerdictOverride) {
+  if (!override?.label || verdict.label === 'Not recommended') return verdict
+  return { ...verdict, label: override.label, risk: '', sub: override.sub ?? verdict.sub }
 }
 
 function countResults(sections: typeof REPORT.sections) {
@@ -651,14 +659,15 @@ function ReportShell({ id, title, subtitle, data, snapshot, company, children }:
   )
 }
 
-function SectionsBody({ sections, additionalNotes, recommendations, photoMap, videoMap }: {
+function SectionsBody({ sections, additionalNotes, recommendations, photoMap, videoMap, verdictOverride }: {
   sections: typeof REPORT.sections
+  verdictOverride?: VerdictOverride
   additionalNotes: string
   recommendations: { type: string; text: string }[]
   photoMap: Record<string, Photo[]>
   videoMap: Record<string, Video[]>
 }) {
-  const verdict = getVerdict(sections)
+  const verdict = withVerdictOverride(getVerdict(sections), verdictOverride)
   const counts = countResults(sections)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   function toggle(label: string) {
@@ -1215,7 +1224,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const additionalNotes = (flowData.finalNotes as string) || ''
   return (
     <ReportShell id={id} title="Pre-Purchase Inspection" subtitle="Inspection Report" data={reportData} snapshot={flowData} company={company}>
-      <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={buildPrePurchaseRecommendations(flowData)} photoMap={photoMap} videoMap={videoMap} />
+      <SectionsBody sections={sections} additionalNotes={additionalNotes} recommendations={buildPrePurchaseRecommendations(flowData)} photoMap={photoMap} videoMap={videoMap} verdictOverride={flowData.verdictOverride as VerdictOverride | undefined} />
     </ReportShell>
   )
 }
